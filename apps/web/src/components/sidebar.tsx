@@ -55,6 +55,10 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/spmb", label: "SPMB" },
     { href: "/dashboard/spmb/registrations", label: "Daftar Pendaftar" },
   ],
+  content: [
+    { href: "/dashboard/content", label: "Berita & Pengumuman" },
+    { href: "/dashboard/content/new", label: "Tulis Baru" },
+  ],
   website: [
     { href: "/dashboard/website", label: "Web Sekolah" },
     { href: "/dashboard/website/theme", label: "Tema & Warna" },
@@ -147,6 +151,7 @@ export function roleLabel(role: UserRole): string {
     STUDENT: "Siswa",
     PARENT: "Orang Tua",
     STAFF: "Staf",
+    CONTENT_EDITOR: "Editor Konten",
   };
   return map[role];
 }

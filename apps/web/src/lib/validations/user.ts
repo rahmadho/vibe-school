@@ -17,6 +17,7 @@ export const USER_ROLES = [
   "STUDENT",
   "PARENT",
   "STAFF",
+  "CONTENT_EDITOR",
 ] as const;
 
 export type UserRoleValue = (typeof USER_ROLES)[number];
@@ -30,6 +31,7 @@ export const USER_ROLE_LABEL: Record<UserRoleValue, string> = {
   STUDENT: "Siswa",
   PARENT: "Orang Tua",
   STAFF: "Staf",
+  CONTENT_EDITOR: "Editor Konten",
 };
 
 /** Role yang boleh dikelola admin sekolah (super-admin dikecualikan). */
@@ -41,6 +43,7 @@ export const SCHOOL_MANAGEABLE_ROLES: UserRoleValue[] = [
   "STUDENT",
   "PARENT",
   "STAFF",
+  "CONTENT_EDITOR",
 ];
 
 export const emailField = z

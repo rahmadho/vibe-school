@@ -17,6 +17,7 @@ export const ROLES: UserRole[] = [
   "STUDENT",
   "PARENT",
   "STAFF",
+  "CONTENT_EDITOR",
 ];
 
 /** Modul aplikasi (sesuai PRD). */
@@ -103,6 +104,23 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     website: ["read"],
     notifications: ["read"],
   },
+  /**
+   * Editor Konten — guru/staf yang boleh menulis berita dan pengumuman.
+   *
+   * Sengaja TIDAK diberi akses siswa, nilai, absensi, maupun keuangan. Inilah
+   * gunanya peran terpisah: operator TU sering bukan admin sistem, dan memberi
+   * mereka akses penuh hanya agar bisa menulis berita adalah risiko yang tidak
+   * perlu diambil.
+   *
+   * `website` hanya `read` — editor konten perlu melihat halaman web sekolah
+   * untuk memeriksa tempat beritanya tampil, tetapi tidak boleh mengubah
+   * susunan halaman atau tema.
+   */
+  CONTENT_EDITOR: {
+    content: ["manage"],
+    website: ["read"],
+    notifications: ["read"],
+  },
   STUDENT: {
     academic: ["read"],
     attendance: ["read"],
@@ -175,6 +193,8 @@ export const ROLE_DESCRIPTION: Record<UserRole, string> = {
   STUDENT: "Siswa. Melihat jadwal, nilai, absensi, dan tagihan sendiri.",
   PARENT: "Orang tua/wali. Melihat perkembangan anak dan tagihan.",
   STAFF: "Staf administrasi. Membantu input data siswa dan SPMB.",
+  CONTENT_EDITOR:
+    "Editor konten. Menulis dan mengelola berita, pengumuman, agenda, serta galeri web sekolah.",
 };
 
 /**

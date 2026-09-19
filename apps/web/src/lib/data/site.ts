@@ -439,6 +439,187 @@ export async function getPathQuotaUsage(schoolId: string, batchId: string) {
   });
 }
 
+/**
+ * Gelombang SPMB publik beserta jalur, sisa kuota, dan tanggal penting.
+ *
+ * Dibuat TERPISAH dari `getOpenBatches` (yang hanya mengembalikan gelombang
+ * terbuka) karena halaman pendaftaran publik perlu menampilkan gelombang yang
+ * BELUM dibuka sebagai pengumuman ("Gelombang 2 dibuka 1 Juli") — orang tua
+ * sering datang lebih awal dan perlu tahu jadwalnya, bukan halaman kosong.
+ */
+export type PublicBatchPath = {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  requirements: string | null;
+  registrationFee: number | null;
+  quota: number;
+  filled: number;
+  remaining: number;
+  isFull: boolean;
+  /** Butuh pendaftar memilih jalur ini? Selalu true; membantu form. */
+  isActive: boolean;
+};
+
+export type PublicBatch = {
+  id: string;
+  name: string;
+  description: string | null;
+  requirements: string | null;
+  openDate: Date;
+  closeDate: Date;
+  quota: number | null;
+  isOpen: boolean;
+  /** "belum" | "buka" | "tutup" — dipakai UI untuk memilih kalimat. */
+  phase: "belum" | "buka" | "tutup";
+  paths: PublicBatchPath[];
+};
+
+/**
+ * Gelombang + jalur yang layak tampil di halaman pendaftaran publik.
+ *
+ * Menyertakan satu gelombang yang barusan ditutup agar orang tua yang hendak
+ * mengecek status tidak melihat halaman kosong, tetapi tidak lebih dari itu.
+ */
+export async function getPublicBatches(schoolId: string): Promise<PublicBatch[]> {
+  const now = new Date();
+
+  const batches = await prisma.admissionBatch.findMany({
+    where: { schoolId, isActive: true },
+    orderBy: { openDate: "desc" },
+    take: 12,
+    include: {
+      paths: {
+        where: { isActive: true },
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+      },
+    },
+  });
+
+  if (batches.length === 0) return [];
+
+  // Hitung pemakai kuota per jalur dalam SATU query — bukan per jalur (N+1).
+  const counts = await prisma.registration.groupBy({
+    by: ["pathId", "batchId"],
+    where: {
+      schoolId,
+      batchId: { in: batches.map((b) => b.id) },
+      // Hanya pendaftaran yang sudah diverifikasi ke atas yang dianggap memakai
+      // kuota — pendaftar yang belum diverifikasi sering batal.
+      status: { in: ["VERIFIED", "TESTED", "ACCEPTED"] },
+    },
+    _count: { _all: true },
+  });
+
+  const usedByKey = new Map<string, number>(
+    counts.map((c): [string, number] => [
+      `${c.batchId}:${c.pathId ?? ""}`,
+      c._count._all,
+    ]),
+  );
+
+  const mapped: PublicBatch[] = batches.map((b) => {
+    const paths: PublicBatchPath[] = b.paths.map((p) => {
+      const filled = usedByKey.get(`${b.id}:${p.id}`) ?? 0;
+      const quota = p.quota;
+      return {
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        description: p.description,
+        requirements: p.requirements,
+        registrationFee: p.registrationFee,
+        quota,
+        filled,
+        remaining: quota > 0 ? Math.max(0, quota - filled) : Number.MAX_SAFE_INTEGER,
+        isFull: quota > 0 && filled >= quota,
+        isActive: true,
+      };
+    });
+
+    const phase: PublicBatch["phase"] =
+      b.openDate.getTime() > now.getTime()
+        ? "belum"
+        : b.closeDate.getTime() < now.getTime()
+          ? "tutup"
+          : "buka";
+
+    return {
+      id: b.id,
+      name: b.name,
+      description: b.description,
+      requirements: b.requirements,
+      openDate: b.openDate,
+      closeDate: b.closeDate,
+      quota: b.quota,
+      isOpen: phase === "buka",
+      phase,
+      paths,
+    };
+  });
+
+  // Tampilkan gelombang yang sedang buka lebih dulu, lalu yang belum buka,
+  // lalu yang barusan tutup (maksimal satu) supaya halaman tetap fokus.
+  const open = mapped.filter((b) => b.phase === "buka");
+  const upcoming = mapped.filter((b) => b.phase === "belum");
+  const closed = mapped.filter((b) => b.phase === "tutup").slice(0, 1);
+  return [...open, ...upcoming, ...closed];
+}
+
+/** Satu gelombang publik berdasarkan id, hanya bila memang milik sekolah ini. */
+export async function getPublicBatch(schoolId: string, batchId: string) {
+  const list = await getPublicBatches(schoolId);
+  return list.find((b) => b.id === batchId) ?? null;
+}
+
+/**
+ * Cari pendaftaran untuk pengecekan status publik.
+ *
+ * Pencarian memakai nomor pendaftaran + nomor HP orang tua yang sudah
+ * dinormalkan. `schoolId` wajib agar pendaftar sekolah A tidak bisa melihat
+ * data sekolah B hanya dengan menebak nomor.
+ *
+ * SENGAJA mengembalikan lebih dari sekadar yang ditampilkan: pemanggil
+ * (halaman) WAJIB menyaringnya sebelum dikirim ke komponen agar tidak ada data
+ * keluarga yang bocor ke HTML.
+ */
+export async function findRegistrationForStatus(
+  schoolId: string,
+  registrationNo: string,
+  normalizedParentPhone: string,
+) {
+  return prisma.registration.findFirst({
+    where: {
+      schoolId,
+      registrationNo,
+      parentPhone: normalizedParentPhone,
+    },
+    select: {
+      id: true,
+      registrationNo: true,
+      status: true,
+      fullName: true,
+      gender: true,
+      parentPhone: true,
+      submittedAt: true,
+      verifiedAt: true,
+      decidedAt: true,
+      resultNote: true,
+      score: true,
+      selectedRank: true,
+      batch: {
+        select: {
+          name: true,
+          resultAnnouncement: true,
+          resultDate: true,
+        },
+      },
+      path: { select: { name: true, code: true } },
+    },
+  });
+}
+
 /* ============================================================
  * KELENGKAPAN SITUS
  * ============================================================ */
