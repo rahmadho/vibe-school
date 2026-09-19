@@ -70,7 +70,7 @@ export function ThemePicker({
         <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
           Tema & warna
         </h2>
-        <p className="mt-0.5 text-sm text-[var(--ink-soft)]">
+        <p className="mt-0.5 text-sm text-[var(--slate)]">
           Pilih suasana yang paling mewakili sekolah. Semua preset sudah diperiksa
           agar teksnya mudah dibaca.
         </p>
@@ -101,7 +101,7 @@ export function ThemePicker({
                 aria-pressed={selected}
                 className="border-2 bg-white p-3 text-left"
                 style={{
-                  borderColor: selected ? "var(--ink)" : "var(--rule)",
+                  borderColor: selected ? "var(--ink)" : "var(--chalk)",
                   boxShadow: selected ? "3px 3px 0 var(--marker)" : "none",
                 }}
               >
@@ -115,7 +115,7 @@ export function ThemePicker({
                   ))}
                   <span className="ml-1 text-sm font-medium text-[var(--ink)]">{p.name}</span>
                 </div>
-                <p className="mt-1 text-[11px] leading-snug text-[var(--ink-soft)]">
+                <p className="mt-1 text-[11px] leading-snug text-[var(--slate)]">
                   {p.description}
                 </p>
               </button>
@@ -125,11 +125,11 @@ export function ThemePicker({
       </section>
 
       {/* Warna khusus */}
-      <section className="border-2 border-[var(--rule)] bg-white p-4">
+      <section className="border-2 border-[var(--chalk)] bg-white p-4">
         <h3 className="text-sm font-semibold text-[var(--ink)]">
-          Warna khusus <span className="font-normal text-[var(--ink-soft)]">(opsional)</span>
+          Warna khusus <span className="font-normal text-[var(--slate)]">(opsional)</span>
         </h3>
-        <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+        <p className="mt-0.5 text-xs text-[var(--slate)]">
           Kosongkan untuk memakai warna preset. Isi hanya bila sekolah punya warna
           resmi sendiri.
         </p>
@@ -224,7 +224,7 @@ export function ThemePicker({
         </div>
       </section>
 
-      <div className="border-t-2 border-[var(--rule)] pt-4">
+      <div className="border-t-2 border-[var(--chalk)] pt-4">
         <button
           type="button"
           onClick={save}
@@ -264,7 +264,7 @@ function HexField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+          className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
           style={{ borderColor: isValid ? undefined : "#b91c1c" }}
           aria-invalid={!isValid}
         />
@@ -295,7 +295,7 @@ function SelectField({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+        className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

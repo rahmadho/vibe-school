@@ -73,7 +73,7 @@ export function SettingsForm({
         <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
           Identitas &amp; kontak
         </h2>
-        <p className="mt-0.5 text-sm text-[var(--ink-soft)]">
+        <p className="mt-0.5 text-sm text-[var(--slate)]">
           Kalimat, kontak, dan tautan yang tampil di seluruh halaman web{" "}
           {schoolName}. Semakin lengkap, semakin mudah orang tua menghubungi
           sekolah.
@@ -84,7 +84,7 @@ export function SettingsForm({
 
       <form onSubmit={onSubmit} className="space-y-6" noValidate>
         {/* ---- Kalimat pengantar ---- */}
-        <section className="border-2 border-[var(--rule)] bg-white p-4">
+        <section className="border-2 border-[var(--chalk)] bg-white p-4">
           <h3 className="text-sm font-semibold text-[var(--ink)]">
             Kalimat pengantar
           </h3>
@@ -101,7 +101,7 @@ export function SettingsForm({
                 maxLength={120}
                 value={form.tagline}
                 onChange={(e) => set("tagline", e.target.value)}
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
               />
             </Field>
 
@@ -116,18 +116,18 @@ export function SettingsForm({
                 maxLength={400}
                 value={form.shortDescription}
                 onChange={(e) => set("shortDescription", e.target.value)}
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
               />
             </Field>
           </div>
         </section>
 
         {/* ---- Halaman depan ---- */}
-        <section className="border-2 border-[var(--rule)] bg-white p-4">
+        <section className="border-2 border-[var(--chalk)] bg-white p-4">
           <h3 className="text-sm font-semibold text-[var(--ink)]">
             Halaman depan
           </h3>
-          <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+          <p className="mt-0.5 text-xs text-[var(--slate)]">
             Pilih apakah beranda disusun dari blok, atau menampilkan satu
             halaman yang Anda tulis sendiri.
           </p>
@@ -138,7 +138,7 @@ export function SettingsForm({
                 name="homepageMode"
                 value={form.homepageMode}
                 onChange={(e) => set("homepageMode", e.target.value)}
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
               >
                 <option value="BLOCKS">Susunan blok (bawaan)</option>
                 <option value="SINGLE">Satu halaman tulisan</option>
@@ -156,14 +156,14 @@ export function SettingsForm({
                 value={form.beritaUrl}
                 onChange={(e) => set("beritaUrl", e.target.value)}
                 placeholder="https://…"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
           </div>
         </section>
 
         {/* ---- Kontak ---- */}
-        <section className="border-2 border-[var(--rule)] bg-white p-4">
+        <section className="border-2 border-[var(--chalk)] bg-white p-4">
           <h3 className="text-sm font-semibold text-[var(--ink)]">Kontak</h3>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -178,7 +178,7 @@ export function SettingsForm({
                 value={form.contactWa}
                 onChange={(e) => set("contactWa", e.target.value)}
                 placeholder="081234567890"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
 
@@ -193,7 +193,7 @@ export function SettingsForm({
                 maxLength={200}
                 value={form.officeHours}
                 onChange={(e) => set("officeHours", e.target.value)}
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
               />
             </Field>
           </div>
@@ -210,19 +210,19 @@ export function SettingsForm({
                 value={form.mapsUrl}
                 onChange={(e) => set("mapsUrl", e.target.value)}
                 placeholder="https://maps.google.com/…"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
           </div>
         </section>
 
         {/* ---- Sosial media ---- */}
-        <section className="border-2 border-[var(--rule)] bg-white p-4">
+        <section className="border-2 border-[var(--chalk)] bg-white p-4">
           <h3 className="text-sm font-semibold text-[var(--ink)]">
             Sosial media{" "}
-            <span className="font-normal text-[var(--ink-soft)]">(opsional)</span>
+            <span className="font-normal text-[var(--slate)]">(opsional)</span>
           </h3>
-          <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+          <p className="mt-0.5 text-xs text-[var(--slate)]">
             Kosongkan yang tidak dipakai — ikonnya otomatis disembunyikan.
           </p>
 
@@ -234,7 +234,7 @@ export function SettingsForm({
                 value={form.facebookUrl}
                 onChange={(e) => set("facebookUrl", e.target.value)}
                 placeholder="https://facebook.com/…"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
             <Field label="Instagram" error={fe("instagramUrl")}>
@@ -244,7 +244,7 @@ export function SettingsForm({
                 value={form.instagramUrl}
                 onChange={(e) => set("instagramUrl", e.target.value)}
                 placeholder="https://instagram.com/…"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
             <Field label="YouTube" error={fe("youtubeUrl")}>
@@ -254,7 +254,7 @@ export function SettingsForm({
                 value={form.youtubeUrl}
                 onChange={(e) => set("youtubeUrl", e.target.value)}
                 placeholder="https://youtube.com/…"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
             <Field label="TikTok" error={fe("tiktokUrl")}>
@@ -264,13 +264,13 @@ export function SettingsForm({
                 value={form.tiktokUrl}
                 onChange={(e) => set("tiktokUrl", e.target.value)}
                 placeholder="https://tiktok.com/…"
-                className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+                className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
               />
             </Field>
           </div>
         </section>
 
-        <div className="flex items-center gap-3 border-t-2 border-[var(--rule)] pt-4">
+        <div className="flex items-center gap-3 border-t-2 border-[var(--chalk)] pt-4">
           <button
             type="submit"
             disabled={pending}
@@ -317,9 +317,9 @@ function SlugBox({ initialSlug }: { initialSlug: string }) {
   }
 
   return (
-    <section className="border-2 border-[var(--rule)] bg-white p-4">
+    <section className="border-2 border-[var(--chalk)] bg-white p-4">
       <h3 className="text-sm font-semibold text-[var(--ink)]">Alamat web sekolah</h3>
-      <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+      <p className="mt-0.5 text-xs text-[var(--slate)]">
         Ini alamat yang dibagikan ke orang tua. Huruf kecil, angka, dan tanda
         hubung.
       </p>
@@ -328,21 +328,21 @@ function SlugBox({ initialSlug }: { initialSlug: string }) {
 
       <form onSubmit={onSubmit} className="mt-3" noValidate>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm text-[var(--ink-soft)]">https://</span>
+          <span className="font-mono text-sm text-[var(--slate)]">https://</span>
           <input
             type="text"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             aria-label="Alamat web sekolah"
-            className="min-w-0 flex-1 border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+            className="min-w-0 flex-1 border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
           />
-          <span className="font-mono text-sm text-[var(--ink-soft)]">
+          <span className="font-mono text-sm text-[var(--slate)]">
             .sekolah.id
           </span>
           <button
             type="submit"
             disabled={pending || !changed}
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)] disabled:opacity-40"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)] disabled:opacity-40"
           >
             {pending ? "Menyimpan…" : "Ubah alamat"}
           </button>
@@ -378,7 +378,7 @@ function Field({
       <span className="font-medium text-[var(--ink)]">{label}</span>
       <div className="mt-1">{children}</div>
       {hint && !error && (
-        <span className="mt-1 block text-[11px] leading-snug text-[var(--ink-soft)]">
+        <span className="mt-1 block text-[11px] leading-snug text-[var(--slate)]">
           {hint}
         </span>
       )}

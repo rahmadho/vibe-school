@@ -204,7 +204,7 @@ export function PostForm({
             Lebih baik operator tahu harus menempel tautan, daripada mencari
             tombol unggah yang tidak ada.
           */}
-          <p className="mt-1 text-xs text-[var(--ink-soft)]">
+          <p className="mt-1 text-xs text-[var(--slate)]">
             Untuk sementara, tempel tautan gambar (mis. dari Google Drive yang dibagikan
             publik). Unggah langsung akan tersedia setelah penyimpanan berkas dikonfigurasi.
           </p>

@@ -113,7 +113,7 @@ export function LayoutEditor({
           <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
             Susunan halaman depan
           </h2>
-          <p className="mt-0.5 text-sm text-[var(--ink-soft)]">
+          <p className="mt-0.5 text-sm text-[var(--slate)]">
             Urutan dari atas ke bawah di {schoolName}. Matikan blok untuk menyembunyikannya
             tanpa menghapus isinya.
           </p>
@@ -140,9 +140,9 @@ export function LayoutEditor({
       )}
 
       {blocks.length === 0 && (
-        <div className="border-2 border-dashed border-[var(--rule)] px-4 py-8 text-center">
+        <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-8 text-center">
           <p className="font-medium text-[var(--ink)]">Halaman depan masih kosong</p>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">
+          <p className="mt-1 text-sm text-[var(--slate)]">
             Tambahkan blok dari daftar di bawah untuk mulai menyusun.
           </p>
         </div>
@@ -158,12 +158,12 @@ export function LayoutEditor({
           return (
             <li
               key={b.blockKey}
-              className="border-2 border-[var(--rule)] bg-white"
+              className="border-2 border-[var(--chalk)] bg-white"
               style={{ opacity: b.isEnabled ? 1 : 0.55 }}
             >
               <div className="flex items-start gap-2 p-3">
                 {/* Nomor urut — di sini memang urutan, jadi angka bermakna. */}
-                <span className="mt-0.5 w-6 shrink-0 text-center font-mono text-sm text-[var(--ink-soft)]">
+                <span className="mt-0.5 w-6 shrink-0 text-center font-mono text-sm text-[var(--slate)]">
                   {i + 1}
                 </span>
 
@@ -177,19 +177,19 @@ export function LayoutEditor({
                       </span>
                     )}
                     {!b.isEnabled && (
-                      <span className="text-[11px] text-[var(--ink-soft)]">disembunyikan</span>
+                      <span className="text-[11px] text-[var(--slate)]">disembunyikan</span>
                     )}
                   </div>
 
-                  <p className="mt-0.5 text-xs text-[var(--ink-soft)]">{def.description}</p>
+                  <p className="mt-0.5 text-xs text-[var(--slate)]">{def.description}</p>
 
                   {def.variants.length > 1 && (
                     <label className="mt-2 flex items-center gap-2 text-xs">
-                      <span className="text-[var(--ink-soft)]">Gaya tampilan</span>
+                      <span className="text-[var(--slate)]">Gaya tampilan</span>
                       <select
                         value={b.variantKey}
                         onChange={(e) => setVariant(i, e.target.value)}
-                        className="border border-[var(--rule)] bg-white px-2 py-1 text-xs text-[var(--ink)]"
+                        className="border border-[var(--chalk)] bg-white px-2 py-1 text-xs text-[var(--ink)]"
                       >
                         {def.variants.map((v) => (
                           <option key={v.key} value={v.key}>
@@ -201,7 +201,7 @@ export function LayoutEditor({
                   )}
 
                   {variantInfo?.variant.hint && (
-                    <p className="mt-1 text-[11px] italic text-[var(--ink-soft)]">
+                    <p className="mt-1 text-[11px] italic text-[var(--slate)]">
                       {variantInfo.variant.hint}
                     </p>
                   )}
@@ -213,7 +213,7 @@ export function LayoutEditor({
                     onClick={() => move(i, -1)}
                     disabled={i === 0}
                     aria-label={`Naikkan ${def.name}`}
-                    className="border border-[var(--rule)] px-2 py-0.5 text-xs disabled:opacity-30"
+                    className="border border-[var(--chalk)] px-2 py-0.5 text-xs disabled:opacity-30"
                   >
                     ↑
                   </button>
@@ -222,7 +222,7 @@ export function LayoutEditor({
                     onClick={() => move(i, 1)}
                     disabled={i === blocks.length - 1}
                     aria-label={`Turunkan ${def.name}`}
-                    className="border border-[var(--rule)] px-2 py-0.5 text-xs disabled:opacity-30"
+                    className="border border-[var(--chalk)] px-2 py-0.5 text-xs disabled:opacity-30"
                   >
                     ↓
                   </button>
@@ -232,14 +232,14 @@ export function LayoutEditor({
                   <button
                     type="button"
                     onClick={() => toggle(i)}
-                    className="border border-[var(--rule)] px-2 py-0.5 text-xs"
+                    className="border border-[var(--chalk)] px-2 py-0.5 text-xs"
                   >
                     {b.isEnabled ? "Sembunyikan" : "Tampilkan"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpenKey(isOpen ? null : b.blockKey)}
-                    className="border border-[var(--rule)] px-2 py-0.5 text-xs"
+                    className="border border-[var(--chalk)] px-2 py-0.5 text-xs"
                   >
                     {isOpen ? "Tutup isi" : "Isi"}
                   </button>
@@ -260,7 +260,7 @@ export function LayoutEditor({
       </ol>
 
       {unused.length > 0 && (
-        <div className="border-t-2 border-[var(--rule)] pt-4">
+        <div className="border-t-2 border-[var(--chalk)] pt-4">
           <h3 className="text-sm font-semibold text-[var(--ink)]">Tambahkan blok</h3>
           <div className="mt-2 flex flex-wrap gap-2">
             {unused.map((d) => (
@@ -268,7 +268,7 @@ export function LayoutEditor({
                 key={d.key}
                 type="button"
                 onClick={() => addBlock(d.key)}
-                className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm text-[var(--ink)] hover:border-[var(--ink)]"
+                className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm text-[var(--ink)] hover:border-[var(--ink)]"
               >
                 <span aria-hidden className="mr-1">{d.icon}</span>
                 {d.name}
@@ -304,7 +304,7 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="border-t border-dashed border-[var(--rule)] bg-[var(--paper)] p-3">
+    <form onSubmit={onSubmit} className="border-t border-dashed border-[var(--chalk)] bg-[var(--paper)] p-3">
       <div className="grid gap-3 sm:grid-cols-2">
         {def.fields
           .filter((f) => !f.startsWith("item"))
@@ -315,13 +315,13 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
                 <textarea
                   name={field}
                   rows={5}
-                  className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm text-[var(--ink)]"
+                  className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm text-[var(--ink)]"
                 />
               ) : field === "imagePosition" ? (
                 <select
                   name={field}
                   defaultValue="kanan"
-                  className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                  className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                 >
                   <option value="kanan">Kanan</option>
                   <option value="kiri">Kiri</option>
@@ -338,7 +338,7 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
                 <input
                   type="text"
                   name={field}
-                  className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm text-[var(--ink)]"
+                  className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm text-[var(--ink)]"
                 />
               )}
             </label>
@@ -379,19 +379,19 @@ function RepeatedItems({ names, labels }: { names: [string, string]; labels: [st
               name={names[0]}
               placeholder={labels[0]}
               aria-label={labels[0]}
-              className="min-w-0 flex-1 border border-[var(--rule)] px-2 py-1 text-sm"
+              className="min-w-0 flex-1 border border-[var(--chalk)] px-2 py-1 text-sm"
             />
             <input
               name={names[1]}
               placeholder={labels[1]}
               aria-label={labels[1]}
-              className="min-w-0 flex-[2] border border-[var(--rule)] px-2 py-1 text-sm"
+              className="min-w-0 flex-[2] border border-[var(--chalk)] px-2 py-1 text-sm"
             />
             <button
               type="button"
               onClick={() => setRows((r) => r.filter((x) => x !== id))}
               aria-label="Hapus baris"
-              className="border border-[var(--rule)] px-2 text-xs"
+              className="border border-[var(--chalk)] px-2 text-xs"
             >
               ×
             </button>
@@ -405,7 +405,7 @@ function RepeatedItems({ names, labels }: { names: [string, string]; labels: [st
       >
         Tambah baris
       </button>
-      <p className="mt-1 text-[11px] text-[var(--ink-soft)]">
+      <p className="mt-1 text-[11px] text-[var(--slate)]">
         Baris yang dikosongkan otomatis tidak ikut disimpan.
       </p>
     </div>

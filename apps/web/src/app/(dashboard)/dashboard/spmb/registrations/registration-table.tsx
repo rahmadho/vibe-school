@@ -59,9 +59,9 @@ export function RegistrationTable({
 
   if (rows.length === 0) {
     return (
-      <div className="border-2 border-dashed border-[var(--rule)] px-4 py-10 text-center">
+      <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-10 text-center">
         <p className="font-medium text-[var(--ink)]">Belum ada pendaftar</p>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">
+        <p className="mt-1 text-sm text-[var(--slate)]">
           Pendaftar yang masuk lewat web sekolah akan muncul di sini.
         </p>
       </div>
@@ -82,7 +82,7 @@ export function RegistrationTable({
       )}
 
       {/* Tabel seperti buku induk: garis tegas, bukan kartu melayang. */}
-      <div className="overflow-x-auto border-2 border-[var(--rule)] bg-white">
+      <div className="overflow-x-auto border-2 border-[var(--chalk)] bg-white">
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="border-b-2 border-[var(--ink)] text-left">
@@ -96,22 +96,22 @@ export function RegistrationTable({
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-b border-[var(--rule)] align-top">
-                <td className="p-2 font-mono text-xs text-[var(--ink-soft)]">
+              <tr key={r.id} className="border-b border-[var(--chalk)] align-top">
+                <td className="p-2 font-mono text-xs text-[var(--slate)]">
                   {r.registrationNo}
                 </td>
                 <td className="p-2">
                   <span className="font-medium text-[var(--ink)]">{r.fullName}</span>
-                  <span className="block text-xs text-[var(--ink-soft)]">
+                  <span className="block text-xs text-[var(--slate)]">
                     {r.gender === "MALE" ? "Laki-laki" : "Perempuan"} · {r.batchName}
                   </span>
                 </td>
                 <td className="p-2 text-[var(--ink)]">
-                  {r.pathName ?? <span className="text-[var(--ink-soft)]">—</span>}
+                  {r.pathName ?? <span className="text-[var(--slate)]">—</span>}
                 </td>
                 <td className="p-2 text-[var(--ink)]">
                   {r.parentName}
-                  <span className="block font-mono text-xs text-[var(--ink-soft)]">
+                  <span className="block font-mono text-xs text-[var(--slate)]">
                     {r.parentPhone}
                   </span>
                 </td>
@@ -123,7 +123,7 @@ export function RegistrationTable({
                     <button
                       type="button"
                       onClick={() => setOpenId(openId === r.id ? null : r.id)}
-                      className="border border-[var(--rule)] px-2 py-1 text-xs hover:border-[var(--ink)]"
+                      className="border border-[var(--chalk)] px-2 py-1 text-xs hover:border-[var(--ink)]"
                     >
                       {openId === r.id ? "Tutup" : "Tinjau"}
                     </button>
@@ -148,7 +148,7 @@ export function RegistrationTable({
           <h3 className="font-display text-base font-semibold text-[var(--ink)]">
             Tinjau pendaftaran
           </h3>
-          <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+          <p className="mt-0.5 text-xs text-[var(--slate)]">
             Bila diterima, panitia dapat mengisi biaya daftar ulang. Tagihan dibuat
             setelah pendaftar dibuatkan akun siswa (di menu Siswa), bukan di sini.
           </p>
@@ -159,7 +159,7 @@ export function RegistrationTable({
               <select
                 name="status"
                 defaultValue={rows.find((r) => r.id === openId)?.status ?? "PENDING"}
-                className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
               >
                 {STATUSES.map((s) => (
                   <option key={s.value} value={s.value}>
@@ -177,7 +177,7 @@ export function RegistrationTable({
                 type="number"
                 name="reRegistrationFee"
                 defaultValue="0"
-                className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
               />
             </label>
 
@@ -187,7 +187,7 @@ export function RegistrationTable({
                 name="note"
                 rows={2}
                 defaultValue={rows.find((r) => r.id === openId)?.resultNote ?? ""}
-                className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                 placeholder="Contoh: harap bawa fotokopi akta saat daftar ulang."
               />
             </label>
@@ -204,13 +204,13 @@ export function RegistrationTable({
             <button
               type="button"
               onClick={() => setOpenId(null)}
-              className="border-2 border-[var(--rule)] bg-white px-3 py-2 text-sm"
+              className="border-2 border-[var(--chalk)] bg-white px-3 py-2 text-sm"
             >
               Batal
             </button>
           </div>
 
-          <p className="mt-2 text-[11px] text-[var(--ink-soft)]">
+          <p className="mt-2 text-[11px] text-[var(--slate)]">
             Bila status diubah menjadi Diterima atau Ditolak, pesan WhatsApp ke nomor wali
             masuk antrean dan dikirim otomatis sesuai jam wajar.
           </p>
@@ -232,7 +232,7 @@ function StatusPill({ status, label }: { status: string; label: string }) {
         ? { background: "#fef2f2", borderColor: "#b91c1c", color: "#991b1b" }
         : status === "WAITLIST"
           ? { background: "#fffbeb", borderColor: "#b45309", color: "#92400e" }
-          : { background: "var(--paper)", borderColor: "var(--rule)", color: "var(--ink)" };
+          : { background: "var(--paper)", borderColor: "var(--chalk)", color: "var(--ink)" };
 
   return (
     <span

@@ -35,11 +35,11 @@ export default async function RegistrationsPage({
   const g = await guard("spmb", "read");
   if ("fail" in g) {
     return (
-      <div className="mx-auto max-w-md border-2 border-[var(--rule)] bg-white p-6 text-center">
+      <div className="mx-auto max-w-md border-2 border-[var(--chalk)] bg-white p-6 text-center">
         <p className="font-display text-lg font-semibold text-[var(--ink)]">
           Tidak dapat diakses
         </p>
-        <p className="mt-2 text-sm text-[var(--ink-soft)]">
+        <p className="mt-2 text-sm text-[var(--slate)]">
           {g.fail.ok ? "Tidak diizinkan." : g.fail.error}
         </p>
       </div>
@@ -79,7 +79,7 @@ export default async function RegistrationsPage({
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="border-b-2 border-[var(--ink)] pb-4">
-        <p className="text-sm text-[var(--ink-soft)]">
+        <p className="text-sm text-[var(--slate)]">
           <Link href="/dashboard/spmb" className="underline">
             SPMB
           </Link>{" "}
@@ -88,20 +88,20 @@ export default async function RegistrationsPage({
         <h1 className="font-display text-2xl font-semibold text-[var(--ink)]">
           Daftar Pendaftar
         </h1>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">
+        <p className="mt-1 text-sm text-[var(--slate)]">
           {registrations.length} pendaftar ditampilkan
           {sp.path ? " pada jalur terpilih" : ""}.
         </p>
       </header>
 
       {/* Penyaring — panitia menyeleksi per jalur, jadi ini yang paling sering dipakai. */}
-      <form className="flex flex-wrap items-end gap-3 border-2 border-[var(--rule)] bg-white p-4">
+      <form className="flex flex-wrap items-end gap-3 border-2 border-[var(--chalk)] bg-white p-4">
         <label className="block text-xs">
           <span className="font-medium text-[var(--ink)]">Gelombang</span>
           <select
             name="batch"
             defaultValue={sp.batch ?? ""}
-            className="mt-1 border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+            className="mt-1 border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Semua gelombang</option>
             {batches.map((b) => (
@@ -117,7 +117,7 @@ export default async function RegistrationsPage({
           <select
             name="path"
             defaultValue={sp.path ?? ""}
-            className="mt-1 border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+            className="mt-1 border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Semua jalur</option>
             {batches.flatMap((b) =>
@@ -135,7 +135,7 @@ export default async function RegistrationsPage({
           <select
             name="status"
             defaultValue={sp.status ?? ""}
-            className="mt-1 border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+            className="mt-1 border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Semua status</option>
             {Object.entries(STATUS_LABEL).map(([k, v]) => (
@@ -154,7 +154,7 @@ export default async function RegistrationsPage({
         </button>
         <Link
           href="/dashboard/spmb/registrations"
-          className="border-2 border-[var(--rule)] bg-white px-3 py-2 text-sm hover:border-[var(--ink)]"
+          className="border-2 border-[var(--chalk)] bg-white px-3 py-2 text-sm hover:border-[var(--ink)]"
         >
           Bersihkan
         </Link>

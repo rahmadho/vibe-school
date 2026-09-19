@@ -84,7 +84,7 @@ export function BatchList({
       )}
 
       {canManage && (
-        <div className="border-2 border-[var(--rule)] bg-white p-4">
+        <div className="border-2 border-[var(--chalk)] bg-white p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold text-[var(--ink)]">
               Gelombang pendaftaran
@@ -92,7 +92,7 @@ export function BatchList({
             <button
               type="button"
               onClick={() => setAdding((v) => !v)}
-              className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
+              className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
             >
               {adding ? "Batal" : "Buat gelombang"}
             </button>
@@ -104,7 +104,7 @@ export function BatchList({
                 e.preventDefault();
                 submit(createAdmissionBatch, new FormData(e.currentTarget), () => setAdding(false));
               }}
-              className="mt-3 grid gap-3 border-t border-dashed border-[var(--rule)] pt-3 sm:grid-cols-2"
+              className="mt-3 grid gap-3 border-t border-dashed border-[var(--chalk)] pt-3 sm:grid-cols-2"
             >
               <Field label="Nama gelombang" name="name" required placeholder="SPMB 2026/2027 Gelombang 1" />
               <label className="block text-xs">
@@ -112,7 +112,7 @@ export function BatchList({
                 <select
                   name="academicYearId"
                   required
-                  className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                  className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                 >
                   <option value="">— pilih —</option>
                   {academicYears.map((y) => (
@@ -132,11 +132,11 @@ export function BatchList({
                 <textarea
                   name="description"
                   rows={2}
-                  className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                  className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                   placeholder="Informasi umum yang tampil di halaman pendaftaran publik."
                 />
               </label>
-              <p className="text-[11px] text-[var(--ink-soft)] sm:col-span-2">
+              <p className="text-[11px] text-[var(--slate)] sm:col-span-2">
                 Satu jalur bernama <strong>Reguler</strong> dibuat otomatis. Tambahkan jalur
                 lain setelah gelombang tersimpan.
               </p>
@@ -153,9 +153,9 @@ export function BatchList({
       )}
 
       {batches.length === 0 && (
-        <div className="border-2 border-dashed border-[var(--rule)] px-4 py-8 text-center">
+        <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-8 text-center">
           <p className="font-medium text-[var(--ink)]">Belum ada gelombang pendaftaran</p>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">
+          <p className="mt-1 text-sm text-[var(--slate)]">
             Buat gelombang pertama untuk mulai menerima pendaftar.
           </p>
         </div>
@@ -168,7 +168,7 @@ export function BatchList({
           const totalFilled = b.paths.reduce((s, p) => s + p.filled, 0);
 
           return (
-            <li key={b.id} className="border-2 border-[var(--rule)] bg-white">
+            <li key={b.id} className="border-2 border-[var(--chalk)] bg-white">
               <div className="flex flex-wrap items-start justify-between gap-2 p-4">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -176,25 +176,25 @@ export function BatchList({
                       {b.name}
                     </h3>
                     {!b.isActive && (
-                      <span className="border border-[var(--rule)] px-1.5 py-0.5 text-[11px] text-[var(--ink-soft)]">
+                      <span className="border border-[var(--chalk)] px-1.5 py-0.5 text-[11px] text-[var(--slate)]">
                         nonaktif
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+                  <p className="mt-0.5 text-xs text-[var(--slate)]">
                     {fmtDate(b.openDate)} – {fmtDate(b.closeDate)}
                     {b.resultDate ? ` · pengumuman ${fmtDate(b.resultDate)}` : ""}
                   </p>
                   <p className="mt-1.5 text-sm text-[var(--ink)]">
                     <span className="font-mono">{b.registrationCount}</span> pendaftar
                     {totalQuota > 0 && (
-                      <span className="text-[var(--ink-soft)]">
+                      <span className="text-[var(--slate)]">
                         {" "}
                         · kuota jalur {totalFilled}/{totalQuota}
                       </span>
                     )}
                     {totalQuota === 0 && (
-                      <span className="text-[var(--ink-soft)]"> · kuota gelombang {b.quota}</span>
+                      <span className="text-[var(--slate)]"> · kuota gelombang {b.quota}</span>
                     )}
                   </p>
                 </div>
@@ -202,36 +202,36 @@ export function BatchList({
                 <button
                   type="button"
                   onClick={() => setOpenId(isOpen ? null : b.id)}
-                  className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
+                  className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
                 >
                   {isOpen ? "Tutup" : `Jalur (${b.paths.length})`}
                 </button>
               </div>
 
               {isOpen && (
-                <div className="border-t border-dashed border-[var(--rule)] p-4">
+                <div className="border-t border-dashed border-[var(--chalk)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="text-sm font-semibold text-[var(--ink)]">Jalur pendaftaran</h4>
-                    <p className="text-[11px] text-[var(--ink-soft)]">
+                    <p className="text-[11px] text-[var(--slate)]">
                       Total kuota semua jalur tidak boleh melebihi kuota gelombang ({b.quota}).
                     </p>
                   </div>
 
-                  <ul className="mt-2 divide-y divide-[var(--rule)] border border-[var(--rule)]">
+                  <ul className="mt-2 divide-y divide-[var(--chalk)] border border-[var(--chalk)]">
                     {b.paths.map((p) => (
                       <li key={p.id} className="p-3">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-medium text-[var(--ink)]">{p.name}</span>
-                              <span className="border border-[var(--rule)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--ink-soft)]">
+                              <span className="border border-[var(--chalk)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--slate)]">
                                 {p.code}
                               </span>
                               {!p.isActive && (
-                                <span className="text-[11px] text-[var(--ink-soft)]">nonaktif</span>
+                                <span className="text-[11px] text-[var(--slate)]">nonaktif</span>
                               )}
                             </div>
-                            <p className="mt-0.5 text-xs text-[var(--ink-soft)]">
+                            <p className="mt-0.5 text-xs text-[var(--slate)]">
                               Biaya: {p.registrationFee ? formatRupiah(p.registrationFee) : "Gratis"}
                               {p.quota !== null && ` · kuota ${p.filled}/${p.quota}`}
                               {p.quota !== null && p.filled >= p.quota && (
@@ -239,7 +239,7 @@ export function BatchList({
                               )}
                             </p>
                             {p.description && (
-                              <p className="mt-1 text-xs text-[var(--ink-soft)]">{p.description}</p>
+                              <p className="mt-1 text-xs text-[var(--slate)]">{p.description}</p>
                             )}
                           </div>
 
@@ -261,7 +261,7 @@ export function BatchList({
 
                         {canManage && (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-xs text-[var(--ink-soft)]">
+                            <summary className="cursor-pointer text-xs text-[var(--slate)]">
                               Ubah jalur ini
                             </summary>
                             <form
@@ -291,7 +291,7 @@ export function BatchList({
                                 <input
                                   name="description"
                                   defaultValue={p.description ?? ""}
-                                  className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                                  className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                                 />
                               </label>
                               <label className="flex items-center gap-2 text-xs">
@@ -322,7 +322,7 @@ export function BatchList({
                           e.preventDefault();
                           submit(createAdmissionPath, new FormData(e.currentTarget));
                         }}
-                        className="mt-2 grid gap-2 border-t border-dashed border-[var(--rule)] pt-3 sm:grid-cols-2"
+                        className="mt-2 grid gap-2 border-t border-dashed border-[var(--chalk)] pt-3 sm:grid-cols-2"
                       >
                         <input type="hidden" name="batchId" value={b.id} />
                         <SmallField label="Nama jalur" name="name" required placeholder="Prestasi" />
@@ -336,7 +336,7 @@ export function BatchList({
                           <textarea
                             name="requirements"
                             rows={2}
-                            className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+                            className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                             placeholder="Contoh: melampirkan sertifikat juara tingkat kabupaten."
                           />
                         </label>
@@ -353,7 +353,7 @@ export function BatchList({
 
                   {canManage && (
                     <details className="mt-3">
-                      <summary className="cursor-pointer text-xs text-[var(--ink-soft)]">
+                      <summary className="cursor-pointer text-xs text-[var(--slate)]">
                         Ubah gelombang ini
                       </summary>
                       <form
@@ -361,7 +361,7 @@ export function BatchList({
                           e.preventDefault();
                           submit(updateAdmissionBatch, new FormData(e.currentTarget));
                         }}
-                        className="mt-2 grid gap-2 border-t border-dashed border-[var(--rule)] pt-3 sm:grid-cols-2"
+                        className="mt-2 grid gap-2 border-t border-dashed border-[var(--chalk)] pt-3 sm:grid-cols-2"
                       >
                         <input type="hidden" name="id" value={b.id} />
                         <input type="hidden" name="academicYearId" value={b.academicYearId} />
@@ -414,7 +414,7 @@ function Field({
         name={name}
         required={required}
         placeholder={placeholder}
-        className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+        className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
       />
     </label>
   );
@@ -444,7 +444,7 @@ function SmallField({
         defaultValue={defaultValue}
         required={required}
         placeholder={placeholder}
-        className="mt-1 w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+        className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
       />
     </label>
   );

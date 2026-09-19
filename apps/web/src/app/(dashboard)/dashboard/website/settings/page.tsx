@@ -19,11 +19,11 @@ export default async function WebsiteSettingsPage() {
   const g = await guard("website", "read");
   if ("fail" in g) {
     return (
-      <div className="mx-auto max-w-md border-2 border-[var(--rule)] bg-white p-6 text-center">
+      <div className="mx-auto max-w-md border-2 border-[var(--chalk)] bg-white p-6 text-center">
         <p className="font-display text-lg font-semibold text-[var(--ink)]">
           Tidak dapat diakses
         </p>
-        <p className="mt-2 text-sm text-[var(--ink-soft)]">
+        <p className="mt-2 text-sm text-[var(--slate)]">
           {g.fail.ok ? "Tidak diizinkan." : g.fail.error}
         </p>
       </div>

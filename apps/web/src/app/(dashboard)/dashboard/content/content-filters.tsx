@@ -39,7 +39,7 @@ export function ContentFilters({
   return (
     <form
       onSubmit={apply}
-      className="flex flex-wrap items-end gap-3 border-2 border-[var(--rule)] bg-white p-4"
+      className="flex flex-wrap items-end gap-3 border-2 border-[var(--chalk)] bg-white p-4"
     >
       <div className="min-w-[200px] flex-1">
         <label htmlFor="q" className="mb-1 block text-xs font-medium text-slate">

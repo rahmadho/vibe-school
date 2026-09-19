@@ -19,11 +19,11 @@ export default async function SpmbPage() {
   const g = await guard("spmb", "read");
   if ("fail" in g) {
     return (
-      <div className="mx-auto max-w-md border-2 border-[var(--rule)] bg-white p-6 text-center">
+      <div className="mx-auto max-w-md border-2 border-[var(--chalk)] bg-white p-6 text-center">
         <p className="font-display text-lg font-semibold text-[var(--ink)]">
           Tidak dapat diakses
         </p>
-        <p className="mt-2 text-sm text-[var(--ink-soft)]">
+        <p className="mt-2 text-sm text-[var(--slate)]">
           {g.fail.ok ? "Tidak diizinkan." : g.fail.error}
         </p>
       </div>
@@ -69,22 +69,22 @@ export default async function SpmbPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <header className="border-b-2 border-[var(--ink)] pb-4">
-        <p className="text-sm text-[var(--ink-soft)]">Penerimaan Murid Baru</p>
+        <p className="text-sm text-[var(--slate)]">Penerimaan Murid Baru</p>
         <h1 className="font-display text-2xl font-semibold text-[var(--ink)]">SPMB</h1>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">
+        <p className="mt-1 text-sm text-[var(--slate)]">
           Kelola gelombang pendaftaran, jalur masuk, dan seleksi calon murid.
         </p>
 
         <div className="mt-3 flex flex-wrap gap-2">
           <Link
             href="/dashboard/spmb/registrations"
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
           >
             Daftar Pendaftar
           </Link>
           <Link
             href="/dashboard/website"
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
           >
             Teks ajakan di web
           </Link>
@@ -142,8 +142,8 @@ function StatBox({
   tone?: "good";
 }) {
   return (
-    <div className="border-2 border-[var(--rule)] bg-white p-3">
-      <p className="text-xs text-[var(--ink-soft)]">{label}</p>
+    <div className="border-2 border-[var(--chalk)] bg-white p-3">
+      <p className="text-xs text-[var(--slate)]">{label}</p>
       <p
         className="font-display text-2xl font-semibold"
         style={{ color: tone === "good" ? "#047857" : "var(--ink)" }}

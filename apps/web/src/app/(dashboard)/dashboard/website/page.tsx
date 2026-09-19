@@ -75,11 +75,11 @@ export default async function WebsitePage() {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <header className="border-b-2 border-[var(--ink)] pb-4">
-        <p className="text-sm text-[var(--ink-soft)]">Web Sekolah</p>
+        <p className="text-sm text-[var(--slate)]">Web Sekolah</p>
         <h1 className="font-display text-2xl font-semibold text-[var(--ink)]">
           {school?.name ?? "Sekolah"}
         </h1>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">
+        <p className="mt-1 text-sm text-[var(--slate)]">
           Atur tampilan dan isi website publik sekolah. Perubahan langsung terlihat
           setelah disimpan.
         </p>
@@ -87,25 +87,25 @@ export default async function WebsitePage() {
         <div className="mt-3 flex flex-wrap gap-2 text-sm">
           <Link
             href="/dashboard/website/settings"
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
           >
             Identitas & Kontak
           </Link>
           <Link
             href="/dashboard/website/theme"
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
           >
             Tema & Warna
           </Link>
           <Link
             href="/dashboard/website/pages"
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
           >
             Halaman
           </Link>
           <Link
             href="/dashboard/website/navigation"
-            className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
+            className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 hover:border-[var(--ink)]"
           >
             Menu
           </Link>
@@ -113,18 +113,18 @@ export default async function WebsitePage() {
       </header>
 
       {/* Status kelengkapan — memberi tahu operator apa yang masih kurang. */}
-      <section className="border-2 border-[var(--rule)] bg-white p-4">
+      <section className="border-2 border-[var(--chalk)] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-base font-semibold text-[var(--ink)]">
             Kelengkapan web sekolah
           </h2>
-          <span className="font-mono text-sm text-[var(--ink-soft)]">
+          <span className="font-mono text-sm text-[var(--slate)]">
             {doneCount}/{checks.length} · {percent}%
           </span>
         </div>
 
         <div
-          className="mt-2 h-2 w-full border border-[var(--rule)] bg-[var(--paper)]"
+          className="mt-2 h-2 w-full border border-[var(--chalk)] bg-[var(--paper)]"
           role="progressbar"
           aria-valuenow={percent}
           aria-valuemin={0}
@@ -137,10 +137,10 @@ export default async function WebsitePage() {
         <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
           {checks.map((c) => (
             <li key={c.label} className="flex items-center gap-2 text-sm">
-              <span aria-hidden className={c.done ? "text-emerald-700" : "text-[var(--ink-soft)]"}>
+              <span aria-hidden className={c.done ? "text-emerald-700" : "text-[var(--slate)]"}>
                 {c.done ? "✓" : "○"}
               </span>
-              <span className={c.done ? "text-[var(--ink)]" : "text-[var(--ink-soft)]"}>
+              <span className={c.done ? "text-[var(--ink)]" : "text-[var(--slate)]"}>
                 {c.label}
               </span>
               {!c.done && (
@@ -159,13 +159,13 @@ export default async function WebsitePage() {
       />
 
       {/* Ringkasan tema — perubahan penuh ada di halaman Tema. */}
-      <section className="border-2 border-[var(--rule)] bg-white p-4">
+      <section className="border-2 border-[var(--chalk)] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="font-display text-base font-semibold text-[var(--ink)]">
               Tema saat ini
             </h2>
-            <p className="mt-0.5 text-sm text-[var(--ink-soft)]">{presetName}</p>
+            <p className="mt-0.5 text-sm text-[var(--slate)]">{presetName}</p>
           </div>
           <div className="flex items-center gap-2">
             {[theme.primary, theme.accent, theme.background, theme.surface].map((c) => (
@@ -178,26 +178,26 @@ export default async function WebsitePage() {
             ))}
             <Link
               href="/dashboard/website/theme"
-              className="ml-2 border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
+              className="ml-2 border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
             >
               Ubah tema
             </Link>
           </div>
         </div>
-        <p className="mt-2 text-xs text-[var(--ink-soft)]">
+        <p className="mt-2 text-xs text-[var(--slate)]">
           Preset terpilih: <span className="font-mono">{presetKey}</span>
         </p>
       </section>
 
       {/* Alamat web — subdomain adalah identitas publik sekolah. */}
-      <section className="border-2 border-[var(--rule)] bg-white p-4">
+      <section className="border-2 border-[var(--chalk)] bg-white p-4">
         <h2 className="font-display text-base font-semibold text-[var(--ink)]">
           Alamat web sekolah
         </h2>
-        <p className="mt-1 text-sm text-[var(--ink-soft)]">
+        <p className="mt-1 text-sm text-[var(--slate)]">
           Web sekolah dapat diakses di alamat berikut. Atur di halaman Identitas & Kontak.
         </p>
-        <p className="mt-2 border border-[var(--rule)] bg-[var(--paper)] px-3 py-2 font-mono text-sm text-[var(--ink)]">
+        <p className="mt-2 border border-[var(--chalk)] bg-[var(--paper)] px-3 py-2 font-mono text-sm text-[var(--ink)]">
           https://{school?.slug}.sekolah.id
         </p>
       </section>
@@ -207,9 +207,9 @@ export default async function WebsitePage() {
 
 function Denied({ message }: { message: string }) {
   return (
-    <div className="mx-auto max-w-md border-2 border-[var(--rule)] bg-white p-6 text-center">
+    <div className="mx-auto max-w-md border-2 border-[var(--chalk)] bg-white p-6 text-center">
       <p className="font-display text-lg font-semibold text-[var(--ink)]">Tidak dapat diakses</p>
-      <p className="mt-2 text-sm text-[var(--ink-soft)]">{message}</p>
+      <p className="mt-2 text-sm text-[var(--slate)]">{message}</p>
     </div>
   );
 }

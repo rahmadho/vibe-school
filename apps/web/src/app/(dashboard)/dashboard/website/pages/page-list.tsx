@@ -41,7 +41,7 @@ export function PageList({ pages }: { pages: PageRow[] }) {
           <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
             Halaman web
           </h2>
-          <p className="mt-0.5 text-sm text-[var(--ink-soft)]">
+          <p className="mt-0.5 text-sm text-[var(--slate)]">
             Halaman tambahan di luar beranda — mis. Profil, Visi &amp; Misi,
             Sambutan Kepala Sekolah.
           </p>
@@ -67,9 +67,9 @@ export function PageList({ pages }: { pages: PageRow[] }) {
       )}
 
       {pages.length === 0 && !creating && (
-        <div className="border-2 border-dashed border-[var(--rule)] px-4 py-8 text-center">
+        <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-8 text-center">
           <p className="font-medium text-[var(--ink)]">Belum ada halaman</p>
-          <p className="mt-1 text-sm text-[var(--ink-soft)]">
+          <p className="mt-1 text-sm text-[var(--slate)]">
             Tambahkan halaman pertama, misalnya “Visi &amp; Misi”.
           </p>
         </div>
@@ -81,7 +81,7 @@ export function PageList({ pages }: { pages: PageRow[] }) {
           return (
             <li
               key={p.id}
-              className="border-2 border-[var(--rule)] bg-white"
+              className="border-2 border-[var(--chalk)] bg-white"
             >
               <div className="flex flex-wrap items-start gap-3 p-3">
                 <div className="min-w-0 flex-1">
@@ -90,7 +90,7 @@ export function PageList({ pages }: { pages: PageRow[] }) {
                       {p.title}
                     </span>
                     {!p.isPublished && (
-                      <span className="border border-[var(--rule)] bg-[var(--paper)] px-1.5 py-0.5 text-[11px] text-[var(--ink-soft)]">
+                      <span className="border border-[var(--chalk)] bg-[var(--paper)] px-1.5 py-0.5 text-[11px] text-[var(--slate)]">
                         draf
                       </span>
                     )}
@@ -100,7 +100,7 @@ export function PageList({ pages }: { pages: PageRow[] }) {
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 font-mono text-xs text-[var(--ink-soft)]">
+                  <p className="mt-0.5 font-mono text-xs text-[var(--slate)]">
                     /{p.slug}
                   </p>
                 </div>
@@ -112,7 +112,7 @@ export function PageList({ pages }: { pages: PageRow[] }) {
                       setEditingId(isEditing ? null : p.id);
                       setCreating(false);
                     }}
-                    className="border border-[var(--rule)] px-2 py-0.5 text-xs hover:border-[var(--ink)]"
+                    className="border border-[var(--chalk)] px-2 py-0.5 text-xs hover:border-[var(--ink)]"
                   >
                     {isEditing ? "Tutup" : "Ubah"}
                   </button>
@@ -121,7 +121,7 @@ export function PageList({ pages }: { pages: PageRow[] }) {
               </div>
 
               {isEditing && (
-                <div className="border-t border-dashed border-[var(--rule)] bg-[var(--paper)] p-3">
+                <div className="border-t border-dashed border-[var(--chalk)] bg-[var(--paper)] p-3">
                   <PageForm
                     mode="edit"
                     initial={p}
@@ -224,7 +224,7 @@ function PageForm({
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
             placeholder="Visi dan Misi"
-            className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+            className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
           />
         </Field>
 
@@ -234,7 +234,7 @@ function PageForm({
           error={fe("slug")}
         >
           <div className="flex items-center gap-1">
-            <span className="font-mono text-sm text-[var(--ink-soft)]">/</span>
+            <span className="font-mono text-sm text-[var(--slate)]">/</span>
             <input
               type="text"
               value={slug}
@@ -243,7 +243,7 @@ function PageForm({
                 setSlugTouched(true);
               }}
               placeholder="visi-misi"
-              className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+              className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
             />
           </div>
         </Field>
@@ -259,7 +259,7 @@ function PageForm({
             rows={mode === "create" ? 6 : 5}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+            className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
           />
         </Field>
       </div>
@@ -283,13 +283,13 @@ function PageForm({
           Tampilkan di menu navigasi
         </label>
       </fieldset>
-      <p className="mt-1 text-[11px] text-[var(--ink-soft)]">
+      <p className="mt-1 text-[11px] text-[var(--slate)]">
         Halaman draf tidak dapat dibuka pengunjung. “Di menu” hanya berlaku untuk
         halaman yang sudah diterbitkan.
       </p>
 
       {/* SEO — dilipat agar tidak membebani layar utama */}
-      <details className="mt-3 border border-[var(--rule)] bg-white px-3 py-2">
+      <details className="mt-3 border border-[var(--chalk)] bg-white px-3 py-2">
         <summary className="cursor-pointer text-xs font-medium text-[var(--ink)]">
           Pengaturan mesin pencari (opsional)
         </summary>
@@ -300,7 +300,7 @@ function PageForm({
               maxLength={120}
               value={metaTitle}
               onChange={(e) => setMetaTitle(e.target.value)}
-              className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+              className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
             />
           </Field>
           <Field label="Deskripsi di hasil pencarian" error={fe("metaDescription")}>
@@ -309,7 +309,7 @@ function PageForm({
               maxLength={300}
               value={metaDesc}
               onChange={(e) => setMetaDesc(e.target.value)}
-              className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+              className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
             />
           </Field>
         </div>
@@ -331,7 +331,7 @@ function PageForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+          className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm disabled:opacity-50"
         >
           Batal
         </button>
@@ -373,7 +373,7 @@ function DeletePageButton({ id, title }: { id: string; title: string }) {
 
   return (
     <span className="flex items-center gap-1 text-xs">
-      <span className="text-[var(--ink-soft)]">Hapus “{title}”?</span>
+      <span className="text-[var(--slate)]">Hapus “{title}”?</span>
       <button
         type="button"
         onClick={remove}
@@ -386,7 +386,7 @@ function DeletePageButton({ id, title }: { id: string; title: string }) {
         type="button"
         onClick={() => setConfirming(false)}
         disabled={pending}
-        className="border border-[var(--rule)] px-1.5 py-0.5"
+        className="border border-[var(--chalk)] px-1.5 py-0.5"
       >
         Batal
       </button>
@@ -412,7 +412,7 @@ function Field({
       <span className="font-medium text-[var(--ink)]">{label}</span>
       <div className="mt-1">{children}</div>
       {hint && !error && (
-        <span className="mt-1 block text-[11px] leading-snug text-[var(--ink-soft)]">
+        <span className="mt-1 block text-[11px] leading-snug text-[var(--slate)]">
           {hint}
         </span>
       )}

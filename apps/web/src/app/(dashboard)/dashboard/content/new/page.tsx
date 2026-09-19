@@ -16,9 +16,9 @@ export default async function NewPostPage() {
   const g = await guard("content", "manage");
   if ("fail" in g) {
     return (
-      <div className="mx-auto max-w-md border-2 border-[var(--rule)] bg-white p-6 text-center">
+      <div className="mx-auto max-w-md border-2 border-[var(--chalk)] bg-white p-6 text-center">
         <p className="font-display text-lg font-semibold text-[var(--ink)]">Tidak dapat diakses</p>
-        <p className="mt-2 text-sm text-[var(--ink-soft)]">
+        <p className="mt-2 text-sm text-[var(--slate)]">
           {g.fail.ok ? "Anda tidak memiliki izin menulis konten." : g.fail.error}
         </p>
         <Link href="/dashboard/content" className="mt-4 inline-block text-sm underline">
@@ -31,7 +31,7 @@ export default async function NewPostPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header className="border-b-2 border-[var(--ink)] pb-3">
-        <p className="text-sm text-[var(--ink-soft)]">
+        <p className="text-sm text-[var(--slate)]">
           <Link href="/dashboard/content" className="underline">
             Berita &amp; Pengumuman
           </Link>{" "}

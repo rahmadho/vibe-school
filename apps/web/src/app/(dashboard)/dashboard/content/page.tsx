@@ -102,7 +102,7 @@ export default async function ContentPage({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden border-2 border-[var(--rule)] bg-white">
+        <div className="overflow-hidden border-2 border-[var(--chalk)] bg-white">
           <table className="w-full text-sm">
             <thead className="border-b border-chalk bg-chalk/30 text-left text-xs uppercase tracking-wide text-slate">
               <tr>

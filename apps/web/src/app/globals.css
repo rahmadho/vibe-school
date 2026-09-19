@@ -15,6 +15,21 @@
     --chalk: #e8e4da;
     --marker: #c4452d;
     --slate: #64748b;
+    /*
+     * Token semantik.
+     *
+     * Palet di atas dipakai lewat kelas Tailwind (`border-chalk`, `text-slate`).
+     * Tetapi sebagian komponen perlu memakai `var()` langsung — terutama yang
+     * butuh nilai berbeda di dalam satu kelas (mis. gaya inline untuk warna
+     * status) atau ketika kelas Tailwind tidak tersedia.
+     *
+     * Tanpa alias ini, `var(--ink-soft)` dan `var(--rule)` TIDAK terdefinisi:
+     * border menjadi tak terlihat dan teks sekunder menjadi hitam pekat — bug
+     * yang tampak "hanya styling" tetapi membuat tabel dan tanda batas hilang.
+     * Alias menjaga keduanya tetap sah dan satu sumber warna.
+     */
+    --ink-soft: #64748b; /* = slate, teks sekunder */
+    --rule: #e8e4da; /* = chalk, garis & batas */
   }
 
   html {

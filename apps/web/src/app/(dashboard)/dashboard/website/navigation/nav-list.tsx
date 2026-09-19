@@ -46,7 +46,7 @@ export function NavList({
         <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
           Menu navigasi
         </h2>
-        <p className="mt-0.5 text-sm text-[var(--ink-soft)]">
+        <p className="mt-0.5 text-sm text-[var(--slate)]">
           Susun tautan yang tampil di bagian atas (header) dan bawah (footer)
           halaman web. Urutan di sini menentukan urutan di web.
         </p>
@@ -107,7 +107,7 @@ function AreaSection({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-[var(--ink)]">{title}</h3>
-          <p className="mt-0.5 text-xs text-[var(--ink-soft)]">{description}</p>
+          <p className="mt-0.5 text-xs text-[var(--slate)]">{description}</p>
         </div>
         <button
           type="button"
@@ -121,8 +121,8 @@ function AreaSection({
       {adding && <NavForm mode="create" area={area} onDone={onAddDone} onCancel={onAddDone} />}
 
       {items.length === 0 && !adding && (
-        <div className="border-2 border-dashed border-[var(--rule)] px-4 py-6 text-center">
-          <p className="text-sm text-[var(--ink-soft)]">
+        <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-6 text-center">
+          <p className="text-sm text-[var(--slate)]">
             Belum ada menu di bagian ini.
           </p>
         </div>
@@ -132,7 +132,7 @@ function AreaSection({
         {items.map((item, index) => {
           const isEditing = editingId === item.id;
           return (
-            <li key={item.id} className="border-2 border-[var(--rule)] bg-white">
+            <li key={item.id} className="border-2 border-[var(--chalk)] bg-white">
               <div className="flex items-center gap-2 p-3">
                 <NavControls id={item.id} index={index} total={items.length} />
 
@@ -142,17 +142,17 @@ function AreaSection({
                       {item.label}
                     </span>
                     {item.onlyIfSpmb && (
-                      <span className="border border-[var(--rule)] bg-[var(--paper)] px-1.5 py-0.5 text-[11px] text-[var(--ink-soft)]">
+                      <span className="border border-[var(--chalk)] bg-[var(--paper)] px-1.5 py-0.5 text-[11px] text-[var(--slate)]">
                         hanya saat SPMB buka
                       </span>
                     )}
                     {item.isExternal && (
-                      <span className="border border-[var(--rule)] bg-[var(--paper)] px-1.5 py-0.5 text-[11px] text-[var(--ink-soft)]">
+                      <span className="border border-[var(--chalk)] bg-[var(--paper)] px-1.5 py-0.5 text-[11px] text-[var(--slate)]">
                         tautan luar
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 truncate font-mono text-xs text-[var(--ink-soft)]">
+                  <p className="mt-0.5 truncate font-mono text-xs text-[var(--slate)]">
                     {item.href}
                   </p>
                 </div>
@@ -161,7 +161,7 @@ function AreaSection({
                   <button
                     type="button"
                     onClick={() => onEdit(isEditing ? null : item.id)}
-                    className="border border-[var(--rule)] px-2 py-0.5 text-xs hover:border-[var(--ink)]"
+                    className="border border-[var(--chalk)] px-2 py-0.5 text-xs hover:border-[var(--ink)]"
                   >
                     {isEditing ? "Tutup" : "Ubah"}
                   </button>
@@ -170,7 +170,7 @@ function AreaSection({
               </div>
 
               {isEditing && (
-                <div className="border-t border-dashed border-[var(--rule)] bg-[var(--paper)] p-3">
+                <div className="border-t border-dashed border-[var(--chalk)] bg-[var(--paper)] p-3">
                   <NavForm
                     mode="edit"
                     area={area}
@@ -218,7 +218,7 @@ function NavControls({
         onClick={() => move("up")}
         disabled={pending || index === 0}
         aria-label="Naikkan menu"
-        className="border border-[var(--rule)] px-2 py-0.5 text-xs disabled:opacity-30"
+        className="border border-[var(--chalk)] px-2 py-0.5 text-xs disabled:opacity-30"
       >
         ↑
       </button>
@@ -227,7 +227,7 @@ function NavControls({
         onClick={() => move("down")}
         disabled={pending || index === total - 1}
         aria-label="Turunkan menu"
-        className="border border-[var(--rule)] px-2 py-0.5 text-xs disabled:opacity-30"
+        className="border border-[var(--chalk)] px-2 py-0.5 text-xs disabled:opacity-30"
       >
         ↓
       </button>
@@ -296,7 +296,7 @@ function NavForm({
     >
       <h4 className="text-sm font-semibold text-[var(--ink)]">
         {mode === "create" ? "Menu baru" : "Ubah menu"}
-        <span className="ml-2 font-normal text-[var(--ink-soft)]">
+        <span className="ml-2 font-normal text-[var(--slate)]">
           {area === "header" ? "header" : "footer"}
         </span>
       </h4>
@@ -315,7 +315,7 @@ function NavForm({
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Profil"
             maxLength={40}
-            className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
+            className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
           />
         </Field>
 
@@ -329,7 +329,7 @@ function NavForm({
             value={href}
             onChange={(e) => setHref(e.target.value)}
             placeholder="/profil"
-            className="w-full border border-[var(--rule)] bg-white px-2 py-1.5 font-mono text-sm"
+            className="w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
           />
         </Field>
       </div>
@@ -376,7 +376,7 @@ function NavForm({
           type="button"
           onClick={onCancel}
           disabled={pending}
-          className="border-2 border-[var(--rule)] bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+          className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm disabled:opacity-50"
         >
           Batal
         </button>
@@ -414,7 +414,7 @@ function DeleteNavButton({ id, label }: { id: string; label: string }) {
 
   return (
     <span className="flex items-center gap-1 text-xs">
-      <span className="text-[var(--ink-soft)]">Hapus “{label}”?</span>
+      <span className="text-[var(--slate)]">Hapus “{label}”?</span>
       <button
         type="button"
         onClick={remove}
@@ -427,7 +427,7 @@ function DeleteNavButton({ id, label }: { id: string; label: string }) {
         type="button"
         onClick={() => setConfirming(false)}
         disabled={pending}
-        className="border border-[var(--rule)] px-1.5 py-0.5"
+        className="border border-[var(--chalk)] px-1.5 py-0.5"
       >
         Batal
       </button>
@@ -453,7 +453,7 @@ function Field({
       <span className="font-medium text-[var(--ink)]">{label}</span>
       <div className="mt-1">{children}</div>
       {hint && !error && (
-        <span className="mt-1 block text-[11px] leading-snug text-[var(--ink-soft)]">
+        <span className="mt-1 block text-[11px] leading-snug text-[var(--slate)]">
           {hint}
         </span>
       )}
