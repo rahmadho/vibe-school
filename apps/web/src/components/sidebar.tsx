@@ -27,7 +27,10 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/academic/schedules", label: "Jadwal" },
     { href: "/dashboard/academic/time-slots", label: "Jam Pelajaran" },
   ],
-  attendance: [{ href: "/dashboard/attendance", label: "Absensi" }],
+  attendance: [
+    { href: "/dashboard/attendance", label: "Absensi" },
+    { href: "/dashboard/attendance/summary", label: "Rekap Absensi" },
+  ],
   grades: [{ href: "/dashboard/grades", label: "Penilaian" }],
   finance: [{ href: "/dashboard/finance", label: "Keuangan" }],
   spmb: [{ href: "/dashboard/spmb", label: "SPMB" }],

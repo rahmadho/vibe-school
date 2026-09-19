@@ -527,6 +527,14 @@ model Attendance {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // === PENCEGAH DUPLIKAT ===
+  // Absensi siswa: satu baris per (sekolah, tanggal, siswa) — mencegah
+  // double-submit menghasilkan dua baris untuk siswa yang sama pada tanggal
+  // yang sama. PostgreSQL menganggap NULL berbeda, sehingga entri khusus guru
+  // (studentId NULL) maupun absen per-mapel tidak saling bertabrakan.
+  @@unique([schoolId, date, studentId], name: "uniq_attendance_student_day")
+  // Absensi per-mapel: satu baris per (sekolah, tanggal, jadwal, siswa).
+  @@unique([schoolId, date, scheduleId, studentId], name: "uniq_attendance_schedule_student")
   @@index([schoolId, date])
   @@index([studentId, date])
   @@index([teacherId, date])
