@@ -1,4 +1,12 @@
 import { z } from "zod";
+import {
+  normalizePhone,
+  optionalText,
+  optionalPhone,
+  optionalId,
+} from "./common";
+
+export { normalizePhone };
 
 /**
  * Skema validasi Siswa — dipakai bersama oleh:
@@ -35,32 +43,7 @@ export const STUDENT_STATUS_LABEL: Record<
   SUSPENDED: "Skorsing",
 };
 
-const optionalText = (max = 255) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .transform((v) => (v === "" ? undefined : v))
-    .optional();
-
-/** Nomor HP: normalisasi ke E.164 tanpa '+' (62812...). */
-export function normalizePhone(input: string): string | undefined {
-  const digits = input.replace(/[^\d]/g, "");
-  if (!digits) return undefined;
-  if (digits.startsWith("0")) return "62" + digits.slice(1);
-  if (digits.startsWith("62")) return digits;
-  if (digits.startsWith("8")) return "62" + digits;
-  return digits;
-}
-
-const phoneField = z
-  .string()
-  .trim()
-  .optional()
-  .transform((v) => (v ? normalizePhone(v) : undefined))
-  .refine((v) => v === undefined || /^62\d{8,14}$/.test(v), {
-    message: "Nomor HP tidak valid (contoh: 081234567890)",
-  });
+const phoneField = optionalPhone;
 
 export const studentCreateSchema = z.object({
   nis: z
@@ -92,11 +75,7 @@ export const studentCreateSchema = z.object({
     .int("Tahun harus bilangan bulat")
     .min(1990, "Tahun terlalu lampau")
     .max(2100, "Tahun terlalu jauh"),
-  classId: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
+  classId: optionalId,
   status: z.enum(STUDENT_STATUSES).default("ACTIVE"),
   // Wali (opsional saat daftar; bisa dilengkapi di detail)
   parentName: optionalText(120),

@@ -16,8 +16,15 @@ type NavItem = { href: string; label: string };
 /** Menu per modul. Fase 1: hanya halaman yang sudah ada. */
 const MODULE_LINKS: Record<string, NavItem[]> = {
   students: [{ href: "/dashboard/students", label: "Siswa" }],
-  teachers: [{ href: "/dashboard/teachers", label: "Guru & Staf" }],
-  academic: [{ href: "/dashboard/academic", label: "Akademik" }],
+  teachers: [
+    { href: "/dashboard/teachers", label: "Guru" },
+    { href: "/dashboard/staff", label: "Staf" },
+  ],
+  academic: [
+    { href: "/dashboard/academic/years", label: "Tahun ajaran" },
+    { href: "/dashboard/academic/classes", label: "Kelas" },
+    { href: "/dashboard/academic/subjects", label: "Mata pelajaran" },
+  ],
   attendance: [{ href: "/dashboard/attendance", label: "Absensi" }],
   grades: [{ href: "/dashboard/grades", label: "Penilaian" }],
   finance: [{ href: "/dashboard/finance", label: "Keuangan" }],
