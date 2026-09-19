@@ -1,0 +1,64 @@
+import { guard } from "@/lib/action-guard";
+import { getSiteConfig } from "@/lib/data/site";
+import { prisma } from "@/lib/prisma";
+import { SettingsForm } from "./settings-form";
+
+/**
+ * Halaman pengaturan identitas & kontak web sekolah.
+ *
+ * Dipisah dari halaman utama "Web Sekolah" (susunan blok + tema) karena isinya
+ * berbeda sifat: di sini operator mengisi DATA (tagline, kontak, sosial media),
+ * bukan mengatur tampilan. Menggabungkannya membuat satu halaman terlalu
+ * panjang dan sulit dipakai dari ponsel.
+ */
+
+export const metadata = { title: "Identitas & Kontak Web" };
+export const dynamic = "force-dynamic";
+
+export default async function WebsiteSettingsPage() {
+  const g = await guard("website", "read");
+  if ("fail" in g) {
+    return (
+      <div className="mx-auto max-w-md border-2 border-[var(--rule)] bg-white p-6 text-center">
+        <p className="font-display text-lg font-semibold text-[var(--ink)]">
+          Tidak dapat diakses
+        </p>
+        <p className="mt-2 text-sm text-[var(--ink-soft)]">
+          {g.fail.ok ? "Tidak diizinkan." : g.fail.error}
+        </p>
+      </div>
+    );
+  }
+
+  const { schoolId } = g.ctx;
+
+  const [config, school] = await Promise.all([
+    getSiteConfig(schoolId),
+    prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { name: true, slug: true },
+    }),
+  ]);
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <SettingsForm
+        schoolName={school?.name ?? "Sekolah"}
+        slug={school?.slug ?? ""}
+        config={{
+          tagline: config?.tagline ?? "",
+          shortDescription: config?.shortDescription ?? "",
+          homepageMode: config?.homepageMode ?? "BLOCKS",
+          beritaUrl: config?.beritaUrl ?? "",
+          contactWa: config?.contactWa ?? "",
+          facebookUrl: config?.facebookUrl ?? "",
+          instagramUrl: config?.instagramUrl ?? "",
+          youtubeUrl: config?.youtubeUrl ?? "",
+          tiktokUrl: config?.tiktokUrl ?? "",
+          mapsUrl: config?.mapsUrl ?? "",
+          officeHours: config?.officeHours ?? "",
+        }}
+      />
+    </div>
+  );
+}

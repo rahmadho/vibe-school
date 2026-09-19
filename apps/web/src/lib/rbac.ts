@@ -32,6 +32,7 @@ export type Module =
   | "finance"
   | "spmb"
   | "content" // berita/pengumuman
+  | "website" // tampilan web sekolah: blok, halaman, menu, tema
   | "notifications"
   | "audit"
   | "billing"; // langganan (super-admin)
@@ -52,6 +53,7 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     finance: ["manage"],
     spmb: ["manage"],
     content: ["manage"],
+    website: ["manage"],
     notifications: ["manage"],
     audit: ["read"],
     billing: ["manage"],
@@ -67,6 +69,7 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     finance: ["manage"],
     spmb: ["manage"],
     content: ["manage"],
+    website: ["manage"],
     notifications: ["manage"],
     audit: ["read"],
   },
@@ -81,6 +84,7 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     finance: ["read"], // lihat, tanpa edit
     spmb: ["read"],
     content: ["manage"],
+    website: ["manage"],
     notifications: ["read"],
     audit: ["read"],
   },
@@ -96,6 +100,7 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     attendance: ["create", "update", "read"],
     grades: ["create", "update", "read"],
     content: ["read"],
+    website: ["read"],
     notifications: ["read"],
   },
   STUDENT: {
@@ -134,6 +139,7 @@ export const ALL_MODULES: Module[] = [
   "finance",
   "spmb",
   "content",
+  "website",
   "notifications",
   "audit",
   "billing",
@@ -152,6 +158,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   finance: "Keuangan",
   spmb: "SPMB",
   content: "Berita & Pengumuman",
+  website: "Web Sekolah",
   notifications: "Notifikasi WA",
   audit: "Log Aktivitas",
   billing: "Langganan",

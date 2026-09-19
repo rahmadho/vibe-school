@@ -346,6 +346,29 @@ export const admissionPathDeleteSchema = z.object({
   id: z.string().min(1),
 });
 
+/**
+ * Tinjauan satu pendaftaran oleh panitia (terima / tolak / tunggu).
+ *
+ * `reRegistrationFee` hanya dipakai saat status DITERIMA — nominal daftar ulang
+ * disimpan pada pendaftaran supaya bisa dipakai ketika panitia membuatkan akun
+ * siswa (Invoice wajib terhubung ke Student, jadi belum bisa dibuat lebih awal).
+ */
+export const registrationReviewSchema = z.object({
+  id: z.string().min(1, "Pendaftaran tidak dikenal"),
+  // Nilai HARUS sama persis dengan enum RegistrationStatus di schema.prisma.
+  status: z.enum([
+    "PENDING",
+    "VERIFIED",
+    "TESTED",
+    "ACCEPTED",
+    "REJECTED",
+    "WAITLIST",
+    "WITHDRAWN",
+  ]),
+  note: z.string().trim().max(500).default(""),
+  reRegistrationFee: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
+});
+
 /* ============================================================
  * SPMB — GELOMBANG
  * ============================================================ */

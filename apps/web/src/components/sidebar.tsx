@@ -51,7 +51,17 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/finance/methods", label: "Metode Bayar" },
     { href: "/dashboard/finance/gateway", label: "Gateway" },
   ],
-  spmb: [{ href: "/dashboard/spmb", label: "SPMB" }],
+  spmb: [
+    { href: "/dashboard/spmb", label: "SPMB" },
+    { href: "/dashboard/spmb/registrations", label: "Daftar Pendaftar" },
+  ],
+  website: [
+    { href: "/dashboard/website", label: "Web Sekolah" },
+    { href: "/dashboard/website/theme", label: "Tema & Warna" },
+    { href: "/dashboard/website/pages", label: "Halaman" },
+    { href: "/dashboard/website/navigation", label: "Menu Navigasi" },
+    { href: "/dashboard/website/settings", label: "Identitas & Kontak" },
+  ],
   schools: [{ href: "/dashboard/schools", label: "Kelola Sekolah" }],
 };
 
