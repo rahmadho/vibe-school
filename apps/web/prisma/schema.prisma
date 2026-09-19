@@ -1,0 +1,1061 @@
+// ============================================================
+// School App — Prisma Schema (Multi-tenant)
+// Sumber kebenaran skema database.
+// Konvensi: model PascalCase, field camelCase, @@map snake_case plural.
+// Nominal uang = Int (Rupiah). WA number = E.164 tanpa '+' (62812...).
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// TENANT & IDENTITAS
+// ============================================================
+
+/// Satu baris = satu sekolah (tenant)
+model School {
+  id       String      @id @default(cuid())
+  name     String
+  slug     String      @unique // subdomain / identitas URL
+  npsn     String?     @unique // Nomor Pokok Sekolah Nasional
+  level    SchoolLevel
+  address  String?
+  phone    String?
+  email    String?
+  logoUrl  String?
+  timezone String      @default("Asia/Jakarta")
+  isActive Boolean     @default(true)
+
+  // White-label (produk komersial)
+  themeColor   String? // hex, mis. "#1E40AF"
+  customDomain String? @unique // domain sekolah sendiri
+
+  // Konfigurasi integrasi WA per-sekolah
+  waGatewayId  String? // id device/session di wa-gateway
+  waSenderName String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users          User[]
+  students       Student[]
+  teachers       Teacher[]
+  staffs         Staff[]
+  classes        Class[]
+  subjects       Subject[]
+  academicYears  AcademicYear[]
+  registrations  Registration[]
+  invoices       Invoice[]
+  paymentMethods PaymentMethod[]
+  attendances    Attendance[]
+  gradeItems     GradeItem[]
+  announcements  Announcement[]
+  notifTemplates NotificationTemplate[]
+  notifQueue     NotificationQueue[]
+  auditLogs      AuditLog[]
+  timeSlots      TimeSlot[]
+  gatewayTxns    PaymentGatewayTransaction[]
+  classHistories StudentClassHistory[]
+  subscription   Subscription?
+
+  @@map("schools")
+}
+
+enum SchoolLevel {
+  TK
+  SD
+  SMP
+  SMA
+  SMK
+  MI
+  MTs
+  MA
+}
+
+// ============================================================
+// USER, ROLE, AUTH
+// ============================================================
+
+model User {
+  id           String    @id @default(cuid())
+  schoolId     String? // null = super-admin lintas sekolah
+  school       School?   @relation(fields: [schoolId], references: [id])
+  email        String    @unique
+  passwordHash String
+  name         String
+  phone        String? // E.164 tanpa '+'
+  avatarUrl    String?
+  role         UserRole
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  // Kaitan ke entitas lain (opsional, tergantung role)
+  student   Student? @relation(fields: [studentId], references: [id])
+  studentId String?  @unique
+  teacher   Teacher? @relation(fields: [teacherId], references: [id])
+  teacherId String?  @unique
+  staff     Staff?   @relation(fields: [staffId], references: [id])
+  staffId   String?  @unique
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  paymentsRecorded  Payment[]    @relation("PaymentRecordedBy")
+  gradesCreated     Grade[]      @relation("GradeCreatedBy")
+  attendancesMarked Attendance[] @relation("AttendanceMarkedBy")
+
+  @@index([schoolId])
+  @@index([role])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN // lintas sekolah
+  SCHOOL_ADMIN // admin satu sekolah
+  PRINCIPAL // kepala sekolah
+  TREASURER // bendahara
+  TEACHER // guru
+  STUDENT // siswa
+  PARENT // wali murid
+  STAFF // staf administrasi
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+// ============================================================
+// AKADEMIK: TAHUN AJARAN, KELAS, MAPEL
+// ============================================================
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String // "2025/2026"
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  semesters      Semester[]
+  classes        Class[]
+  gradeItems     GradeItem[]
+  classHistories StudentClassHistory[]
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+  @@map("academic_years")
+}
+
+model Semester {
+  id             String       @id @default(cuid())
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  name           String // "Ganjil" / "Genap"
+  type           SemesterType
+  startDate      DateTime
+  endDate        DateTime
+  isActive       Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  grades Grade[]
+
+  @@index([academicYearId])
+  @@map("semesters")
+}
+
+enum SemesterType {
+  GANJIL
+  GENAP
+}
+
+model Class {
+  id             String       @id @default(cuid())
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id])
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  name           String // "7A"
+  level          Int // 7
+  capacity       Int          @default(32)
+
+  homeroomTeacherId String?
+  homeroomTeacher   Teacher? @relation("Homeroom", fields: [homeroomTeacherId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  students       Student[]
+  schedules      Schedule[]
+  attendances    Attendance[]
+  grades         Grade[]
+  classHistories StudentClassHistory[]
+
+  @@unique([schoolId, academicYearId, name])
+  @@index([schoolId])
+  @@map("classes")
+}
+
+model Subject {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  code     String
+  name     String
+  kkm      Int    @default(70) // Kriteria Ketuntasan Minimal
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  teachers   TeacherSubject[]
+  schedules  Schedule[]
+  gradeItems GradeItem[]
+  grades     Grade[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("subjects")
+}
+
+/// Jadwal pelajaran: mapel + kelas + guru + jam
+model Schedule {
+  id        String  @id @default(cuid())
+  schoolId  String
+  classId   String
+  class     Class   @relation(fields: [classId], references: [id])
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
+  dayOfWeek  Int // 1=Senin ... 7=Minggu
+  timeSlotId String?
+  timeSlot   TimeSlot? @relation(fields: [timeSlotId], references: [id])
+  room       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, classId])
+  @@index([teacherId])
+  @@map("schedules")
+}
+
+// ============================================================
+// GURU & STAF
+// ============================================================
+
+model Teacher {
+  id       String  @id @default(cuid())
+  schoolId String
+  school   School  @relation(fields: [schoolId], references: [id])
+  nip      String? // Nomor Induk Pegawai
+  fullName String
+  gender   Gender
+  phone    String?
+  email    String?
+  photoUrl String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user        User?
+  homeroomOf  Class[]          @relation("Homeroom")
+  subjects    TeacherSubject[]
+  schedules   Schedule[]
+  attendances Attendance[]     @relation("TeacherAttendance")
+  gradeItems  GradeItem[]
+
+  @@unique([schoolId, nip])
+  @@index([schoolId])
+  @@map("teachers")
+}
+
+model Staff {
+  id       String  @id @default(cuid())
+  schoolId String
+  school   School  @relation(fields: [schoolId], references: [id])
+  nip      String?
+  fullName String
+  position String? // "Tata Usaha", "Bendahara", dll
+  phone    String?
+  email    String?
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user User?
+
+  @@index([schoolId])
+  @@map("staffs")
+}
+
+/// Relasi guru <-> mapel yang diampu
+model TeacherSubject {
+  id        String  @id @default(cuid())
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId])
+  @@map("teacher_subjects")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+// ============================================================
+// SISWA & WALI MURID
+// ============================================================
+
+model Student {
+  id         String    @id @default(cuid())
+  schoolId   String
+  school     School    @relation(fields: [schoolId], references: [id])
+  nis        String // Nomor Induk Siswa
+  nisn       String? // Nomor Induk Siswa Nasional
+  fullName   String
+  gender     Gender
+  birthPlace String?
+  birthDate  DateTime?
+  religion   String?
+  address    String?
+  phone      String?
+  photoUrl   String?
+
+  // Data masuk
+  entryYear Int
+  classId   String?
+  class     Class?        @relation(fields: [classId], references: [id])
+  status    StudentStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user           User?
+  parents        Parent[]
+  attendances    Attendance[]
+  grades         Grade[]
+  invoices       Invoice[]
+  registration   Registration?
+  classHistories StudentClassHistory[]
+
+  @@unique([schoolId, nis])
+  @@index([schoolId])
+  @@index([classId])
+  @@map("students")
+}
+
+enum StudentStatus {
+  ACTIVE
+  GRADUATED
+  TRANSFERRED
+  DROPPED_OUT
+  SUSPENDED
+}
+
+model Parent {
+  id         String         @id @default(cuid())
+  studentId  String
+  student    Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fullName   String
+  relation   ParentRelation
+  phone      String // E.164 tanpa '+'
+  email      String?
+  occupation String?
+  isPrimary  Boolean        @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@map("parents")
+}
+
+enum ParentRelation {
+  FATHER
+  MOTHER
+  GUARDIAN
+}
+
+// ============================================================
+// SPMB — PENERIMAAN MURID BARU
+// ============================================================
+
+model AdmissionBatch {
+  id             String   @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  name           String // "SPMB 2025/2026 Gelombang 1"
+  openDate       DateTime
+  closeDate      DateTime
+  quota          Int
+  isActive       Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  registrations Registration[]
+
+  @@index([schoolId])
+  @@map("admission_batches")
+}
+
+model Registration {
+  id             String             @id @default(cuid())
+  schoolId       String
+  school         School             @relation(fields: [schoolId], references: [id])
+  batchId        String
+  batch          AdmissionBatch     @relation(fields: [batchId], references: [id])
+  registrationNo String             @unique // nomor pendaftaran
+  status         RegistrationStatus @default(PENDING)
+
+  // Data calon siswa
+  fullName   String
+  gender     Gender
+  birthPlace String?
+  birthDate  DateTime?
+  religion   String?
+  address    String?
+  phone      String? // kontak pendaftar (E.164)
+  email      String?
+
+  // Data wali/ortu
+  parentName     String
+  parentPhone    String
+  parentRelation ParentRelation
+  previousSchool String?
+
+  // Dokumen (URL file yang diupload)
+  docBirthCert  String?
+  docFamilyCard String?
+  docPhoto      String?
+  docDiploma    String?
+
+  // Seleksi
+  score        Int?
+  selectedRank Int?
+  resultNote   String?
+  // Bila diterima → siswa dibuat
+  studentId    String?  @unique
+  student      Student? @relation(fields: [studentId], references: [id])
+
+  submittedAt DateTime  @default(now())
+  verifiedAt  DateTime?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([schoolId])
+  @@index([batchId])
+  @@index([status])
+  @@map("registrations")
+}
+
+enum RegistrationStatus {
+  DRAFT
+  PENDING // menunggu verifikasi
+  VERIFIED // dokumen OK
+  TESTED // sudah seleksi/tes
+  ACCEPTED // diterima
+  REJECTED // ditolak
+  WAITLIST // cadangan
+  WITHDRAWN // mengundurkan diri
+}
+
+// ============================================================
+// ABSENSI
+// ============================================================
+
+model Attendance {
+  id       String           @id @default(cuid())
+  schoolId String
+  school   School           @relation(fields: [schoolId], references: [id])
+  date     DateTime         @db.Date
+  status   AttendanceStatus
+  note     String?
+
+  // Salah satu dari siswa / guru
+  studentId String?
+  student   Student? @relation(fields: [studentId], references: [id])
+  teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId], references: [id], name: "TeacherAttendance")
+
+  classId    String?
+  class      Class?  @relation(fields: [classId], references: [id])
+  scheduleId String? // bila absen per-mapel
+
+  markedById String?
+  markedBy   User?    @relation("AttendanceMarkedBy", fields: [markedById], references: [id])
+  markedAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, date])
+  @@index([studentId, date])
+  @@index([teacherId, date])
+  @@map("attendances")
+}
+
+enum AttendanceStatus {
+  PRESENT // hadir
+  LATE // terlambat
+  SICK // sakit
+  EXCUSED // izin
+  ABSENT // alpa
+}
+
+// ============================================================
+// PENILAIAN
+// ============================================================
+
+/// Komponen nilai: UH, Tugas, UTS, UAS, dll
+model GradeItem {
+  id             String       @id @default(cuid())
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id])
+  subjectId      String
+  subject        Subject      @relation(fields: [subjectId], references: [id])
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  teacherId      String
+  teacher        Teacher      @relation(fields: [teacherId], references: [id])
+
+  name     String // "UTS", "Tugas 1"
+  type     GradeType
+  weight   Int       @default(100) // bobot persen
+  maxScore Int       @default(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  grades Grade[]
+
+  @@index([schoolId, subjectId])
+  @@map("grade_items")
+}
+
+enum GradeType {
+  ASSIGNMENT // tugas
+  QUIZ // kuis/UH
+  MIDTERM // UTS
+  FINAL // UAS
+  PRACTICUM // praktik
+  PROJECT // proyek
+}
+
+model Grade {
+  id          String    @id @default(cuid())
+  schoolId    String
+  gradeItemId String
+  gradeItem   GradeItem @relation(fields: [gradeItemId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id])
+  subjectId   String
+  subject     Subject   @relation(fields: [subjectId], references: [id])
+  classId     String?
+  class       Class?    @relation(fields: [classId], references: [id])
+  semesterId  String?
+  semester    Semester? @relation(fields: [semesterId], references: [id])
+
+  score        Int
+  note         String?
+  recordedById String?
+  recordedBy   User?    @relation("GradeCreatedBy", fields: [recordedById], references: [id])
+  recordedAt   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([gradeItemId, studentId])
+  @@index([schoolId, studentId])
+  @@map("grades")
+}
+
+/// Rapor final per siswa per semester per mapel
+model ReportCard {
+  id           String  @id @default(cuid())
+  schoolId     String
+  studentId    String
+  semesterId   String
+  subjectId    String // mapel
+  finalScore   Int
+  predicate    String? // A/B/C/D
+  note         String?
+  homeroomNote String? // catatan wali kelas untuk rapor PDF
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, semesterId, subjectId])
+  @@index([schoolId])
+  @@map("report_cards")
+}
+
+// ============================================================
+// KEUANGAN: TAGIHAN & PEMBAYARAN
+// ============================================================
+
+/// Master tagihan (SPP, uang pangkal, seragam, dll)
+model FeeType {
+  id        String  @id @default(cuid())
+  schoolId  String
+  name      String // "SPP Bulanan", "Uang Pangkal"
+  code      String
+  amount    Int // nominal default (Rupiah)
+  recurring Boolean @default(false) // berulang bulanan?
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices InvoiceItem[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("fee_types")
+}
+
+model Invoice {
+  id        String  @id @default(cuid())
+  schoolId  String
+  school    School  @relation(fields: [schoolId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+  invoiceNo String  @unique
+  title     String // "SPP Oktober 2025"
+
+  totalAmount Int // total tagihan
+  paidAmount  Int           @default(0)
+  status      InvoiceStatus @default(UNPAID)
+  dueDate     DateTime
+  note        String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items       InvoiceItem[]
+  payments    Payment[]
+  gatewayTxns PaymentGatewayTransaction[]
+
+  @@index([schoolId, studentId])
+  @@index([status])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  feeTypeId   String?
+  feeType     FeeType? @relation(fields: [feeTypeId], references: [id])
+  description String
+  amount      Int
+  quantity    Int      @default(1)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model PaymentMethod {
+  id       String  @id @default(cuid())
+  schoolId String
+  school   School  @relation(fields: [schoolId], references: [id])
+  name     String // "Tunai", "Transfer BCA", "QRIS"
+  code     String
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("payment_methods")
+}
+
+model Payment {
+  id        String         @id @default(cuid())
+  schoolId  String
+  invoiceId String
+  invoice   Invoice        @relation(fields: [invoiceId], references: [id])
+  amount    Int
+  methodId  String?
+  method    PaymentMethod? @relation(fields: [methodId], references: [id])
+  paidAt    DateTime       @default(now())
+  reference String? // no. referensi transfer
+  proofUrl  String? // bukti bayar
+  note      String?
+
+  recordedById String?
+  recordedBy   User?   @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, invoiceId])
+  @@map("payments")
+}
+
+// ============================================================
+// PENGUMUMAN & BERITA (WEB SEKOLAH)
+// ============================================================
+
+model Post {
+  id          String    @id @default(cuid())
+  schoolId    String
+  title       String
+  slug        String
+  excerpt     String?
+  content     String
+  coverUrl    String?
+  type        PostType  @default(NEWS)
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+
+  authorId  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([schoolId, slug])
+  @@index([schoolId])
+  @@map("posts")
+}
+
+enum PostType {
+  NEWS
+  ANNOUNCEMENT
+  AGENDA
+  GALLERY
+}
+
+model Announcement {
+  id          String               @id @default(cuid())
+  schoolId    String
+  school      School               @relation(fields: [schoolId], references: [id])
+  title       String
+  body        String
+  audience    AnnouncementAudience @default(ALL)
+  sendWa      Boolean              @default(false) // kirim ke WA juga?
+  waSentAt    DateTime?
+  publishedAt DateTime             @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reads AnnouncementRead[]
+
+  @@index([schoolId])
+  @@map("announcements")
+}
+
+enum AnnouncementAudience {
+  ALL
+  STUDENTS
+  PARENTS
+  TEACHERS
+  STAFF
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId         String
+  readAt         DateTime     @default(now())
+
+  @@unique([announcementId, userId])
+  @@map("announcement_reads")
+}
+
+// ============================================================
+// NOTIFIKASI WHATSAPP (via Baileys gateway)
+// ============================================================
+
+/// Template pesan WA per sekolah (per jenis notifikasi)
+model NotificationTemplate {
+  id       String  @id @default(cuid())
+  schoolId String
+  school   School  @relation(fields: [schoolId], references: [id])
+  key      String // "INVOICE_REMINDER", "ABSENT_ALERT", "GRADE_RELEASED"
+  name     String
+  body     String // gunakan {{nama}}, {{kelas}}, dll
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, key])
+  @@index([schoolId])
+  @@map("notification_templates")
+}
+
+/// Antrian pengiriman WA. Worker (wa-gateway) mengambil dari sini.
+model NotificationQueue {
+  id            String              @id @default(cuid())
+  schoolId      String
+  school        School              @relation(fields: [schoolId], references: [id])
+  channel       NotificationChannel @default(WHATSAPP)
+  to            String // nomor tujuan E.164 tanpa '+'
+  recipientName String?
+  templateKey   String? // referensi opsional ke template
+  body          String // isi pesan final (sudah di-render)
+  status        NotificationStatus  @default(QUEUED)
+  priority      Int                 @default(5) // 1=tinggi ... 9=rendah
+
+  // Hasil pengiriman
+  attempts    Int       @default(0)
+  lastError   String?
+  sentAt      DateTime?
+  waMessageId String?
+  scheduledAt DateTime  @default(now()) // jadwal kirim (hormati jam wajar)
+
+  refType String? // "INVOICE", "ATTENDANCE", "REGISTRATION"
+  refId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([schoolId])
+  @@map("notification_queue")
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  schoolId  String?
+  school    School?     @relation(fields: [schoolId], references: [id])
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  action    AuditAction
+  entity    String // nama model: "Invoice", "Grade"
+  entityId  String?
+  before    Json?
+  after     Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([schoolId, entity])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+}
+
+// ============================================================
+// JAM PELAJARAN (Jam ke-N)
+// ============================================================
+
+/// Master jam pelajaran per sekolah: jam ke-1 = 07:00–07:45, dst.
+model TimeSlot {
+  id         String  @id @default(cuid())
+  schoolId   String
+  school     School  @relation(fields: [schoolId], references: [id])
+  slotNumber Int // jam ke-N
+  startTime  String // "07:00"
+  endTime    String // "07:45"
+  label      String? // mis. "Upacara", "Istirahat"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedules Schedule[]
+
+  @@unique([schoolId, slotNumber])
+  @@index([schoolId])
+  @@map("time_slots")
+}
+
+// ============================================================
+// RIWAYAT KELAS SISWA (kenaikan kelas / mutasi)
+// ============================================================
+
+model StudentClassHistory {
+  id             String           @id @default(cuid())
+  schoolId       String
+  school         School           @relation(fields: [schoolId], references: [id])
+  studentId      String
+  student        Student          @relation(fields: [studentId], references: [id])
+  classId        String
+  class          Class            @relation(fields: [classId], references: [id])
+  academicYearId String
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id])
+  result         ClassProgression // hasil akhir tahun itu
+  note           String?
+
+  createdAt DateTime @default(now())
+
+  @@index([schoolId, studentId])
+  @@index([academicYearId])
+  @@map("student_class_histories")
+}
+
+enum ClassProgression {
+  NAIK // naik kelas
+  TINGGAL // tinggal kelas
+  LULUS // lulus
+  MUTASI // pindah sekolah
+}
+
+// ============================================================
+// PEMBAYARAN VIA PAYMENT GATEWAY (Midtrans / Xendit)
+// ============================================================
+
+model PaymentGatewayTransaction {
+  id          String          @id @default(cuid())
+  schoolId    String
+  school      School          @relation(fields: [schoolId], references: [id])
+  invoiceId   String
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+  provider    GatewayProvider
+  externalId  String          @unique // order_id / reference dari provider
+  vaNumber    String? // nomor virtual account
+  paymentLink String? // link pembayaran / QRIS
+  amount      Int
+  status      GatewayStatus   @default(PENDING)
+  rawPayload  Json? // payload webhook mentah untuk audit
+  paidAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, invoiceId])
+  @@index([status])
+  @@map("payment_gateway_transactions")
+}
+
+enum GatewayProvider {
+  MIDTRANS
+  XENDIT
+  MANUAL
+}
+
+enum GatewayStatus {
+  PENDING
+  SETTLEMENT
+  EXPIRE
+  REFUND
+  FAILED
+}
+
+// ============================================================
+// KOMERSIAL: PAKET LANGGANAN (SaaS)
+// ============================================================
+
+model Plan {
+  id            String  @id @default(cuid())
+  name          String // "Basic", "Pro", "Enterprise"
+  code          String  @unique
+  pricePerMonth Int // Rupiah
+  maxStudents   Int     @default(100)
+  features      Json? // daftar fitur aktif, mis. { "wa": true, "spmb": true }
+  isActive      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  schoolId  String             @unique
+  school    School             @relation(fields: [schoolId], references: [id])
+  planId    String
+  plan      Plan               @relation(fields: [planId], references: [id])
+  status    SubscriptionStatus @default(TRIAL)
+  startedAt DateTime           @default(now())
+  expiresAt DateTime
+  autoRenew Boolean            @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+  CANCELLED
+}

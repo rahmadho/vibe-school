@@ -1,0 +1,131 @@
+import NextAuth, { type DefaultSession } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { z } from "zod";
+import type { UserRole } from "@prisma/client";
+import { prisma } from "./prisma";
+import { verifyPassword } from "./password";
+
+/**
+ * ============================================================
+ * NextAuth v5 (Auth.js) — konfigurasi
+ * ============================================================
+ * Sesi membawa: userId, role, schoolId. `schoolId` inilah yang dipakai
+ * `scopedDb()` untuk mengunci query ke satu sekolah.
+ *
+ * PENTING: schoolId diambil dari DATABASE saat login, BUKAN dari input user.
+ */
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: UserRole;
+      schoolId: string | null;
+    } & DefaultSession["user"];
+  }
+  interface User {
+    id: string;
+    role: UserRole;
+    schoolId: string | null;
+  }
+}
+
+const credentialsSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: { strategy: "jwt" },
+  pages: { signIn: "/login" },
+  providers: [
+    Credentials({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(raw) {
+        const parsed = credentialsSchema.safeParse(raw);
+        if (!parsed.success) return null;
+
+        const { email, password } = parsed.data;
+
+        // Login butuh lintas-tenant (mencari user by email) → prisma mentah.
+        // Ini SATU-SATUNYA query data user yang tidak lewat scopedDb, dan
+        // aman karena tujuannya memang menemukan tenant si user.
+        const user = await prisma.user.findUnique({
+          where: { email: email.toLowerCase() },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            passwordHash: true,
+            role: true,
+            schoolId: true,
+            isActive: true,
+            deletedAt: true,
+          },
+        });
+
+        if (!user || !user.isActive || user.deletedAt) return null;
+
+        const valid = await verifyPassword(password, user.passwordHash);
+        if (!valid) return null;
+
+        // Catat login terakhir (best-effort, jangan blok login bila gagal).
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { lastLoginAt: new Date() },
+          });
+        } catch {
+          /* abaikan */
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          schoolId: user.schoolId,
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.uid = user.id;
+        token.role = user.role;
+        token.schoolId = user.schoolId;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.uid as string;
+        session.user.role = token.role as UserRole;
+        session.user.schoolId = (token.schoolId as string | null) ?? null;
+      }
+      return session;
+    },
+  },
+});
+
+/**
+ * Helper: ambil sesi + pastikan user punya schoolId (untuk data sekolah).
+ * Melempar bila tidak ada sesi atau schoolId kosong.
+ */
+export async function requireSchoolSession() {
+  const session = await auth();
+  if (!session?.user) throw new Error("UNAUTHENTICATED");
+  if (!session.user.schoolId) {
+    throw new Error("NO_SCHOOL_SCOPE");
+  }
+  return {
+    userId: session.user.id,
+    role: session.user.role,
+    schoolId: session.user.schoolId,
+  };
+}

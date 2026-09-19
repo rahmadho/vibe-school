@@ -1,0 +1,10 @@
+{
+  "name": "wa-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WhatsApp gateway (Baileys). Placeholder — diimplementasikan di Fase 7.",
+  "scripts": {
+    "dev": "echo \"WA Gateway belum diimplementasikan (Fase 7).\" && exit 0",
+    "build": "echo \"noop\""
+  }
+}

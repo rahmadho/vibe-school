@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: school-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: school
+      POSTGRES_PASSWORD: schoolpass
+      POSTGRES_DB: schoolapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - school_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U school -d schoolapp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wa-gateway:
+    build:
+      context: ./apps/wa-gateway
+      dockerfile: Dockerfile
+    container_name: school-wa-gateway
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://school:schoolpass@postgres:5432/schoolapp?schema=public"
+      WA_GATEWAY_TOKEN: "ganti-token-rahasia"
+      WA_SESSION_DIR: "/data/sessions"
+      PORT: "3001"
+    ports:
+      - "3001:3001"
+    volumes:
+      - school_wa_sessions:/data/sessions
+
+volumes:
+  school_pgdata:
+  school_wa_sessions:

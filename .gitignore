@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment — JANGAN commit rahasia
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Prisma
+apps/web/prisma/*.db
+apps/web/prisma/migrations/dev.db*
+
+# WA Gateway sessions (kredensial WhatsApp — sangat sensitif)
+apps/wa-gateway/sessions/
+*.session
+wa-gateway/data/
+
+# Uploads
+uploads/
+apps/web/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test
+coverage/
+.nyc_output/
+
+# Hermes plans (lokal)
+.hermes/
