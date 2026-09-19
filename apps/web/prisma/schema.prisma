@@ -52,6 +52,8 @@ model School {
   subjects         Subject[]
   academicYears    AcademicYear[]
   registrations    Registration[]
+  admissionBatches AdmissionBatch[]
+  admissionPaths   AdmissionPath[]
   invoices         Invoice[]
   paymentMethods   PaymentMethod[]
   attendances      Attendance[]
@@ -68,6 +70,13 @@ model School {
   messageTemplates MessageTemplate[]
   campaigns        AnnouncementCampaign[]
   waSessions       WaSession[]
+
+  // Web sekolah publik
+  siteTheme       SiteTheme?
+  siteConfig      SiteConfig?
+  siteBlocks      SiteBlock[]
+  pages           Page[]
+  navigationItems NavigationItem[]
 
   @@map("schools")
 }
@@ -426,6 +435,7 @@ enum ParentRelation {
 model AdmissionBatch {
   id             String   @id @default(cuid())
   schoolId       String
+  school         School   @relation(fields: [schoolId], references: [id])
   academicYearId String
   name           String // "SPMB 2025/2026 Gelombang 1"
   openDate       DateTime
@@ -433,13 +443,60 @@ model AdmissionBatch {
   quota          Int
   isActive       Boolean  @default(true)
 
+  /// Informasi umum yang tampil di halaman pendaftaran publik.
+  description        String?
+  /// Syarat & ketentuan yang harus disetujui pendaftar.
+  requirements       String?
+  /// Pengumuman hasil (diisi panitia saat seleksi selesai).
+  resultAnnouncement String?
+  resultDate         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  registrations Registration[]
+  paths         AdmissionPath[]
+
+  @@index([schoolId])
+  @@map("admission_batches")
+}
+
+/// Jalur pendaftaran di dalam satu gelombang (mis. Reguler / Prestasi / Afirmasi).
+///
+/// Sekolah yang sederhana cukup memakai satu jalur (dibuat otomatis sebagai
+/// "Reguler"), sehingga fitur ini tidak memaksa siapa pun. Sekolah yang punya
+/// beberapa jalur dapat mengatur kuota dan biaya pendaftaran per jalur.
+model AdmissionPath {
+  id       String         @id @default(cuid())
+  schoolId String
+  school   School         @relation(fields: [schoolId], references: [id])
+  batchId  String
+  batch    AdmissionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  name        String // "Jalur Prestasi"
+  code        String // "PRESTASI" — ringkas, untuk nomor pendaftaran
+  description String?
+
+  /// Kuota penerimaan khusus jalur ini.
+  quota           Int  @default(0)
+  /// Biaya pendaftaran (integer rupiah). 0 = gratis.
+  /// NULLABLE: biaya SPMB opsional per gelombang/jalur.
+  registrationFee Int?
+
+  /// Syarat khusus jalur ini (mis. "fotokopi piagam juara").
+  requirements String?
+  /// Urutan tampil di formulir.
+  order        Int     @default(0)
+  isActive     Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   registrations Registration[]
 
+  @@unique([batchId, code])
   @@index([schoolId])
-  @@map("admission_batches")
+  @@map("admission_paths")
 }
 
 model Registration {
@@ -448,6 +505,10 @@ model Registration {
   school         School             @relation(fields: [schoolId], references: [id])
   batchId        String
   batch          AdmissionBatch     @relation(fields: [batchId], references: [id])
+  /// Jalur pendaftaran yang dipilih. Nullable agar data lama tetap sah
+  /// (pendaftaran sebelum fitur jalur ada); dianggap jalur tunggal.
+  pathId         String?
+  path           AdmissionPath?     @relation(fields: [pathId], references: [id])
   registrationNo String             @unique // nomor pendaftaran
   status         RegistrationStatus @default(PENDING)
 
@@ -756,6 +817,175 @@ model Payment {
 
   @@index([schoolId, invoiceId])
   @@map("payments")
+}
+
+// ============================================================
+// WEB SEKOLAH (PUBLIK) — IDENTITAS, HALAMAN, BLOK
+// ============================================================
+
+/// Tema visual satu sekolah.
+///
+/// Dibuat sebagai preset terkurasi (bukan pemilih warna bebas) supaya
+/// kontras teks selalu aman. Sekolah memilih preset, boleh menyesuaikan
+/// warna aksen, tetapi pasangan warna dasar sudah dijamin terbaca.
+model SiteTheme {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Kode preset dari lib/site-themes.ts, mis. "akademik-biru".
+  preset String @default("akademik-biru")
+
+  /// Penyesuaian opsional (hex). Null = pakai warna preset.
+  primaryColor String?
+  accentColor  String?
+
+  /// Pilihan huruf — hanya dari daftar yang tersedia.
+  headingFont String @default("fraunces")
+  bodyFont    String @default("public-sans")
+
+  /// Sudut elemen: "tegas" | "lembut" | "bulat".
+  cornerStyle String @default("lembut")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_themes")
+}
+
+/// Blok di halaman depan sekolah.
+///
+/// Inilah mekanisme "satu mesin, banyak wajah": kode blok milik produk,
+/// tetapi SUSUNAN dan GAYA-nya milik sekolah. Setiap baris = satu blok.
+model SiteBlock {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Kunci jenis blok dari katalog (lib/site-blocks.ts), mis. "hero", "news".
+  /// Tidak boleh blok yang sama muncul dua kali di satu halaman depan.
+  blockKey   String
+  /// Kunci varian gaya, mis. "hero.besar-tengah".
+  variantKey String
+
+  /// Urutan tampil (kecil = atas).
+  order     Int     @default(0)
+  isEnabled Boolean @default(true)
+
+  /// Isi & pengaturan blok. Bentuknya berbeda per jenis blok; divalidasi
+  /// terhadap skema Zod milik blok tersebut.
+  props Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, blockKey])
+  @@index([schoolId, order])
+  @@map("site_blocks")
+}
+
+/// Halaman tambahan buatan sekolah (mis. /profil, /visi-misi, /sambutan).
+///
+/// Halaman depan ("/") tidak ada di sini — ia selalu dirender dari SiteBlock.
+model Page {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  title String
+  /// URL halaman tanpa garis miring, mis. "visi-misi".
+  slug  String
+
+  /// Isi halaman: teks kaya ringan (HTML dari editor terbatas).
+  /// Halaman boleh kosong bila hanya memakai blok.
+  content String @default("")
+
+  /// Blok penyusun halaman (opsional). Bila kosong, `content` yang dipakai.
+  blocks Json @default("[]")
+
+  /// Tampilkan di menu navigasi utama?
+  showInNav Boolean @default(true)
+  /// Urutan di menu.
+  navOrder  Int     @default(0)
+
+  /// SEO
+  metaTitle       String?
+  metaDescription String?
+
+  isPublished Boolean   @default(true)
+  publishedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([schoolId, slug])
+  @@index([schoolId])
+  @@map("pages")
+}
+
+/// Item menu navigasi (header/footer) milik sekolah.
+model NavigationItem {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  label String
+  /// Tujuan: "/berita", "/spmb", atau URL penuh.
+  href  String
+
+  /// "header" | "footer" — dua area menu terpisah.
+  area  String @default("header")
+  order Int    @default(0)
+
+  /// Buka di tab baru? (untuk tautan luar)
+  isExternal Boolean @default(false)
+  /// Hanya tampil bila sekolah punya SPMB aktif.
+  onlyIfSpmb Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, area, order])
+  @@map("navigation_items")
+}
+
+/// Pengaturan umum tampilan web sekolah (di luar tema).
+model SiteConfig {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Slogan/tagline di header.
+  tagline          String?
+  /// Kalimat singkat di bawah nama sekolah (halaman depan).
+  shortDescription String?
+
+  /// Halaman depan memakai blok ("BLOCKS") atau satu halaman kustom ("SINGLE").
+  homepageMode String @default("BLOCKS")
+
+  /// Arahkan "berita" ke halaman luar? Null = pakai /berita internal.
+  beritaUrl String?
+
+  /// Nomor WA humas untuk tombol kontak cepat.
+  contactWa String?
+
+  /// Sosial media (opsional).
+  facebookUrl  String?
+  instagramUrl String?
+  youtubeUrl   String?
+  tiktokUrl    String?
+
+  /// Google Maps embed atau tautan peta.
+  mapsUrl String?
+
+  /// Tampilkan jam operasional.
+  officeHours String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("site_configs")
 }
 
 // ============================================================
