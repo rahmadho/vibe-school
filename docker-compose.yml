@@ -1,3 +1,13 @@
+# CATATAN PENTING (Fase 8 — multi-tenant subdomain)
+#
+# Berkas ini BELUM lengkap untuk multi-tenant subdomain:
+#   1. Layanan `web` (aplikasi Next.js) belum ada di sini.
+#   2. Nginx belum menangani wildcard subdomain (*.sekolah.id), padahal itu
+#      WAJIB: subdomain adalah satu-satunya jalan masuk web sekolah di produksi.
+#
+# Lihat docs/panduan-deploy-subdomain.md untuk konfigurasi yang benar.
+# Jangan pakai berkas ini apa adanya untuk produksi multi-sekolah.
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -7,8 +17,11 @@ services:
       POSTGRES_USER: school
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diatur di .env}
       POSTGRES_DB: schoolapp
+    # JANGAN buka ke publik. Aplikasi web dan worker mengakses postgres lewat
+    # jaringan internal Docker (nama host: postgres). Port hanya dipetakan ke
+    # localhost agar masih bisa diakses dari VPS sendiri (psql, pg_dump).
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - school_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -27,7 +40,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgresql://school:${POSTGRES_PASSWORD}@postgres:5432/schoolapp?schema=public"
+      DATABASE_URL: "postgresql://school:***@postgres:5432/schoolapp?schema=public"
       WA_GATEWAY_TOKEN: "${WA_GATEWAY_TOKEN}"
       WA_SESSION_DIR: "/data/sessions"
       PORT: "3001"

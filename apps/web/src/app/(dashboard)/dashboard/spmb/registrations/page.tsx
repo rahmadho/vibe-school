@@ -28,8 +28,10 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function RegistrationsPage({
   searchParams,
 }: {
-  searchParams: { batch?: string; path?: string; status?: string };
+  // Next.js 15: `searchParams` juga Promise.
+  searchParams: Promise<{ batch?: string; path?: string; status?: string }>;
 }) {
+  const sp = await searchParams;
   const g = await guard("spmb", "read");
   if ("fail" in g) {
     return (
@@ -55,10 +57,10 @@ export default async function RegistrationsPage({
     prisma.registration.findMany({
       where: {
         schoolId,
-        ...(searchParams.batch ? { batchId: searchParams.batch } : {}),
-        ...(searchParams.path ? { pathId: searchParams.path } : {}),
-        ...(searchParams.status
-          ? { status: searchParams.status as never }
+        ...(sp.batch ? { batchId: sp.batch } : {}),
+        ...(sp.path ? { pathId: sp.path } : {}),
+        ...(sp.status
+          ? { status: sp.status as never }
           : {}),
       },
       orderBy: { submittedAt: "desc" },
@@ -88,7 +90,7 @@ export default async function RegistrationsPage({
         </h1>
         <p className="mt-1 text-sm text-[var(--ink-soft)]">
           {registrations.length} pendaftar ditampilkan
-          {searchParams.path ? " pada jalur terpilih" : ""}.
+          {sp.path ? " pada jalur terpilih" : ""}.
         </p>
       </header>
 
@@ -98,7 +100,7 @@ export default async function RegistrationsPage({
           <span className="font-medium text-[var(--ink)]">Gelombang</span>
           <select
             name="batch"
-            defaultValue={searchParams.batch ?? ""}
+            defaultValue={sp.batch ?? ""}
             className="mt-1 border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Semua gelombang</option>
@@ -114,7 +116,7 @@ export default async function RegistrationsPage({
           <span className="font-medium text-[var(--ink)]">Jalur</span>
           <select
             name="path"
-            defaultValue={searchParams.path ?? ""}
+            defaultValue={sp.path ?? ""}
             className="mt-1 border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Semua jalur</option>
@@ -132,7 +134,7 @@ export default async function RegistrationsPage({
           <span className="font-medium text-[var(--ink)]">Status</span>
           <select
             name="status"
-            defaultValue={searchParams.status ?? ""}
+            defaultValue={sp.status ?? ""}
             className="mt-1 border border-[var(--rule)] bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Semua status</option>

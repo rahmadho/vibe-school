@@ -17,11 +17,16 @@ import { Section, SectionHeading, SiteCard, SiteImage, BlockEmpty, Prose, format
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: { slug?: string[] } }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>;
+}) {
+  const { slug: slugArr } = await params;
   const ctx = await resolveSchoolFromRequest();
   if (ctx.status !== "ok") return { title: "Berita" };
 
-  const slug = params.slug?.[0];
+  const slug = slugArr?.[0];
   if (slug) {
     const post = await getPostBySlug(ctx.school.id, slug);
     return { title: post?.title ?? "Berita" };
@@ -32,12 +37,13 @@ export async function generateMetadata({ params }: { params: { slug?: string[] }
 export default async function NewsPage({
   params,
 }: {
-  params: { slug?: string[] };
+  params: Promise<{ slug?: string[] }>;
 }) {
+  const { slug: slugArr } = await params;
   const ctx = await resolveSchoolFromRequest();
   if (ctx.status !== "ok") notFound();
 
-  const slug = params.slug?.[0];
+  const slug = slugArr?.[0];
   if (slug) return <Article schoolId={ctx.school.id} slug={slug} />;
 
   const posts = await listPublishedPosts(ctx.school.id, { take: 40 });

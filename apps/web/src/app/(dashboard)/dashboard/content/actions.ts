@@ -330,4 +330,3 @@ function fromForm<T extends z.ZodTypeAny>(
 }
 
 /** Nilai yang sah untuk dropdown jenis konten (dipakai UI). */
-export const CONTENT_TYPES = POST_TYPES;

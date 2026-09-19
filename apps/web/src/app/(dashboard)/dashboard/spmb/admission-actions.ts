@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { guard, requestMeta, flattenZodErrors } from "@/lib/action-guard";
@@ -599,4 +598,3 @@ export async function saveSpmbBlockProps(formData: FormData): Promise<ActionResu
 
 // Re-export tipe agar bisa dipakai di form client tanpa impor ulang.
 export type { ActionResult };
-export const _z = z;

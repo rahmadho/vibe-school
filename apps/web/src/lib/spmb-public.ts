@@ -96,10 +96,22 @@ export function maskName(name: string): string {
 
 /**
  * Samakan bentuk nomor pendaftaran untuk pencarian.
- * Orang tua sering mengetik dengan spasi/huruf kecil; DB menyimpan huruf besar.
+ *
+ * Nomor pendaftaran disimpan dengan tanda hubung (`SPMB-2026-REGULER-ABC234`),
+ * tetapi orang tua sering menulisnya ulang dari kertas atau membacanya lewat
+ * telepon: spasi menggantikan tanda hubung, huruf jadi kecil, kadang tanda
+ * hubung ikut terbuang.
+ *
+ * Karena itu SEMUA pemisah dibuang, bukan hanya spasi. Membuang spasi tanda
+ * hubung saja menghasilkan `SPMB2026REGULERABC234` yang tidak akan pernah
+ * cocok dengan apa pun di database — dan pendaftar yang sah akan diberi tahu
+ * "data tidak ditemukan" padahal nomornya benar.
+ *
+ * Fungsi ini dipakai untuk MEMBANDINGKAN, bukan untuk menyimpan: nilai asli
+ * dengan tanda hubung tetap yang disimpan dan ditampilkan.
  */
 export function normalizeRegistrationNo(input: string): string {
-  return input.trim().toUpperCase().replace(/\s+/g, "");
+  return input.trim().toUpperCase().replace(/[\s-]+/g, "");
 }
 
 /* ============================================================

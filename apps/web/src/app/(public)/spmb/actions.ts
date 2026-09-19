@@ -313,11 +313,30 @@ export async function checkRegistrationStatus(
     return { ok: false, error: "Periksa kembali nomor pendaftaran dan nomor HP Anda." };
   }
 
+  /**
+   * Nomor pendaftaran disimpan dengan tanda hubung
+   * (`SPMB-2026-REGULER-ABC234`), sementara orang tua sering menulisnya ulang
+   * dengan spasi, huruf kecil, atau tanpa pemisah sama sekali.
+   *
+   * Karena itu input dinormalkan ke bentuk kanonik (tanpa pemisah) dan
+   * dibandingkan dengan bentuk kanonik yang sama, bukan dengan kolom apa
+   * adanya — kalau tidak, pendaftar yang sah akan selalu diberi tahu "data
+   * tidak ditemukan" padahal nomornya benar.
+   *
+   * Catatan: filter ini tetap dibatasi `schoolId`, jadi pendaftar sekolah A
+   * tidak bisa membaca data sekolah B walau nomornya kebetulan sama.
+   */
+  const canonical = normalizeRegistrationNo(parsed.data.registrationNo);
   const reg = await prisma.registration.findFirst({
     where: {
       schoolId,
-      registrationNo: normalizeRegistrationNo(parsed.data.registrationNo),
       parentPhone: parsed.data.phone,
+      OR: [
+        { registrationNo: parsed.data.registrationNo.trim().toUpperCase() },
+        { registrationNo: canonical },
+        // Hindari gagal karena spasi/huruf kecil pada data yang tersimpan.
+        { registrationNo: { equals: parsed.data.registrationNo.trim(), mode: "insensitive" } },
+      ],
     },
     select: {
       registrationNo: true,
