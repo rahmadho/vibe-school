@@ -10,6 +10,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // `server-only` melempar error di luar React Server. Di test kita
+      // netralkan agar modul server-side tetap bisa diuji.
+      "server-only": path.resolve(__dirname, "./src/test/stubs/server-only.ts"),
     },
   },
 });
