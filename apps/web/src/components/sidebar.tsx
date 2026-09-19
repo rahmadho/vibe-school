@@ -15,6 +15,8 @@ type NavItem = { href: string; label: string };
 
 /** Menu per modul. Fase 1: hanya halaman yang sudah ada. */
 const MODULE_LINKS: Record<string, NavItem[]> = {
+  audit: [{ href: "/dashboard/audit", label: "Log Aktivitas" }],
+  users: [{ href: "/dashboard/users", label: "Pengguna" }],
   students: [{ href: "/dashboard/students", label: "Siswa" }],
   teachers: [
     { href: "/dashboard/teachers", label: "Guru" },

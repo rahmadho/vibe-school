@@ -121,6 +121,55 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
   },
 };
 
+/** Daftar seluruh modul (untuk keperluan tampilan & iterasi). */
+export const ALL_MODULES: Module[] = [
+  "schools",
+  "users",
+  "students",
+  "teachers",
+  "staff",
+  "academic",
+  "attendance",
+  "grades",
+  "finance",
+  "spmb",
+  "content",
+  "notifications",
+  "audit",
+  "billing",
+];
+
+/** Label bahasa Indonesia untuk modul (dipakai di UI). */
+export const MODULE_LABEL: Record<Module, string> = {
+  schools: "Kelola Sekolah",
+  users: "Pengguna",
+  students: "Siswa",
+  teachers: "Guru & Staf",
+  staff: "Staf",
+  academic: "Akademik",
+  attendance: "Absensi",
+  grades: "Penilaian",
+  finance: "Keuangan",
+  spmb: "SPMB",
+  content: "Berita & Pengumuman",
+  notifications: "Notifikasi WA",
+  audit: "Log Aktivitas",
+  billing: "Langganan",
+};
+
+/** Deskripsi singkat tiap role (ditampilkan di halaman detail pengguna). */
+export const ROLE_DESCRIPTION: Record<UserRole, string> = {
+  SUPER_ADMIN: "Mengelola seluruh sekolah dalam sistem (lintas-tenant).",
+  SCHOOL_ADMIN:
+    "Administrator sekolah. Mengelola seluruh data akademik dan pengguna sekolah ini.",
+  PRINCIPAL: "Kepala sekolah. Akses baca untuk sebagian besar modul.",
+  TREASURER: "Bendahara. Mengelola keuangan, tagihan, dan pembayaran.",
+  TEACHER: "Guru. Mengisi absensi dan nilai untuk kelas yang diampu.",
+  STUDENT: "Siswa. Melihat jadwal, nilai, absensi, dan tagihan sendiri.",
+  PARENT: "Orang tua/wali. Melihat perkembangan anak dan tagihan.",
+  STAFF: "Staf administrasi. Membantu input data siswa dan SPMB.",
+};
+
 /**
  * Apakah role boleh melakukan aksi pada modul.
  * `manage` mencakup semua aksi lain.
