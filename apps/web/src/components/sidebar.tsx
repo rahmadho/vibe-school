@@ -23,9 +23,9 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/staff", label: "Staf" },
   ],
   academic: [
-    { href: "/dashboard/academic/years", label: "Tahun ajaran" },
-    { href: "/dashboard/academic/classes", label: "Kelas" },
-    { href: "/dashboard/academic/subjects", label: "Mata pelajaran" },
+    { href: "/dashboard/academic", label: "Akademik" },
+    { href: "/dashboard/academic/schedules", label: "Jadwal" },
+    { href: "/dashboard/academic/time-slots", label: "Jam Pelajaran" },
   ],
   attendance: [{ href: "/dashboard/attendance", label: "Absensi" }],
   grades: [{ href: "/dashboard/grades", label: "Penilaian" }],

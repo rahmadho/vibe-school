@@ -21,6 +21,16 @@ const LINKS = [
     title: "Mata pelajaran",
     desc: "Mapel dengan kode dan KKM, dipakai saat penilaian & jadwal.",
   },
+  {
+    href: "/dashboard/academic/time-slots",
+    title: "Jam pelajaran",
+    desc: "Kerangka waktu sekolah (jam ke-1, ke-2, …). Dasar penyusunan jadwal.",
+  },
+  {
+    href: "/dashboard/academic/schedules",
+    title: "Jadwal pelajaran",
+    desc: "Susun jadwal per kelas atau per guru. Bentrok dicegah otomatis.",
+  },
 ];
 
 export default async function AcademicIndexPage() {
