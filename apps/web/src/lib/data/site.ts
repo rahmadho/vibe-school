@@ -29,17 +29,28 @@ import {
 export async function findSchoolByHost(host: string) {
   const clean = host.split(":")[0].toLowerCase().trim();
 
+  const select = {
+    id: true,
+    name: true,
+    slug: true,
+    level: true,
+    logoUrl: true,
+    address: true,
+    phone: true,
+    email: true,
+  } as const;
+
   // Cocokkan custom domain lebih dulu (lebih spesifik).
   const byDomain = await prisma.school.findFirst({
     where: { customDomain: clean, isActive: true, deletedAt: null },
-    select: { id: true, name: true, slug: true, level: true, logoUrl: true },
+    select,
   });
   if (byDomain) return byDomain;
 
   // Lalu slug sebagai subdomain.
   return prisma.school.findFirst({
     where: { slug: clean, isActive: true, deletedAt: null },
-    select: { id: true, name: true, slug: true, level: true, logoUrl: true },
+    select,
   });
 }
 

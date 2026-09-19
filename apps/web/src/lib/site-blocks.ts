@@ -178,7 +178,7 @@ export const BLOCK_DEFINITIONS: BlockDefinition[] = [
     icon: "📰",
     requirement: "posts",
     defaultVariant: "news.kartu-kolom",
-    fields: ["heading", "subheading", "itemCount"],
+    fields: ["heading", "subtitle", "itemCount"],
     variants: [
       {
         key: "news.kartu-kolom",
@@ -566,7 +566,7 @@ export function defaultPropsFor(blockKey: string): Record<string, unknown> {
         ],
       };
     case "news":
-      return { heading: "Berita & Kegiatan", subheading: "", itemCount: 3 };
+      return { heading: "Berita & Kegiatan", subtitle: "", itemCount: 3 };
     case "agenda":
       return { heading: "Agenda Mendatang", itemCount: 4 };
     case "gallery":

@@ -162,7 +162,10 @@ export const BLOCK_PROPS_SCHEMAS: Record<string, z.ZodObject<z.ZodRawShape>> = {
   }),
   news: z.object({
     heading: z.string().trim().max(120).default(""),
-    subheading: z.string().trim().max(200).default(""),
+    // Nama field HARUS "subtitle" agar cocok dengan prop NewsBlock.
+    // (Sebelumnya bernama "subheading" — editor menyimpan "subheading" tapi
+    //  komponen membaca "subtitle", sehingga teksnya tidak pernah tampil.)
+    subtitle: z.string().trim().max(200).default(""),
     itemCount: itemCount.default(3),
   }),
   agenda: z.object({
