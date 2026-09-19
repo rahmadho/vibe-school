@@ -1,5 +1,6 @@
 import { PrismaClient, type SchoolLevel, type UserRole } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
+import { TEMPLATE_SEEDS } from "../src/lib/templates-seed";
 
 /**
  * Seed Fase 1:
@@ -86,6 +87,23 @@ async function seedSchool(input: {
       email: input.adminEmail,
     },
   });
+
+  // Template pesan bawaan — agar sekolah baru langsung punya pesan siap pakai.
+  for (const t of TEMPLATE_SEEDS) {
+    await prisma.messageTemplate.upsert({
+      where: { schoolId_key: { schoolId: school.id, key: t.key } },
+      update: {},
+      create: {
+        schoolId: school.id,
+        key: t.key,
+        name: t.name,
+        category: t.category,
+        description: t.description,
+        body: t.body,
+        isActive: true,
+      },
+    });
+  }
 
   // Langganan
   if (plan) {

@@ -44,27 +44,30 @@ model School {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  users           User[]
-  students        Student[]
-  teachers        Teacher[]
-  staffs          Staff[]
-  classes         Class[]
-  subjects        Subject[]
-  academicYears   AcademicYear[]
-  registrations   Registration[]
-  invoices        Invoice[]
-  paymentMethods  PaymentMethod[]
-  attendances     Attendance[]
-  gradeItems      GradeItem[]
-  announcements   Announcement[]
-  notifTemplates  NotificationTemplate[]
-  notifQueue      NotificationQueue[]
-  auditLogs       AuditLog[]
-  timeSlots       TimeSlot[]
-  gatewayTxns     PaymentGatewayTransaction[]
-  classHistories  StudentClassHistory[]
-  subscription    Subscription?
-  paymentGateways SchoolPaymentGateway[]
+  users            User[]
+  students         Student[]
+  teachers         Teacher[]
+  staffs           Staff[]
+  classes          Class[]
+  subjects         Subject[]
+  academicYears    AcademicYear[]
+  registrations    Registration[]
+  invoices         Invoice[]
+  paymentMethods   PaymentMethod[]
+  attendances      Attendance[]
+  gradeItems       GradeItem[]
+  announcements    Announcement[]
+  notifTemplates   NotificationTemplate[]
+  notifQueue       NotificationQueue[]
+  auditLogs        AuditLog[]
+  timeSlots        TimeSlot[]
+  gatewayTxns      PaymentGatewayTransaction[]
+  classHistories   StudentClassHistory[]
+  subscription     Subscription?
+  paymentGateways  SchoolPaymentGateway[]
+  messageTemplates MessageTemplate[]
+  campaigns        AnnouncementCampaign[]
+  waSessions       WaSession[]
 
   @@map("schools")
 }
@@ -111,9 +114,10 @@ model User {
 
   sessions          Session[]
   auditLogs         AuditLog[]
-  paymentsRecorded  Payment[]    @relation("PaymentRecordedBy")
-  gradesCreated     Grade[]      @relation("GradeCreatedBy")
-  attendancesMarked Attendance[] @relation("AttendanceMarkedBy")
+  paymentsRecorded  Payment[]              @relation("PaymentRecordedBy")
+  gradesCreated     Grade[]                @relation("GradeCreatedBy")
+  attendancesMarked Attendance[]           @relation("AttendanceMarkedBy")
+  campaignsCreated  AnnouncementCampaign[] @relation("CampaignCreatedBy")
 
   @@index([schoolId])
   @@index([role])
@@ -217,6 +221,7 @@ model Class {
   attendances    Attendance[]
   grades         Grade[]
   classHistories StudentClassHistory[]
+  campaigns      AnnouncementCampaign[]
 
   @@unique([schoolId, academicYearId, name])
   @@index([schoolId])
@@ -870,10 +875,20 @@ model NotificationQueue {
   refType String? // "INVOICE", "ATTENDANCE", "REGISTRATION"
   refId   String?
 
+  // === BACKOFF & KUNCI PROSES ===
+  // `nextAttemptAt` menyimpan waktu percobaan berikutnya setelah gagal, supaya
+  // worker tidak menyerbu nomor yang sedang bermasalah (rate limit WhatsApp).
+  nextAttemptAt DateTime?
+  // `lockedAt` mencegah DUA worker memproses pesan yang sama sekaligus
+  // (double-send). Worker mengklaim pesan dengan mengisi kolom ini.
+  lockedAt      DateTime?
+  lockedBy      String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status, scheduledAt])
+  @@index([status, nextAttemptAt])
   @@index([schoolId])
   @@map("notification_queue")
 }
@@ -884,12 +899,98 @@ enum NotificationChannel {
   SMS
 }
 
+/// Template pesan WhatsApp per sekolah.
+/// Dipakai agar sekolah bisa mengubah bunyi pesan tanpa menyentuh kode.
+model MessageTemplate {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Kunci teknis (panggilan dari kode), mis. "attendance.absent".
+  key      String
+  /// Nama ramah untuk admin, mis. "Pemberitahuan alpa".
+  name     String
+  category TemplateCategory @default(GENERAL)
+
+  /// Isi pesan dengan variabel {{nama}}, {{kelas}}, dst.
+  body        String
+  /// Keterangan kapan pesan ini dikirim (ditampilkan di UI).
+  description String?
+  isActive    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, key])
+  @@index([schoolId])
+  @@map("message_templates")
+}
+
+enum TemplateCategory {
+  ATTENDANCE
+  GRADE
+  FINANCE
+  ANNOUNCEMENT
+  ADMISSION
+  GENERAL
+}
+
+/// Kampanye pengumuman: satu pesan ke banyak penerima.
+model AnnouncementCampaign {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  title String
+  body  String
+
+  /// Audiens: ALL | CLASS | TEACHERS | PARENTS_OF_CLASS
+  audienceType    String
+  /// Terisi bila audiens per kelas.
+  audienceClassId String?
+  audienceClass   Class?  @relation(fields: [audienceClassId], references: [id])
+
+  /// Berapa pesan yang dibuat & berapa yang sudah terkirim.
+  recipientCount Int @default(0)
+
+  createdById String?
+  createdBy   User?   @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, createdAt])
+  @@map("announcement_campaigns")
+}
+
 enum NotificationStatus {
   QUEUED
   PROCESSING
   SENT
   FAILED
   CANCELLED
+}
+
+/// Status koneksi WhatsApp per sekolah (dibaca dari wa-gateway).
+model WaSession {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Nama sesi di wa-gateway (folder kredensial).
+  sessionName String    @unique
+  /// Connected | Pairing | Disconnected | LoggedOut
+  status      String    @default("Disconnected")
+  phoneNumber String?
+  lastQr      String?
+  lastSeenAt  DateTime?
+  lastError   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@map("wa_sessions")
 }
 
 // ============================================================

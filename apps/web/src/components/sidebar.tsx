@@ -36,6 +36,13 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/grades/report", label: "Rekap & Rapor" },
     { href: "/dashboard/grades/items", label: "Komponen Nilai" },
   ],
+  notifications: [
+    { href: "/dashboard/notifications", label: "Notifikasi WA" },
+    { href: "/dashboard/notifications/whatsapp", label: "Koneksi WhatsApp" },
+    { href: "/dashboard/notifications/queue", label: "Antrean Kirim" },
+    { href: "/dashboard/notifications/templates", label: "Template Pesan" },
+    { href: "/dashboard/notifications/announcements", label: "Pengumuman" },
+  ],
   finance: [
     { href: "/dashboard/finance", label: "Keuangan" },
     { href: "/dashboard/finance/invoices", label: "Tagihan" },
@@ -45,7 +52,6 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/finance/gateway", label: "Gateway" },
   ],
   spmb: [{ href: "/dashboard/spmb", label: "SPMB" }],
-  notifications: [{ href: "/dashboard/notifications", label: "Notifikasi WA" }],
   schools: [{ href: "/dashboard/schools", label: "Kelola Sekolah" }],
 };
 

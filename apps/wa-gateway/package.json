@@ -2,9 +2,23 @@
   "name": "wa-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "WhatsApp gateway (Baileys). Placeholder — diimplementasikan di Fase 7.",
+  "type": "module",
+  "description": "WhatsApp gateway (Baileys) untuk School App: worker antrean notifikasi + HTTP API untuk status sesi.",
+  "main": "src/index.js",
   "scripts": {
-    "dev": "echo \"WA Gateway belum diimplementasikan (Fase 7).\" && exit 0",
-    "build": "echo \"noop\""
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test src/worker-core.test.js",
+    "build": "node --check src/index.js && node --check src/worker.js && node --check src/worker-core.js && node --check src/wa.js && node --check src/api.js"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@prisma/client": "^5.22.0",
+    "@whiskeysockets/baileys": "^6.7.24",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

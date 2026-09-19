@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { queueNotification } from "@/lib/notification-queue";
 import { recordAudit } from "@/lib/audit";
 import { guard, requestMeta, flattenZodErrors } from "@/lib/action-guard";
 import type { ActionResult } from "@/lib/action-result";
@@ -337,9 +338,23 @@ export async function saveGrades(formData: FormData): Promise<ActionResult> {
 
   // Antre pemberitahuan ke orang tua untuk nilai di bawah KKM (via queue).
   if (toRemedial.length > 0) {
+    // Ambil nama mapel & kelas sekali saja untuk keperluan isi pesan.
+    const [subject, kelas] = await Promise.all([
+      prisma.subject.findFirst({
+        where: { id: item.subjectId, schoolId },
+        select: { name: true },
+      }),
+      prisma.class.findFirst({
+        where: { id: classId, schoolId },
+        select: { name: true },
+      }),
+    ]);
+
     await queueGradeNotifications({
       schoolId,
-      gradeItemName: item.name,
+      subjectName: subject?.name ?? "",
+      className: kelas?.name ?? "",
+      kkm,
       items: toRemedial,
     });
   }
@@ -357,10 +372,12 @@ export async function saveGrades(formData: FormData): Promise<ActionResult> {
 /** Antre pemberitahuan nilai di bawah KKM ke orang tua. */
 async function queueGradeNotifications(input: {
   schoolId: string;
-  gradeItemName: string;
+  subjectName?: string;
+  className?: string;
+  kkm?: number | null;
   items: { studentId: string; score: number }[];
 }) {
-  const { schoolId, gradeItemName, items } = input;
+  const { schoolId, items } = input;
 
   const students = await prisma.student.findMany({
     where: { id: { in: items.map((i) => i.studentId) }, schoolId },
@@ -376,35 +393,29 @@ async function queueGradeNotifications(input: {
   });
   const byId = new Map(students.map((s) => [s.id, s]));
 
-  const rows = items
-    .map((i) => {
-      const st = byId.get(i.studentId);
-      const p = st?.parents?.[0];
-      if (!st || !p?.phone) return null;
+  for (const i of items) {
+    const st = byId.get(i.studentId);
+    const p = st?.parents?.[0];
+    if (!st || !p?.phone) continue;
 
-      const body =
-        `Assalamualaikum, Bapak/Ibu ${p.fullName}.\n\n` +
-        `Kami informasikan bahwa nilai *${gradeItemName}* ananda *${st.fullName}* ` +
-        `adalah *${i.score}*, masih di bawah KKM.\n\n` +
-        `Ananda akan diikutkan program remedial. Mohon dukungannya di rumah.\n\n` +
-        `Terima kasih.`;
-
-      return {
-        schoolId,
-        channel: "WHATSAPP" as const,
-        to: p.phone,
-        recipientName: p.fullName,
-        templateKey: "GRADE_BELOW_KKM",
-        body,
-        status: "QUEUED" as const,
-        refType: "GRADE",
-        refId: i.studentId,
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
-
-  if (rows.length > 0) {
-    await prisma.notificationQueue.createMany({ data: rows });
+    await queueNotification({
+      schoolId,
+      to: p.phone,
+      recipientName: p.fullName,
+      templateKey: "grade.below_kkm",
+      // Prioritas lebih rendah dari absensi: ini bukan kejadian mendesak.
+      priority: 6,
+      refType: "GRADE",
+      refId: i.studentId,
+      vars: {
+        nama_wali: p.fullName,
+        nama_siswa: st.fullName,
+        mata_pelajaran: input.subjectName ?? "",
+        nilai: String(i.score),
+        kkm: input.kkm ?? "",
+        kelas: input.className ?? "",
+      },
+    });
   }
 }
 

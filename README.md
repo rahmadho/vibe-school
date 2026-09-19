@@ -176,7 +176,7 @@ Arah visual: **"papan tulis & arsip sekolah"** — tenang, informatif, sedikit h
 - [ ] Fase 4: Absensi
 - [ ] Fase 5: Penilaian + rapor PDF
 - [ ] Fase 6: SPMB
-- [ ] Fase 7: WA Gateway (Baileys)
+- [x] Fase 7: WA Gateway (Baileys) — template pesan, antrean, pengumuman massal
 - [ ] Fase 8: Web sekolah publik
 - [ ] Fase 9: Kenaikan kelas
 - [ ] Fase 10: Komersial & rilis

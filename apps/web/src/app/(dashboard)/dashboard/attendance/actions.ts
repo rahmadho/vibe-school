@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { queueNotification } from "@/lib/notification-queue";
 import { recordAudit } from "@/lib/audit";
 import { guard, requestMeta, flattenZodErrors } from "@/lib/action-guard";
 import type { ActionResult } from "@/lib/action-result";
@@ -222,39 +223,31 @@ async function queueParentNotifications(input: {
   });
   const parentByStudent = new Map(parents.map((p) => [p.studentId, p]));
 
-  const rows = items
-    .map((i) => {
-      const p = parentByStudent.get(i.studentId);
-      if (!p?.phone) return null;
+  // Kirim lewat queueNotification agar memakai template yang bisa diedit sekolah
+  // (template "attendance.absent"/"attendance.late"), bukan teks hard-code.
+  for (const i of items) {
+    const p = parentByStudent.get(i.studentId);
+    if (!p?.phone) continue;
 
-      const statusText =
-        i.status === "ABSENT"
-          ? "tidak hadir tanpa keterangan (alpa)"
-          : "terlambat datang";
+    const templateKey =
+      i.status === "ABSENT" ? "attendance.absent" : "attendance.late";
 
-      const body =
-        `Assalamualaikum, Bapak/Ibu ${p.fullName}.\n\n` +
-        `Kami informasikan bahwa *${i.studentName}* ${statusText} pada ` +
-        `${formatDateId(dateIso)}${i.note ? ` (${i.note})` : ""}.\n\n` +
-        `Kelas: ${className}\n\n` +
-        `Mohon konfirmasi bila ada keterangan. Terima kasih.`;
-
-      return {
-        schoolId,
-        channel: "WHATSAPP" as const,
-        to: p.phone,
-        recipientName: p.fullName,
-        templateKey: "ATTENDANCE_ALERT",
-        body,
-        status: "QUEUED" as const,
-        refType: "ATTENDANCE",
-        refId: i.studentId,
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
-
-  if (rows.length > 0) {
-    await prisma.notificationQueue.createMany({ data: rows });
+    await queueNotification({
+      schoolId,
+      to: p.phone,
+      recipientName: p.fullName,
+      templateKey,
+      priority: i.status === "ABSENT" ? 3 : 4,
+      refType: "ATTENDANCE",
+      refId: i.studentId,
+      vars: {
+        nama_wali: p.fullName,
+        nama_siswa: i.studentName,
+        kelas: className,
+        tanggal: formatDateId(dateIso),
+        jam: i.note ?? "",
+      },
+    });
   }
 }
 
