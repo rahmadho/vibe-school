@@ -31,7 +31,11 @@ const MODULE_LINKS: Record<string, NavItem[]> = {
     { href: "/dashboard/attendance", label: "Absensi" },
     { href: "/dashboard/attendance/summary", label: "Rekap Absensi" },
   ],
-  grades: [{ href: "/dashboard/grades", label: "Penilaian" }],
+  grades: [
+    { href: "/dashboard/grades", label: "Penilaian" },
+    { href: "/dashboard/grades/report", label: "Rekap & Rapor" },
+    { href: "/dashboard/grades/items", label: "Komponen Nilai" },
+  ],
   finance: [{ href: "/dashboard/finance", label: "Keuangan" }],
   spmb: [{ href: "/dashboard/spmb", label: "SPMB" }],
   notifications: [{ href: "/dashboard/notifications", label: "Notifikasi WA" }],
