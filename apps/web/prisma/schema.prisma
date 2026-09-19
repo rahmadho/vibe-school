@@ -44,26 +44,27 @@ model School {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  users          User[]
-  students       Student[]
-  teachers       Teacher[]
-  staffs         Staff[]
-  classes        Class[]
-  subjects       Subject[]
-  academicYears  AcademicYear[]
-  registrations  Registration[]
-  invoices       Invoice[]
-  paymentMethods PaymentMethod[]
-  attendances    Attendance[]
-  gradeItems     GradeItem[]
-  announcements  Announcement[]
-  notifTemplates NotificationTemplate[]
-  notifQueue     NotificationQueue[]
-  auditLogs      AuditLog[]
-  timeSlots      TimeSlot[]
-  gatewayTxns    PaymentGatewayTransaction[]
-  classHistories StudentClassHistory[]
-  subscription   Subscription?
+  users           User[]
+  students        Student[]
+  teachers        Teacher[]
+  staffs          Staff[]
+  classes         Class[]
+  subjects        Subject[]
+  academicYears   AcademicYear[]
+  registrations   Registration[]
+  invoices        Invoice[]
+  paymentMethods  PaymentMethod[]
+  attendances     Attendance[]
+  gradeItems      GradeItem[]
+  announcements   Announcement[]
+  notifTemplates  NotificationTemplate[]
+  notifQueue      NotificationQueue[]
+  auditLogs       AuditLog[]
+  timeSlots       TimeSlot[]
+  gatewayTxns     PaymentGatewayTransaction[]
+  classHistories  StudentClassHistory[]
+  subscription    Subscription?
+  paymentGateways SchoolPaymentGateway[]
 
   @@map("schools")
 }
@@ -1002,6 +1003,14 @@ model PaymentGatewayTransaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // === IDEMPOTENSI WEBHOOK ===
+  // Provider (terutama Midtrans) dapat mengirim ulang notifikasi yang sama.
+  // `notificationKey` = sidik jari peristiwa (mis. "order_id:transaction_status:
+  // status_code:gross_amount"). Sebelum memproses, sistem mengecek apakah kunci
+  // ini sudah pernah ditangani — sehingga pembayaran TIDAK tercatat dua kali.
+  notificationKey String?
+
+  @@unique([schoolId, notificationKey], name: "uniq_gateway_notification")
   @@index([schoolId, invoiceId])
   @@index([status])
   @@map("payment_gateway_transactions")
@@ -1011,6 +1020,43 @@ enum GatewayProvider {
   MIDTRANS
   XENDIT
   MANUAL
+}
+
+/// Konfigurasi payment gateway per sekolah.
+///
+/// KEAMANAN: `serverKeyEnc` dan `clientKeyEnc` TIDAK disimpan sebagai teks
+/// biasa. Keduanya dienkripsi AES-256-GCM memakai kunci dari environment
+/// (PAYMENT_ENCRYPTION_KEY). Kolom hanya berisi ciphertext.
+/// `serverKeyLast4` menyimpan 4 karakter terakhir untuk ditampilkan di UI
+/// ("••••3f2a") tanpa perlu mendekripsi.
+model SchoolPaymentGateway {
+  id       String          @id @default(cuid())
+  schoolId String
+  school   School          @relation(fields: [schoolId], references: [id])
+  provider GatewayProvider
+
+  isActive    Boolean @default(false)
+  /// "sandbox" | "production" — menentukan base URL yang dipakai adapter.
+  environment String  @default("sandbox")
+
+  /// Kredensial terenkripsi (ciphertext base64, bukan plaintext).
+  serverKeyEnc   String?
+  clientKeyEnc   String?
+  /// 4 karakter terakhir server key, untuk ditampilkan tanpa dekripsi.
+  serverKeyLast4 String?
+
+  /// Kanal pembayaran yang diaktifkan (mis. ["qris","bca_va","gopay"]).
+  channels String[] @default([])
+
+  /// Awalan order_id agar mudah dikenali di dasbor provider.
+  orderPrefix String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, provider])
+  @@index([schoolId])
+  @@map("school_payment_gateways")
 }
 
 enum GatewayStatus {
