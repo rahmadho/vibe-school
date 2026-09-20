@@ -15,114 +15,129 @@ Prinsip: **jangan lompat tahap**. Setiap fase harus lolos Definition of Done (li
 
 ---
 
-## Fase 1 — Kerangka & Multi-Tenant (PALING PENTING)
-Karena ini produk komersial, isolasi tenant harus dibangun kuat sejak awal.
-- [ ] Setup Next.js (App Router) + TypeScript + Tailwind + shadcn/ui
-- [ ] Prisma client + helper `scopedDb(schoolId)`
-- [ ] NextAuth: login, sesi bawa `role` + `schoolId`
-- [ ] Middleware otorisasi RBAC (9 role, lihat PRD §3)
-- [ ] **PostgreSQL Row Level Security (RLS)** — jaring pengaman kedua
-- [ ] **Test isolasi tenant** (sekolah A ≠ sekolah B) — WAJIB
-- [ ] Seed: super-admin + plan (Basic/Pro/Enterprise) + 1 sekolah contoh
-- [ ] Layout dashboard + navigasi per-role
+## Fase 1 — Kerangka & Multi-Tenant ✅ (SELESAI)
+- [x] Setup Next.js (App Router) + TypeScript + Tailwind
+- [x] Prisma client + helper `scopedDb(schoolId)`
+- [x] NextAuth: login, sesi bawa `role` + `schoolId`
+- [x] Middleware otorisasi RBAC (9 role)
+- [x] **PostgreSQL Row Level Security (RLS)**
+- [x] **Test isolasi tenant** — membandingkan `TENANT_MODELS` dengan `rls.sql`
+- [x] Seed: super-admin + plan + 2 sekolah contoh
+- [x] Layout dashboard + navigasi per-role
 
 ---
 
-## Fase 2 — Data Master & Onboarding
-- [ ] CRUD Sekolah (super-admin) + white-label (logo, warna, domain)
-- [ ] CRUD User, Guru, Staf
-- [ ] CRUD Siswa + Wali
-- [ ] CRUD Tahun Ajaran, Semester, Kelas, Mapel
-- [ ] **Master Jam Pelajaran (`TimeSlot`, jam ke-N)**
-- [ ] Jadwal (pakai TimeSlot)
-- [ ] **Import Excel** (siswa/guru) + wizard onboarding sekolah baru
-- [ ] Audit log otomatis pada semua mutasi
+## Fase 2 — Data Master & Onboarding ✅ (SELESAI)
+- [x] CRUD Sekolah (super-admin) + white-label
+- [x] CRUD User, Guru, Staf
+- [x] CRUD Siswa + Wali
+- [x] CRUD Tahun Ajaran, Semester, Kelas, Mapel
+- [x] **Master Jam Pelajaran (`TimeSlot`, jam ke-N)**
+- [x] Jadwal (pakai TimeSlot)
+- [x] **Impor Excel siswa** + unduh template
+- [x] Audit log otomatis pada mutasi
 
 ---
 
-## Fase 3 — Keuangan + Payment Gateway ⭐
-Prioritas bisnis tertinggi — sekolah paling sakit di sini.
-- [ ] Master biaya (`FeeType`) & metode bayar
-- [ ] Generate tagihan (satuan & massal bulanan)
-- [ ] **Integrasi Midtrans/Xendit**: generate VA/link, QRIS
-- [ ] **Endpoint webhook** + verifikasi signature
-- [ ] Auto-update Invoice + buat Payment saat settlement
-- [ ] Pencatatan pembayaran manual (tunai) oleh bendahara
-- [ ] Kwitansi PDF
-- [ ] Laporan tunggakan & rekap penerimaan
-- [ ] Cron penandaan OVERDUE + reminder WA (H-3 & jatuh tempo)
+## Fase 3 — Keuangan + Payment Gateway ✅ (SELESAI)
+- [x] Master biaya (`FeeType`) & metode bayar
+- [x] Tagihan satuan & massal bulanan
+- [x] Integrasi gateway: generate VA/link, QRIS
+- [x] **Endpoint webhook** + verifikasi signature + idempotensi
+- [x] Auto-update Invoice + buat Payment saat settlement
+- [x] Pencatatan pembayaran manual (tunai) oleh bendahara
+- [x] Laporan tunggakan & rekap penerimaan
+- [ ] Kwitansi PDF — belum
+- [ ] Cron penandaan OVERDUE — belum (status bisa diset manual)
 
 ---
 
-## Fase 4 — Absensi
-- [ ] Absen siswa (harian & per-jam pelajaran)
-- [ ] Absen guru
-- [ ] Rekap harian/bulanan + export
-- [ ] Trigger notifikasi WA saat ALPA (dapat dikonfigurasi)
+## Fase 4 — Absensi ✅ (SELESAI)
+- [x] Absen siswa (harian & per-jam pelajaran)
+- [x] Absen guru
+- [x] Rekap + ekspor CSV
+- [x] Trigger notifikasi WA saat alpa
 
 ---
 
-## Fase 5 — Penilaian + Rapor PDF
-- [ ] Guru mapel: buat komponen nilai + bobot
-- [ ] Input nilai (mendukung input massal)
-- [ ] Hitung nilai akhir (weighted) → `ReportCard`
-- [ ] **Rapor PDF format resmi** (kop, logo, tanda tangan, catatan wali kelas)
-- [ ] Rekap nilai digital untuk ortu/siswa
-- [ ] Publikasi nilai + notif WA
+## Fase 5 — Penilaian + Rapor (SEBAGIAN)
+- [x] Guru mapel: komponen nilai + bobot
+- [x] Input nilai per siswa
+- [x] Hitung nilai akhir (terbobot) → `ReportCard`
+- [x] Rekap nilai digital
+- [ ] **Rapor PDF format resmi** — belum
+- [ ] Publikasi nilai + notif WA — template WA sudah ada, alur publikasi belum
 
 ---
 
-## Fase 6 — SPMB
-- [ ] Halaman publik pendaftaran + upload dokumen
-- [ ] Verifikasi dokumen oleh admin
-- [ ] Input skor & seleksi (peringkat)
-- [ ] **Biaya pendaftaran opsional per gelombang** → bayar via gateway
-- [ ] Pengumuman hasil + cek status + notif WA
-- [ ] Konversi pendaftar diterima → Student + User
+## Fase 6 — SPMB ✅ (SELESAI)
+- [x] Halaman publik pendaftaran + multi-jalur
+- [x] Verifikasi dokumen oleh panitia
+- [x] Input skor & seleksi
+- [x] **Biaya pendaftaran opsional per jalur**
+- [x] Pengumuman hasil + cek status publik (disamarkan)
+- [x] Konversi pendaftar diterima → Student
 
 ---
 
-## Fase 7 — WA Gateway (Baileys)
-- [ ] Service Node.js + Baileys (di VPS)
-- [ ] Multi-sesi per sekolah + scan QR
-- [ ] Worker ambil `NotificationQueue` → kirim
-- [ ] Retry + backoff + jam wajar (07:00–21:00 WIB)
-- [ ] Halaman admin kelola sesi WA + status QR
+## Fase 7 — WA Gateway (Baileys) ✅ (SELESAI)
+- [x] Service Node.js + Baileys
+- [x] Multi-sesi per sekolah + QR lewat dasbor
+- [x] Worker ambil `NotificationQueue` → kirim
+- [x] Retry + backoff + jam wajar (07:00–20:00 WIB)
+- [x] Halaman admin kelola sesi WA
 
 ---
 
-## Fase 8 — Web Sekolah Publik
-- [ ] Landing page + profil sekolah
-- [ ] Berita / pengumuman / agenda / galeri
-- [ ] **White-label** (logo, warna, domain per sekolah)
-- [ ] SEO + sitemap
+## Fase 8 — Web Sekolah Publik ✅ (SELESAI)
+- [x] Landing page tersusun dari blok + varian gaya
+- [x] Berita / agenda / galeri / halaman kustom
+- [x] **White-label** (logo, warna, menu)
+- [x] SEO + sitemap
+- [x] Subdomain per sekolah + preview pengembangan
 
 ---
 
-## Fase 9 — Kenaikan Kelas & Administrasi
-- [ ] **Wizard kenaikan kelas massal** (tahun ajaran baru)
-- [ ] Tandai siswa **tinggal kelas** & **lulus** (alumni)
-- [ ] Riwayat kelas (`StudentClassHistory`)
+## Fase 9 — Kenaikan Kelas & Administrasi (BELUM)
+- [ ] **Wizard kenaikan kelas massal**
+- [ ] Tandai siswa **tinggal kelas** & **lulus**
+- [x] Riwayat kelas (`StudentClassHistory`) — tabel sudah ada, alur belum
 
 ---
 
-## Fase 10 — Komersial & Rilis
-- [ ] Plan (`Plan`) & langganan (`Subscription`) per sekolah
-- [ ] Halaman billing sekolah + pembatasan fitur per paket
-- [ ] Hardening keamanan (rate limit, RLS penuh)
+## Fase 10 — Komersial & Rilis (SEBAGIAN)
+- [x] Plan (`Plan`) & langganan (`Subscription`) per sekolah — data & seed
+- [x] Halaman Langganan (baca paket, pemakaian kuota, fitur)
+- [ ] Pembelian / perpanjangan paket dari dasbor
+- [ ] Pembatasan fitur otomatis per paket
 - [ ] Backup otomatis (pg_dump harian)
-- [ ] Deploy VPS: Docker Compose + Nginx + SSL (Let's Encrypt)
-- [ ] Monitoring & alert (termasuk kegagalan WA)
+- [ ] Deploy VPS: web app belum ada di docker-compose; Nginx wildcard ada di docs
+- [ ] Monitoring & alert
+
+---
+
+## Di Luar Rencana Awal (SUDAH DIKERJAKAN)
+
+- [x] **Unggah logo sekolah** + abstraksi driver penyimpanan berkas
+      (`local` bawaan, MinIO disiapkan) — [penyimpanan-berkas.md](penyimpanan-berkas.md)
+- [x] **Halaman Log Aktivitas** — filter aksi/jenis data/tanggal, tampilkan
+      perubahan nilai (before → after)
+- [x] **`grants.sql`** — hak akses role aplikasi (pasangan wajib `rls.sql`)
+- [x] **Seed riwayat 2 tahun** (`seed-activity.ts`) untuk menilai tampilan
+      dengan data padat
 
 ---
 
 ## Catatan Prioritas
 
 Bila waktu terbatas, urutan nilai bisnis:
-**Keuangan+Gateway** > **Absensi** > **Nilai+Rapor** > **SPMB** > **Web publik**.
+**Rapor PDF** > **Kenaikan kelas** > **Kwitansi PDF** > **Pembelian paket** > **Deploy VPS**.
 
 Alasan:
-1. **Keuangan** langsung menyentuh uang sekolah → nilai jual utama.
-2. **Absensi** menyelesaikan masalah operasional harian.
-3. **SPMB** penting tapi musiman (sekali setahun).
-4. **Web publik** bagus untuk citra, tapi bukan penyelesaian masalah inti.
+1. **Rapor PDF** menutup alur penilaian yang sekarang berhenti di rekap digital —
+   sekolah tetap butuh dokumen cetak bertanda tangan.
+2. **Kenaikan kelas** hanya dikerjakan sekali setahun, tetapi bila belum ada,
+   operator harus memindahkan siswa satu per satu di akhir tahun ajaran.
+3. **Kwitansi PDF** melengkapi keuangan yang sudah berjalan.
+4. **Pembelian paket** baru perlu saat jumlah sekolah bertambah.
+5. **Deploy VPS** perlu sebelum sekolah pertama memakai sungguhan.

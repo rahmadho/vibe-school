@@ -217,9 +217,24 @@ export function rootDomainConfigFromEnv(source: NodeJS.ProcessEnv = process.env)
 }
 
 /**
- * Bolehkah memakai cadangan `?school=`?
- * Hanya di luar produksi — di produksi subdomain WAJIB.
+ * Bolehkah memakai cadangan `?school=` / header `x-dev-school`?
+ *
+ * PRODUKSI SELALU TIDAK — subdomain wajib, tanpa pengecualian. Di produksi
+ * jalan pintas ini memungkinkan siapa pun membaca web sekolah lain hanya
+ * dengan menebak slug, dan itu meruntuhkan janji isolasi antar-sekolah.
+ *
+ * Di luar produksi: aktif secara bawaan, dapat dimatikan dengan
+ * ALLOW_SCHOOL_QUERY=false (mis. saat menguji perilaku subdomain asli).
+ *
+ * Parameternya sengaja bertipe sempit (`{ NODE_ENV?: string; … }`), bukan
+ * `NodeJS.ProcessEnv`: yang dibutuhkan fungsi ini hanya dua variabel, dan tipe
+ * sempit membuatnya bisa diuji dengan objek biasa tanpa memalsukan seluruh
+ * ProcessEnv.
  */
-export function allowDevFallback(nodeEnv: string | undefined): boolean {
-  return nodeEnv !== "production";
+export function allowDevFallback(
+  source: { NODE_ENV?: string; ALLOW_SCHOOL_QUERY?: string } = process.env,
+): boolean {
+  if (source.NODE_ENV === "production") return false;
+  const flag = source.ALLOW_SCHOOL_QUERY?.trim().toLowerCase();
+  return flag !== "false" && flag !== "0";
 }

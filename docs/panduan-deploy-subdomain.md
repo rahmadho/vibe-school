@@ -155,16 +155,38 @@ PAYMENT_ENCRYPTION_KEY="64-karakter-hex"
 
 # WAJIB: domain akar untuk menyusun tautan sekolah.
 ROOT_DOMAIN="sekolah.id"
-
-# CADANGAN ?school= — JANGAN diset di produksi.
-# Hanya berguna di pengembangan lokal (localhost tanpa subdomain).
-# Kalau diset di produksi, siapa pun bisa membaca web sekolah lain dengan
-# menebak slug.
-# ALLOW_SCHOOL_QUERY=true
 ```
 
-Aplikasi memutuskan boleh-tidaknya cadangan `?school=` dari **nilai variabel
-ini**, bukan dari perilaku tersembunyi — jadi ada satu tempat untuk memeriksa.
+### Preview di pengembangan (`?school=`)
+
+Menambah sekolah berarti menunggu DNS & sertifikat. Untuk melihat hasilnya
+sebelum semua itu siap, di luar produksi tersedia jalan pintas:
+
+```bash
+# .env (pengembangan)
+ROOT_DOMAIN="localhost"
+ALLOW_SCHOOL_QUERY="true"   # bawaan aktif di luar produksi
+```
+
+Lalu buka:
+
+```
+http://localhost:3000/?school=smpn1-nusantara
+```
+
+Pilihan sekolah diingat di cookie (`dev_school`) sehingga tautan menu
+(`/berita`, `/spmb`) tetap berada di sekolah yang sama. Tanpa itu, preview akan
+putus pada klik pertama karena tautan menu bersifat relatif.
+
+**Di produksi jalan pintas ini mati, tanpa pengecualian.** `allowDevFallback()`
+mengembalikan `false` begitu `NODE_ENV=production`, walau `ALLOW_SCHOOL_QUERY`
+sengaja diset `true`. Subdomain tetap satu-satunya jalan masuk, supaya tidak ada
+cara membaca web sekolah lain dengan menebak slug. Dikunci oleh test
+`src/test/site-host.test.ts`.
+
+Untuk menguji perilaku subdomain asli di mesin lokal, set
+`ALLOW_SCHOOL_QUERY=false`, atau langsung pakai subdomain lokal yang tidak butuh
+DNS: `http://smpn1-nusantara.localhost:3000`.
 
 ---
 

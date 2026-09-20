@@ -8,6 +8,7 @@ import { guard, requestMeta, flattenZodErrors } from "@/lib/action-guard";
 import type { ActionResult } from "@/lib/action-result";
 import {
   BLOCK_PROPS_SCHEMAS,
+  RESERVED_PAGE_SLUGS,
   navigationCreateSchema,
   navigationUpdateSchema,
   pageCreateSchema,
@@ -26,6 +27,12 @@ import {
 } from "@/lib/site-blocks";
 import { checkThemeSafety } from "@/lib/site-themes";
 import { explainSlugProblem } from "@/lib/site-host";
+import {
+  MAX_IMAGE_BYTES,
+  removeStoredUrl,
+  saveImage,
+  sniffImageType,
+} from "@/lib/storage";
 
 /**
  * Actions untuk mengelola tampilan web sekolah.
@@ -60,8 +67,20 @@ export async function saveHomepageLayout(formData: FormData): Promise<ActionResu
   const ctx = g.ctx;
   const meta = await requestMeta();
 
-  const parsed = fromForm(saveLayoutSchema, formData);
-  if (parsed.status === "error") return parsed.fail;
+  // CATATAN: TIDAK lewat `fromForm`. Dua alasan, keduanya nyata:
+  //   1. `saveLayoutSchema` memakai `.superRefine()`, sehingga hasilnya
+  //      ZodEffects — yang TIDAK punya `.shape`. `fromForm` jadi membaca nol
+  //      field dan setiap simpan gagal dengan "Periksa kembali isian."
+  //   2. Klien mengirim field BERSARANG (`blocks[0][blockKey]`), bukan satu
+  //      field `blocks` — tidak bisa dibaca `formData.get("blocks")`.
+  const parsed = saveLayoutSchema.safeParse({ blocks: parseLayoutBlocks(formData) });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali susunan blok.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
 
   const { schoolId } = ctx;
 
@@ -133,15 +152,20 @@ export async function saveBlockProps(formData: FormData): Promise<ActionResult> 
   // supaya perubahan bentuk form di masa depan tidak merusak data lama.
   const raw: Record<string, unknown> = {};
   for (const field of definition.fields) {
-    if (!formData.has(field)) continue;
-    const value = formData.get(field);
+    const isBoolean = field.startsWith("show") || field === "isEnabled";
 
-    // Checkbox: HTML hanya mengirim "on" saat dicentang.
-    if (field.startsWith("show") || field === "isEnabled") {
+    // Checkbox TIDAK dikirim browser saat tidak dicentang, jadi `has()` false
+    // bukan berarti "field tidak ada" — artinya justru "dimatikan". Tanpa cabang
+    // ini, skema `.default(true)` akan mengembalikannya ke true dan operator
+    // tidak pernah bisa mematikan "Tampilkan peta".
+    if (isBoolean) {
+      const value = formData.get(field);
       raw[field] = value === "on" || value === "true";
       continue;
     }
-    raw[field] = value;
+
+    if (!formData.has(field)) continue;
+    raw[field] = formData.get(field);
   }
 
   // Field berulang (items[k][label] / items[k][value]) untuk stats & faq.
@@ -295,13 +319,8 @@ export async function createPage(formData: FormData): Promise<ActionResult> {
   const { schoolId } = ctx;
   const slug = parsed.data.slug.toLowerCase();
 
-  // Slug "spmb" dan "berita" dipakai fitur bawaan — mencegah sekolah menimpanya.
-  if (["spmb", "berita", "agenda", "galeri"].includes(slug)) {
-    return {
-      ok: false,
-      error: `Alamat "${slug}" dipakai sistem. Pilih alamat lain.`,
-    };
-  }
+  const reserved = reservedPageSlugError(slug);
+  if (reserved) return reserved;
 
   const problem = explainSlugProblem(slug);
   if (problem) return { ok: false, error: problem };
@@ -361,6 +380,14 @@ export async function updatePage(formData: FormData): Promise<ActionResult> {
   if (!existing) return { ok: false, error: "Halaman tidak ditemukan." };
 
   const slug = parsed.data.slug.toLowerCase();
+
+  // Halaman bawaan (spmb, berita, …) tidak boleh ditimpa — baik saat DIBUAT
+  // maupun saat DIUBAH. Sebelumnya hanya `createPage` yang memeriksa ini,
+  // sehingga halaman biasa bisa diubah alamatnya menjadi "spmb" lalu menutupi
+  // formulir pendaftaran.
+  const reserved = reservedPageSlugError(slug);
+  if (reserved) return reserved;
+
   const problem = explainSlugProblem(slug);
   if (problem) return { ok: false, error: problem };
 
@@ -842,6 +869,142 @@ export async function updateSchoolSlug(formData: FormData): Promise<ActionResult
 }
 
 /* ============================================================
+ * LOGO SEKOLAH
+ * ============================================================ */
+
+/**
+ * Unggah logo sekolah.
+ *
+ * Urutan yang penting di sini: periksa ISI berkas dulu, baru simpan, baru
+ * perbarui database, dan terakhir hapus berkas lama. Kalau urutannya terbalik,
+ * unggahan yang gagal bisa meninggalkan sekolah tanpa logo sama sekali.
+ *
+ * Berkas lama baru dihapus SETELAH database berhasil diperbarui — kalau
+ * penghapusan gagal, yang tersisa hanyalah berkas tak terpakai, bukan logo
+ * yang hilang.
+ */
+export async function uploadSchoolLogo(formData: FormData): Promise<ActionResult> {
+  const g = await guard("website", "manage");
+  if ("fail" in g) return g.fail;
+  const ctx = g.ctx;
+  const meta = await requestMeta();
+
+  const { schoolId } = ctx;
+
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Pilih berkas gambar terlebih dahulu." };
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return {
+      ok: false,
+      error: `Ukuran gambar maksimal ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)} MB.`,
+    };
+  }
+
+  const buf = Buffer.from(await file.arrayBuffer());
+
+  // Jenis ditentukan dari isi berkas, bukan `file.type` yang bisa ditulis apa
+  // saja oleh klien. SVG ditolak (lihat sniffImageType).
+  const type = sniffImageType(buf);
+  if (!type) {
+    return {
+      ok: false,
+      error: "Berkas harus berupa gambar PNG, JPEG, atau WEBP.",
+    };
+  }
+
+  const previous = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { logoUrl: true },
+  });
+
+  let stored;
+  try {
+    stored = await saveImage({ data: buf, prefix: `${schoolId}/logo`, type });
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Gagal menyimpan berkas: ${error instanceof Error ? error.message : "tidak diketahui"}`,
+    };
+  }
+
+  try {
+    await prisma.school.update({
+      where: { id: schoolId },
+      data: { logoUrl: stored.url },
+    });
+
+    await recordAudit({
+      schoolId,
+      userId: ctx.userId,
+      action: "UPDATE",
+      entity: "School",
+      entityId: schoolId,
+      after: { logoUrl: stored.url },
+      ...meta,
+    });
+
+    revalidateSite();
+
+    // Baru sekarang berkas lama boleh dibuang.
+    await removeStoredUrl(previous?.logoUrl);
+
+    return { ok: true, message: "Logo tersimpan." };
+  } catch (error) {
+    // Database gagal → buang berkas yang baru diunggah agar tidak menumpuk.
+    await removeStoredUrl(stored.url);
+    return {
+      ok: false,
+      error: `Gagal menyimpan logo: ${error instanceof Error ? error.message : "tidak diketahui"}`,
+    };
+  }
+}
+
+/** Hapus logo sekolah (kembali tanpa logo, bukan logo bawaan). */
+export async function removeSchoolLogo(): Promise<ActionResult> {
+  const g = await guard("website", "manage");
+  if ("fail" in g) return g.fail;
+  const ctx = g.ctx;
+  const meta = await requestMeta();
+
+  const { schoolId } = ctx;
+
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: { logoUrl: true },
+  });
+  if (!school?.logoUrl) return { ok: false, error: "Sekolah belum punya logo." };
+
+  try {
+    await prisma.school.update({
+      where: { id: schoolId },
+      data: { logoUrl: null },
+    });
+
+    await recordAudit({
+      schoolId,
+      userId: ctx.userId,
+      action: "UPDATE",
+      entity: "School",
+      entityId: schoolId,
+      after: { logoUrl: null },
+      ...meta,
+    });
+
+    revalidateSite();
+    await removeStoredUrl(school.logoUrl);
+
+    return { ok: true, message: "Logo dihapus." };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Gagal menghapus logo: ${error instanceof Error ? error.message : "tidak diketahui"}`,
+    };
+  }
+}
+
+/* ============================================================
  * HELPER VALIDASI FORM
  * ============================================================ */
 
@@ -853,13 +1016,78 @@ export async function updateSchoolSlug(formData: FormData): Promise<ActionResult
  * Mengembalikan `{ ok: true, data }` atau `{ ok: false, fail }` dalam bentuk
  * ActionResult, sehingga pemanggil cukup `if (parsed.status === "error") return parsed.fail;`.
  */
+/** Tolak alamat yang sudah dipakai fitur bawaan web sekolah. */
+function reservedPageSlugError(slug: string): ActionResult | null {
+  if (!(RESERVED_PAGE_SLUGS as readonly string[]).includes(slug)) return null;
+  return {
+    ok: false,
+    error: `Alamat "${slug}" dipakai fitur bawaan web sekolah. Pilih alamat lain.`,
+  };
+}
+
+/**
+ * Baca susunan blok dari FormData bersarang.
+ *
+ * Klien mengirim `blocks[0][blockKey]`, `blocks[0][variantKey]`, … — bentuk yang
+ * tidak bisa dibaca `formData.get("blocks")`. Dibaca per indeks dan berhenti
+ * pada indeks pertama yang tidak ada.
+ */
+function parseLayoutBlocks(formData: FormData): {
+  blockKey: string;
+  variantKey: string;
+  order: number;
+  isEnabled: boolean;
+}[] {
+  const blocks: {
+    blockKey: string;
+    variantKey: string;
+    order: number;
+    isEnabled: boolean;
+  }[] = [];
+
+  for (let i = 0; i < 50; i += 1) {
+    const blockKey = formData.get(`blocks[${i}][blockKey]`);
+    if (blockKey === null) break;
+
+    const enabled = String(formData.get(`blocks[${i}][isEnabled]`) ?? "true");
+    const order = Number(formData.get(`blocks[${i}][order]`) ?? i);
+
+    blocks.push({
+      blockKey: String(blockKey),
+      variantKey: String(formData.get(`blocks[${i}][variantKey]`) ?? ""),
+      order: Number.isFinite(order) ? order : i,
+      isEnabled: enabled === "true" || enabled === "on",
+    });
+  }
+
+  return blocks;
+}
+
+/**
+ * Ambil `.shape` dari skema Zod, termasuk yang terbungkus.
+ *
+ * `.refine()` / `.superRefine()` / `.transform()` mengubah ZodObject menjadi
+ * ZodEffects yang TIDAK punya `.shape`. Tanpa membuka bungkusnya, seluruh field
+ * dianggap tidak ada — dan setiap simpan gagal dengan "Periksa kembali isian."
+ */
+function shapeOf(schema: z.ZodTypeAny): Record<string, unknown> {
+  let current: unknown = schema;
+  for (let depth = 0; depth < 5; depth += 1) {
+    const def = (current as { _def?: { schema?: unknown } })?._def;
+    if (!def?.schema) break;
+    current = def.schema;
+  }
+  const shape = (current as { shape?: Record<string, unknown> })?.shape;
+  return shape ?? {};
+}
+
 function fromForm<T extends z.ZodTypeAny>(
   schema: T,
   formData: FormData,
 ):
   | { status: "ok"; data: z.infer<T> }
   | { status: "error"; fail: ActionResult } {
-  const shape = (schema as unknown as { shape?: Record<string, unknown> }).shape ?? {};
+  const shape = shapeOf(schema);
   const raw: Record<string, unknown> = {};
 
   for (const key of Object.keys(shape)) {

@@ -28,6 +28,8 @@ type BlockRow = {
   order: number;
   isEnabled: boolean;
   isSaved: boolean;
+  /** Isi blok yang tersimpan. Tanpa ini form terbuka kosong lalu menghapus isi. */
+  props: Record<string, unknown>;
 };
 
 export function LayoutEditor({
@@ -78,6 +80,7 @@ export function LayoutEditor({
         order: prev.length,
         isEnabled: true,
         isSaved: false,
+        props: {},
       },
     ]);
   }
@@ -253,7 +256,9 @@ export function LayoutEditor({
                 </div>
               </div>
 
-              {isOpen && <BlockPropsForm blockKey={b.blockKey} />}
+              {isOpen && (
+                <BlockPropsForm blockKey={b.blockKey} props={b.props} />
+              )}
             </li>
           );
         })}
@@ -286,13 +291,32 @@ export function LayoutEditor({
  *
  * Field dibuat dari `definition.fields` — bukan ditulis tangan per blok — supaya
  * menambah blok baru di katalog otomatis mendapat formulirnya.
+ *
+ * NILAI LAMA DIISI ULANG (`defaultValue`) — ini penting: sebelumnya form selalu
+ * terbuka kosong, sehingga menekan "Simpan isi blok" tanpa mengisi apa pun
+ * MENGHAPUS isi yang sudah ada. Operator yang hanya ingin memeriksa isinya
+ * kehilangan datanya tanpa peringatan.
  */
-function BlockPropsForm({ blockKey }: { blockKey: string }) {
+function BlockPropsForm({
+  blockKey,
+  props,
+}: {
+  blockKey: string;
+  props: Record<string, unknown>;
+}) {
   const def = BLOCK_DEFINITIONS.find((d) => d.key === blockKey);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
 
   if (!def) return null;
+
+  /** Nilai lama sebagai string untuk `defaultValue`. */
+  const saved = (field: string): string => {
+    const v = props[field];
+    return v === null || v === undefined ? "" : String(v);
+  };
+  const savedBool = (field: string, fallback = true): boolean =>
+    props[field] === undefined ? fallback : Boolean(props[field]);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -315,12 +339,13 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
                 <textarea
                   name={field}
                   rows={5}
+                  defaultValue={saved(field)}
                   className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm text-[var(--ink)]"
                 />
               ) : field === "imagePosition" ? (
                 <select
                   name={field}
-                  defaultValue="kanan"
+                  defaultValue={saved(field) || "kanan"}
                   className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
                 >
                   <option value="kanan">Kanan</option>
@@ -331,13 +356,14 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
                 <input
                   type="checkbox"
                   name={field}
-                  defaultChecked
+                  defaultChecked={savedBool(field)}
                   className="mt-1 block"
                 />
               ) : (
                 <input
                   type="text"
                   name={field}
+                  defaultValue={saved(field)}
                   className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm text-[var(--ink)]"
                 />
               )}
@@ -346,8 +372,20 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
       </div>
 
       {/* Item berulang untuk blok stats (label/nilai) dan faq (tanya/jawab). */}
-      {blockKey === "stats" && <RepeatedItems names={["itemLabel", "itemValue"]} labels={["Nama angka", "Nilai"]} />}
-      {blockKey === "faq" && <RepeatedItems names={["itemQuestion", "itemAnswer"]} labels={["Pertanyaan", "Jawaban"]} />}
+      {blockKey === "stats" && (
+        <RepeatedItems
+          names={["itemLabel", "itemValue"]}
+          labels={["Nama angka", "Nilai"]}
+          initial={asStatItems(props.items)}
+        />
+      )}
+      {blockKey === "faq" && (
+        <RepeatedItems
+          names={["itemQuestion", "itemAnswer"]}
+          labels={["Pertanyaan", "Jawaban"]}
+          initial={asFaqItems(props.items)}
+        />
+      )}
 
       <div className="mt-3 flex items-center gap-3">
         <button
@@ -364,32 +402,67 @@ function BlockPropsForm({ blockKey }: { blockKey: string }) {
   );
 }
 
-/** Dua kolom input berulang (baris bisa ditambah/hapus). */
-function RepeatedItems({ names, labels }: { names: [string, string]; labels: [string, string] }) {
-  const [rows, setRows] = useState([0, 1, 2]);
-  const nextId = rows.length ? Math.max(...rows) + 1 : 0;
+/** `props.items` untuk blok stats — disaring agar aman dipakai UI. */
+function asStatItems(raw: unknown): { a: string; b: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((it): it is { label?: unknown; value?: unknown } => Boolean(it) && typeof it === "object")
+    .map((it) => ({ a: String(it.label ?? ""), b: String(it.value ?? "") }));
+}
+
+/** `props.items` untuk blok faq. */
+function asFaqItems(raw: unknown): { a: string; b: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((it): it is { question?: unknown; answer?: unknown } => Boolean(it) && typeof it === "object")
+    .map((it) => ({ a: String(it.question ?? ""), b: String(it.answer ?? "") }));
+}
+
+/**
+ * Dua kolom input berulang (baris bisa ditambah/hapus).
+ *
+ * Baris awal berasal dari isi yang tersimpan; bila belum ada, disediakan tiga
+ * baris kosong supaya operator langsung bisa mengisi tanpa menekan "Tambah".
+ */
+function RepeatedItems({
+  names,
+  labels,
+  initial,
+}: {
+  names: [string, string];
+  labels: [string, string];
+  initial: { a: string; b: string }[];
+}) {
+  const [rows, setRows] = useState(() =>
+    initial.length > 0
+      ? initial.map((it, i) => ({ id: i, a: it.a, b: it.b }))
+      : [0, 1, 2].map((id) => ({ id, a: "", b: "" })),
+  );
+  const nextId = rows.length ? Math.max(...rows.map((r) => r.id)) + 1 : 0;
 
   return (
     <div className="mt-4">
       <p className="text-xs font-medium text-[var(--ink)]">{labels[0]} berulang</p>
       <div className="mt-1 space-y-1">
-        {rows.map((id) => (
-          <div key={id} className="flex gap-1">
+        {rows.map((row) => (
+          <div key={row.id} className="flex gap-1">
             <input
               name={names[0]}
+              defaultValue={row.a}
               placeholder={labels[0]}
               aria-label={labels[0]}
               className="min-w-0 flex-1 border border-[var(--chalk)] px-2 py-1 text-sm"
             />
             <input
               name={names[1]}
+              defaultValue={row.b}
               placeholder={labels[1]}
               aria-label={labels[1]}
               className="min-w-0 flex-[2] border border-[var(--chalk)] px-2 py-1 text-sm"
             />
             <button
               type="button"
-              onClick={() => setRows((r) => r.filter((x) => x !== id))}
+              onClick={() => setRows((r) => r.filter((x) => x.id !== row.id))}
               aria-label="Hapus baris"
               className="border border-[var(--chalk)] px-2 text-xs"
             >
@@ -400,7 +473,7 @@ function RepeatedItems({ names, labels }: { names: [string, string]; labels: [st
       </div>
       <button
         type="button"
-        onClick={() => setRows((r) => [...r, nextId])}
+        onClick={() => setRows((r) => [...r, { id: nextId, a: "", b: "" }])}
         className="mt-1 text-xs text-[var(--ink)] underline"
       >
         Tambah baris

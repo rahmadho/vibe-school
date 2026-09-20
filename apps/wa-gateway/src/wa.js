@@ -208,12 +208,18 @@ export function stopSession(sessionName) {
 /** Logout & hapus kredensial (harus pindai QR lagi). */
 export async function logoutSession(sessionName) {
   const entry = sessions.get(sessionName);
+
+  // Tandai berhenti SEBELUM memutus: `sock.logout()` memicu event
+  // `connection.update` → "close", dan tanpa flag ini handler menyambung
+  // ulang memakai kredensial yang justru sedang kita hapus.
+  if (entry) entry.stopped = true;
+
   try {
     if (entry?.sock) await entry.sock.logout();
   } catch {
     /* diabaikan */
   }
-  entry_stopped(sessionName);
+
   try {
     await rm(sessionDir(sessionName), { recursive: true, force: true });
   } catch {
@@ -221,11 +227,6 @@ export async function logoutSession(sessionName) {
   }
   sessions.delete(sessionName);
   return true;
-}
-
-function entry_stopped(sessionName) {
-  const e = sessions.get(sessionName);
-  if (e) e.stopped = true;
 }
 
 /**

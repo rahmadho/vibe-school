@@ -1,6 +1,7 @@
 import { guard } from "@/lib/action-guard";
 import { getSiteConfig } from "@/lib/data/site";
 import { prisma } from "@/lib/prisma";
+import { LogoBox } from "./logo-box";
 import { SettingsForm } from "./settings-form";
 
 /**
@@ -36,14 +37,21 @@ export default async function WebsiteSettingsPage() {
     getSiteConfig(schoolId),
     prisma.school.findUnique({
       where: { id: schoolId },
-      select: { name: true, slug: true },
+      select: { name: true, slug: true, logoUrl: true },
     }),
   ]);
 
+  const schoolName = school?.name ?? "Sekolah";
+
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-3xl space-y-6">
+      {/* Logo dipisah dari form utama karena berkas dikirim dengan cara berbeda
+          (multipart, bukan field teks) — mencampurnya membuat satu form punya
+          dua cara simpan dan membingungkan. */}
+      <LogoBox currentUrl={school?.logoUrl ?? ""} schoolName={schoolName} />
+
       <SettingsForm
-        schoolName={school?.name ?? "Sekolah"}
+        schoolName={schoolName}
         slug={school?.slug ?? ""}
         config={{
           tagline: config?.tagline ?? "",

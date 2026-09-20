@@ -1,17 +1,33 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
+import { allowDevFallback } from "@/lib/site-host";
+
+// Next.js mura default di edge runtime, nguni `crypto` Node không ada di edge.
+// Forcam nodejs karena auth → password-hash pakai Node crypto.
+export const runtime = "nodejs";
+
+/** Nama cookie yang menyimpan sekolah pilihan saat preview pengembangan. */
+export const DEV_SCHOOL_COOKIE = "dev_school";
 
 /**
- * Middleware route protection.
- * - Belum login & akses /dashboard/* → redirect ke /login
- * - Sudah login & akses /login → redirect ke /dashboard
+ * Middleware.
  *
- * Otorisasi per-MODUL dilakukan di layout/halaman (butuh role → modul mapping),
- * karena middleware sengaja dibuat ringan (tanpa query DB).
+ * 1. Proteksi rute: /dashboard/* wajib login; /login ditolak bila sudah login.
+ * 2. JEMBATAN PREVIEW (hanya di luar produksi): menerjemahkan `?school=<slug>`
+ *    menjadi header `x-dev-school` yang dibaca `resolveSchoolFromRequest()`,
+ *    sekaligus mengingatnya di cookie agar bertahan saat pengunjung berpindah
+ *    halaman — tautan menu bersifat relatif (`/berita`, `/spmb`) dan tidak
+ *    membawa `?school=`, jadi tanpa cookie preview akan putus di klik pertama.
+ *
+ * Kenapa lewat header, bukan membaca searchParams di setiap halaman: halaman
+ * publik adalah Server Components dan tidak menerima `searchParams` secara
+ * seragam; menambahkannya di 7 berkas berarti 7 tempat untuk lupa. Satu
+ * terjemahan di sini membuat preview bekerja di SEMUA halaman publik sekaligus
+ * — dan mati total di produksi karena `allowDevFallback()` menolak.
  */
 export default auth((req: NextRequest & { auth: unknown }) => {
   const isLoggedIn = Boolean((req as { auth?: unknown }).auth);
-  const { pathname } = req.nextUrl;
+  const { pathname, searchParams } = req.nextUrl;
 
   const isProtected = pathname.startsWith("/dashboard");
   const isAuthPage = pathname === "/login";
@@ -26,10 +42,35 @@ export default auth((req: NextRequest & { auth: unknown }) => {
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl.origin));
   }
 
-  return NextResponse.next();
+  if (!allowDevFallback()) return NextResponse.next();
+
+  // Sekolah dari ?school= (prioritas) atau dari kunjungan sebelumnya (cookie).
+  const fromQuery = searchParams.get("school");
+  const school = fromQuery ?? req.cookies.get(DEV_SCHOOL_COOKIE)?.value ?? null;
+  if (!school) return NextResponse.next();
+
+  const headers = new Headers(req.headers);
+  headers.set("x-dev-school", school);
+  const res = NextResponse.next({ request: { headers } });
+
+  // Simpan pilihan agar bertahan saat berpindah halaman. `?school=` yang
+  // eksplisit boleh menimpa; cookie hanya diingat selama pengembangan.
+  if (fromQuery) {
+    res.cookies.set(DEV_SCHOOL_COOKIE, fromQuery, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
+
+  return res;
 });
 
 export const config = {
-  // Lindungi semua kecuali aset statis & endpoint auth.
-  matcher: ["/dashboard/:path*", "/login"],
+  // Halaman + aset non-statis. `/api`, `/uploads`, dan `_next/*` dilewati:
+  // endpoint auth, webhook gateway, dan penyajian berkas unggahan tidak
+  // memanggil resolveSchoolFromRequest(), jadi tidak ada gunanya menambah satu
+  // lapisan di depannya.
+  matcher: ["/((?!api|uploads|_next/static|_next/image|favicon.ico).*)"],
 };

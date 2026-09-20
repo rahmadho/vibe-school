@@ -56,8 +56,7 @@ export async function resolveSchoolFromRequest(
 
     const devHost = h.get("x-dev-school");
     const fallback =
-      resolveDevFallback(param ?? devHost ?? null, allowDevFallback(process.env.NODE_ENV)) ??
-      null;
+      resolveDevFallback(param ?? devHost ?? null, allowDevFallback()) ?? null;
 
     if (fallback) resolution = fallback;
   }

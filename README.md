@@ -2,7 +2,9 @@
 
 Aplikasi lengkap untuk sekolah: **web sekolah, SPMB, akademik, absensi, penilaian, keuangan, dan notifikasi WhatsApp** — mendukung banyak sekolah (yayasan/unit) dalam satu instalasi.
 
-> Status: **Fase 1 (Kerangka & Multi-Tenant) ✅** — autentikasi, RBAC, isolasi tenant.
+> Status: **Fase 1–9 sebagian besar selesai** — kerangka multi-tenant, data master,
+> keuangan, absensi, penilaian, SPMB, WA gateway, dan web sekolah publik sudah
+> berjalan. Lihat [roadmap](docs/roadmap.md) untuk rincian yang belum ada.
 
 ---
 
@@ -17,6 +19,8 @@ Aplikasi lengkap untuk sekolah: **web sekolah, SPMB, akademik, absensi, penilaia
 - 📱 **Notifikasi WA** — gateway sendiri (Baileys): absen, tagihan, nilai, pengumuman
 - 🏢 **Multi-sekolah** — isolasi data per tenant (`schoolId` + RLS)
 - 🔒 **Audit log** — jejak aksi penting untuk keuangan & nilai
+- 🖼️ **Logo sekolah** — unggah berkas, disimpan di disk lokal (MinIO disiapkan)
+- 💳 **Langganan** — paket sekolah, batas kuota siswa, fitur per paket
 
 ---
 
@@ -100,21 +104,26 @@ Diuji otomatis: `apps/web/src/test/tenant-isolation.test.ts`.
 school-app/
 ├─ AGENTS.md                 # instruksi kerja agent/developer
 ├─ SOUL.md                   # kepribadian & nilai agent
-├─ docker-compose.yml        # postgres (+ wa-gateway nanti)
+├─ .impeccable.md            # konteks desain (dibaca skill desain)
+├─ docker-compose.yml        # postgres (+ wa-gateway)
 ├─ scripts/verify.sh         # typecheck + lint + test + build
-├─ docs/                     # PRD, arsitektur, skema, roadmap
+├─ docs/                     # PRD, arsitektur, skema, roadmap, deploy
 └─ apps/
    ├─ web/                   # Next.js app utama
    │  ├─ prisma/
    │  │  ├─ schema.prisma    # ⭐ skema (sumber kebenaran)
    │  │  ├─ seed.ts          # data demo multi-tenant
+   │  │  ├─ seed-activity.ts # riwayat demo 2 tahun (1 sekolah)
+   │  │  ├─ grants.sql       # hak akses role aplikasi
    │  │  └─ rls.sql          # Row Level Security
+   │  ├─ var/uploads/        # berkas unggahan (TIDAK di-commit)
    │  └─ src/
-   │     ├─ app/             # (login, dashboard, api/auth)
-   │     ├─ components/      # sidebar, ui/
-   │     ├─ lib/             # prisma, scoped-db, auth, rbac, ...
-   │     └─ test/            # test isolasi tenant
-   └─ wa-gateway/            # service WhatsApp (Fase 7)
+   │     ├─ app/             # (public), (dashboard), login, api, uploads
+   │     ├─ components/      # sidebar, data-table, ui, site/
+   │     ├─ lib/             # prisma, scoped-db, storage, auth, rbac, ...
+   │     │  └─ data/         # query layer per modul
+   │     └─ test/            # test isolasi tenant, host, blok, storage
+   └─ wa-gateway/            # service WhatsApp (Baileys)
 ```
 
 ---
@@ -129,7 +138,28 @@ npm run test           # vitest (isolasi tenant)
 npm run verify         # semua gate sekaligus
 npm run prisma:migrate # migrasi dev
 npm run prisma:studio  # GUI database
-npm run db:seed        # seed data demo
+npm run db:seed        # seed data demo (2 sekolah + riwayat 2 tahun di SMP)
+```
+
+Seed demo bisa dimatikan dan aman dijalankan ulang:
+
+```bash
+SEED_DEMO_ACTIVITY=0 npm run db:seed   # hanya data dasar, tanpa riwayat
+```
+
+> Riwayat demo memakai PRNG berbenih tetap, jadi dua kali menjalankan
+> menghasilkan data yang sama. Fungsi ini berhenti sendiri bila absensi sudah
+> ada, sehingga tidak menggandakan tagihan.
+
+### Izin database (wajib sekali per database baru)
+
+RLS mewajibkan aplikasi terhubung sebagai role **non-owner**. Role seperti itu
+TIDAK otomatis punya hak ke tabel, sehingga query gagal dengan
+`42501 permission denied`. Pasang hak aksesnya sebagai owner:
+
+```bash
+psql "postgresql://OWNER:PASSWORD@HOST:5432/DBNAME" \
+  -v app_role=<role_di_DATABASE_URL> -f apps/web/prisma/grants.sql
 ```
 
 ---
@@ -153,6 +183,10 @@ npm run db:seed        # seed data demo
 4. **Soft delete** untuk data penting (`deletedAt`).
 5. **Audit log** untuk aksi keuangan, nilai, dan absensi.
 6. **Tanpa kompilasi native** — password pakai `scrypt` bawaan Node (portabel di VPS sekolah).
+7. **Unggahan lewat driver penyimpanan** — `lib/storage.ts`; bawaan disk lokal,
+   MinIO disiapkan sebagai sambungan. Lihat [docs/penyimpanan-berkas.md](docs/penyimpanan-berkas.md).
+8. **Subdomain wajib di produksi** — `?school=` hanya aktif di luar produksi.
+   Lihat [docs/panduan-deploy-subdomain.md](docs/panduan-deploy-subdomain.md).
 
 ---
 
@@ -171,12 +205,17 @@ Arah visual: **"papan tulis & arsip sekolah"** — tenang, informatif, sedikit h
 - [x] Skema database multi-tenant lengkap
 - [x] Dokumentasi (PRD, arsitektur, skema, roadmap)
 - [x] **Fase 1: Next.js + NextAuth + Prisma + RBAC + isolasi tenant (scopedDb + RLS) + test**
-- [ ] Fase 2: Data master & onboarding
-- [ ] Fase 3: Keuangan + payment gateway
-- [ ] Fase 4: Absensi
-- [ ] Fase 5: Penilaian + rapor PDF
-- [ ] Fase 6: SPMB
+- [x] Fase 2: Data master & onboarding (siswa, guru, staf, pengguna, akademik, jadwal, jam pelajaran, impor Excel, audit log)
+- [x] Fase 3: Keuangan + payment gateway + kwitansi + tunggakan
+- [x] Fase 4: Absensi + rekap + trigger WA
+- [x] Fase 5: Penilaian + rapor
+- [x] Fase 6: SPMB (pendaftaran, jalur, verifikasi, pengumuman, konversi)
 - [x] Fase 7: WA Gateway (Baileys) — template pesan, antrean, pengumuman massal
-- [ ] Fase 8: Web sekolah publik
-- [ ] Fase 9: Kenaikan kelas
-- [ ] Fase 10: Komersial & rilis
+- [x] Fase 8: Web sekolah publik (blok, halaman, menu, tema, SEO)
+- [ ] Fase 9: Kenaikan kelas massal (schema `StudentClassHistory` sudah ada)
+- [ ] Fase 10: Komersial penuh — halaman Langganan sudah ada (baca saja);
+      pembelian/perpanjangan paket, backup otomatis, deploy VPS belum
+
+**Ditambahkan di luar rencana awal:** unggah logo sekolah dengan abstraksi
+penyimpanan berkas ([docs/penyimpanan-berkas.md](docs/penyimpanan-berkas.md)),
+halaman Log Aktivitas, dan halaman Langganan.

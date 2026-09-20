@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { scopedDb } from "@/lib/scoped-db";
 import { Stat } from "@/components/ui";
-import { roleLabel } from "@/components/sidebar";
+import { USER_ROLE_LABEL } from "@/lib/validations/user";
 
 export const metadata = { title: "Ringkasan" };
 
@@ -30,7 +30,7 @@ export default async function DashboardPage() {
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Stat value={schools} label="Sekolah terdaftar" />
           <Stat value={students} label="Total siswa" hint="semua sekolah" />
-          <Stat value="∞" label="Akses lintas sekolah" hint={roleLabel(role)} />
+          <Stat value="∞" label="Akses lintas sekolah" hint={USER_ROLE_LABEL[role]} />
         </div>
       </div>
     );
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
     <div>
       <h1 className="font-display text-3xl text-ink">Ringkasan</h1>
       <p className="mt-1 text-slate">
-        Selamat datang, {name} · {roleLabel(role)}
+        Selamat datang, {name} · {USER_ROLE_LABEL[role]}
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

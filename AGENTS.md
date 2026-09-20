@@ -77,8 +77,38 @@ npm run dev                 # jalankan dev server
 npm run build               # build produksi
 npm run lint                # lint
 npm run test                # test
+npm run typecheck           # tsc --noEmit
+npm run db:seed             # seed data demo (2 sekolah + riwayat 2 tahun)
 docker compose up -d        # postgres + wa-gateway
 ```
+
+### Izin database (sekali per database baru)
+
+RLS mewajibkan aplikasi terhubung sebagai role **non-owner**. Role seperti itu
+TIDAK otomatis punya hak ke tabel, sehingga query gagal dengan
+`42501 permission denied`. Urutan pemasangan yang benar:
+
+```bash
+npx prisma migrate deploy                                   # 1. owner buat tabel
+psql "$OWNER_URL" -v app_role=<role_di_DATABASE_URL> \
+  -f apps/web/prisma/grants.sql                             # 2. hak akses
+psql "$OWNER_URL" -f apps/web/prisma/rls.sql                # 3. RLS
+```
+
+**Jangan** menjadikan role aplikasi sebagai owner atau superuser demi
+menyelesaikan error ini — keduanya membypass RLS sepenuhnya.
+
+### Preview web sekolah di pengembangan
+
+```bash
+npm run dev
+# lalu buka:
+http://localhost:3000/?school=smpn1-nusantara
+```
+
+Pilihan sekolah diingat lewat cookie sehingga navigasi menu tetap di sekolah yang
+sama. Di produksi `?school=` **mati total** — subdomain wajib. Lihat
+[docs/panduan-deploy-subdomain.md](docs/panduan-deploy-subdomain.md).
 
 ---
 
@@ -111,3 +141,19 @@ Sebuah fitur dianggap selesai jika:
 - ❌ Kirim WA sinkron di dalam transaksi DB panjang.
 - ❌ `prisma db push` di produksi (pakai `migrate deploy`).
 - ❌ Hard delete data siswa/tagihan/keuangan.
+- ❌ Jadikan role aplikasi sebagai owner/superuser database (mematikan RLS).
+- ❌ Terima unggahan SVG (XML boleh memuat `<script>` → XSS pada sesi admin).
+- ❌ Tulis berkas unggahan ke `public/` (tidak dijamin tersaji di produksi).
+- ❌ Pasang `rls.sql` tanpa `grants.sql` (query langsung gagal `42501`).
+
+## 8. Referensi Dokumentasi
+
+| Topik | Berkas |
+|---|---|
+| Ruang lingkup & keputusan produk | `docs/PRD.md` |
+| Arsitektur & alur modul | `docs/arsitektur.md` |
+| Skema database | `docs/skema-database.md` |
+| Urutan pengerjaan | `docs/roadmap.md` |
+| Deploy subdomain multi-sekolah | `docs/panduan-deploy-subdomain.md` |
+| Penyimpanan berkas unggahan | `docs/penyimpanan-berkas.md` |
+| Konteks desain (untuk skill desain) | `.impeccable.md` |

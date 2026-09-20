@@ -28,15 +28,30 @@ export default async function DashboardLayout({
     schoolName = school?.name ?? "Sekolah tidak ditemukan";
   }
 
+  /**
+   * KENAPA `h-screen` + `overflow-hidden`, BUKAN `min-h-screen`:
+   *
+   * Dengan `min-h-screen`, tinggi kolom mengikuti ISI halaman. Saat halaman
+   * panjang (daftar 200 siswa), seluruh dokumen ikut memanjang dan sidebar
+   * `h-screen` tertinggal di atas — begitu digulir, menu hilang dari layar dan
+   * operator harus menggulir kembali ke atas hanya untuk berpindah menu.
+   *
+   * Sekarang TINGGI JENDELA yang mengunci tata letak: sidebar diam, dan hanya
+   * `<main>` yang bergulir. Karena gulirannya milik satu elemen, posisi menu
+   * tidak pernah berubah — sama seperti aplikasi kerja pada umumnya.
+   *
+   * `min-w-0` pada <main> wajib: tanpa itu, tabel lebar menolak menyusut dan
+   * mendorong sidebar keluar layar (perilaku bawaan flex item).
+   */
   return (
-    <div className="flex min-h-screen bg-paper">
+    <div className="flex h-screen overflow-hidden bg-paper">
       <Sidebar
         schoolName={schoolName}
         userName={name ?? "Pengguna"}
         role={role}
         modules={modulesFor(role)}
       />
-      <main className="flex-1 overflow-x-hidden">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
       </main>
     </div>

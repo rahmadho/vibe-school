@@ -39,6 +39,9 @@ export default async function WebsitePage() {
 
   // Sekolah baru belum punya blok tersimpan. Tampilkan susunan bawaan supaya
   // operator melihat titik awal yang masuk akal, bukan halaman kosong.
+  //
+  // `props` HARUS ikut dikirim: tanpa itu form isi blok terbuka kosong dan
+  // menekan "Simpan isi blok" akan MENGHAPUS isi yang sudah ada.
   const initialBlocks =
     savedBlocks.length > 0
       ? savedBlocks.map((b) => ({
@@ -47,6 +50,7 @@ export default async function WebsitePage() {
           order: b.order,
           isEnabled: b.isEnabled,
           isSaved: true,
+          props: (b.props ?? {}) as Record<string, unknown>,
         }))
       : buildInitialLayout(DEFAULT_HOMEPAGE_LAYOUT).map((b) => ({
           blockKey: b.blockKey,
@@ -54,6 +58,7 @@ export default async function WebsitePage() {
           order: b.order,
           isEnabled: true,
           isSaved: false,
+          props: b.props,
         }));
 
   const presetKey = theme.presetKey;
@@ -63,7 +68,7 @@ export default async function WebsitePage() {
   // Seberapa lengkap web sekolah ini — sekolah baru sering bingung harus
   // mengisi apa, jadi kelengkapan ditampilkan sebagai daftar periksa.
   const checks = [
-    { label: "Logo sekolah", done: Boolean(school?.logoUrl), href: "/dashboard/settings" },
+    { label: "Logo sekolah", done: Boolean(school?.logoUrl), href: "/dashboard/website/settings" },
     { label: "Kalimat pengantar (tagline)", done: Boolean(config?.tagline), href: "/dashboard/website/settings" },
     { label: "Deskripsi singkat", done: Boolean(config?.shortDescription), href: "/dashboard/website/settings" },
     { label: "Nomor WhatsApp humas", done: Boolean(config?.contactWa), href: "/dashboard/website/settings" },

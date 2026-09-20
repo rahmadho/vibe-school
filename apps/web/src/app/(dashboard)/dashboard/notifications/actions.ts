@@ -250,6 +250,11 @@ export async function sendTestMessage(formData: FormData): Promise<ActionResult>
     return { ok: false, error: "Periksa kembali isian.", fieldErrors: flattenZodErrors(parsed.error) };
   }
 
+  // Uji coba default "kirim sekarang": lewati jam wajar (07:00–20:00, tanpa
+  // Minggu) agar admin tidak bingung pesan uji tertahan sampai besok pagi.
+  // Tetap lewat antrean — worker yang mengirim, bukan request handler ini.
+  const sendNow = formData.get("sendNow") != null;
+
   const phone = normalizePhone(parsed.data.phone);
   if (!phone) {
     return {
@@ -268,7 +273,7 @@ export async function sendTestMessage(formData: FormData): Promise<ActionResult>
       body: clampMessage(cleanMessage(parsed.data.body)),
       status: "QUEUED",
       priority: 1, // uji coba didahulukan
-      scheduledAt: nextSendTime(),
+      scheduledAt: sendNow ? new Date() : nextSendTime(),
       refType: "TEST",
     },
   });
@@ -286,7 +291,9 @@ export async function sendTestMessage(formData: FormData): Promise<ActionResult>
   revalidatePath("/dashboard/notifications");
   return {
     ok: true,
-    message: `Pesan uji masuk antrean untuk ${phone}. Pastikan WhatsApp sudah terhubung.`,
+    message: sendNow
+      ? `Pesan uji diantrekan untuk ${phone} dan akan dikirim dalam beberapa detik. Pastikan WhatsApp sudah terhubung.`
+      : `Pesan uji masuk antrean untuk ${phone} (menunggu jam kirim berikutnya 07:00–20:00). Pastikan WhatsApp sudah terhubung.`,
   };
 }
 
@@ -416,7 +423,9 @@ export async function retryMessage(id: string): Promise<ActionResult> {
       lockedAt: null,
       lockedBy: null,
       nextAttemptAt: null,
-      scheduledAt: nextSendTime(),
+      // Kirim ulang manual = permintaan eksplisit admin: kirim sekarang,
+      // jangan tunggu jam wajar (biar tidak terasa "nyangkut").
+      scheduledAt: new Date(),
     },
   });
 
@@ -524,7 +533,8 @@ export async function retryAllFailed(limit = 100): Promise<ActionResult> {
       lockedAt: null,
       lockedBy: null,
       nextAttemptAt: null,
-      scheduledAt: nextSendTime(),
+      // Kirim ulang manual: kirim sekarang (lewati jam wajar).
+      scheduledAt: new Date(),
     },
   });
 

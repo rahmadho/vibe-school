@@ -58,6 +58,7 @@
 | STUDENT | Lihat nilai/absen/jadwal sendiri |
 | PARENT | Lihat anaknya saja |
 | STAFF | Administrasi terbatas |
+| CONTENT_EDITOR | Berita & pengumuman saja (tanpa akses siswa/nilai/keuangan) |
 
 ## 4. Alur Modul Utama
 
@@ -130,18 +131,69 @@ Service terpisah (`apps/wa-gateway`), alasan:
 
 | Area | Pilihan | Alasan |
 |------|---------|--------|
-| Framework | Next.js | Full-stack, SSR untuk web publik, App Router |
-| ORM | Prisma | Type-safe, migrasi rapi |
-| DB | PostgreSQL | Andalan, dukung JSONB & RLS |
-| Auth | NextAuth | Terintegrasi Next.js |
+| Framework | Next.js 15 (App Router) | Full-stack, SSR untuk web publik |
+| ORM | Prisma 5 | Type-safe, migrasi rapi |
+| DB | PostgreSQL 16 | JSONB & RLS |
+| Auth | NextAuth v5 (JWT) | Terintegrasi Next.js |
 | Validasi | Zod | Skema tunggal untuk form & API |
 | WA | Baileys | Gateway sendiri, hemat biaya |
-| UI | Tailwind + shadcn/ui | Cepat, konsisten |
+| UI | Tailwind + komponen sendiri | Tanpa pustaka komponen; arah visual "papan tulis" |
+| Test | Vitest | Logika murni & isolasi tenant |
+| Berkas | Driver sendiri (`lib/storage.ts`) | Disk lokal bawaan, MinIO disiapkan |
 
-## 7. Non-Functional
+### Catatan yang mudah salah diingat
 
-- **Keamanan:** argon2/bcrypt, HTTPS, rate limit login, audit log, isolasi tenant.
+- **Password pakai `scrypt` bawaan Node**, bukan argon2/bcrypt seperti tertulis di
+  PRD. Alasan: tidak butuh kompilasi native di VPS sekolah. Format tersimpan
+  `scrypt$N$r$p$salt$hash`, sehingga parameternya bisa dinaikkan tanpa merusak
+  hash lama.
+- **UI bukan shadcn/ui.** Komponen ditulis sendiri di `src/components/`.
+- **NextAuth v5**, bukan v4 — nama opsi berbeda (`redirectTo`, bukan `callbackUrl`).
+
+---
+
+## 7. Web Sekolah Publik (Subdomain)
+
+Setiap sekolah punya web sendiri di `slug.domain-akar`. Sekolah ditentukan dari
+nama host, **bukan** parameter yang bisa dipalsukan pengunjung.
+
+- Logika penentuan host: `src/lib/site-host.ts` (murni, teruji)
+- Jembatan ke database: `src/lib/site-server.ts`
+- Query: `src/lib/data/site.ts`
+
+**Preview di pengembangan:** `?school=<slug>` diterjemahkan middleware menjadi
+header `x-dev-school` dan diingat lewat cookie, sehingga navigasi menu tetap di
+sekolah yang sama. Di produksi jalan pintas ini **mati total**.
+
+**White-label:** sekolah memilih preset tema (bukan pemilih warna bebas) supaya
+kontras teks selalu aman. Katalog blok halaman depan ada di
+`src/lib/site-blocks.ts` — blok dikurasi, gaya boleh dipilih. Alasannya: memberi
+kebebasan penuh berarti ada sekolah yang halaman depannya berantakan, dan itu
+merusak nama produk.
+
+---
+
+## 8. Penyimpanan Berkas
+
+Abstraksi driver di `src/lib/storage.ts`: `local` (bawaan, disk) dan `minio`
+(sambungan disiapkan). Berkas disimpan di `var/uploads/` — **bukan** `public/`,
+karena Next.js hanya menyajikan isi `public/` yang ada saat build.
+
+Jenis berkas ditentukan dari byte awal, dan **SVG ditolak** (boleh memuat
+`<script>`; disajikan dari origin yang sama = XSS pada sesi admin).
+
+Rincian: [penyimpanan-berkas.md](penyimpanan-berkas.md).
+
+---
+
+## 9. Non-Functional
+
+- **Keamanan:** scrypt, HTTPS, rate limit login, audit log, isolasi tenant.
+- **Database:** RLS sebagai lapisan kedua, tetapi **wajib berpasangan dengan
+  `grants.sql`** — role non-owner tidak otomatis punya hak ke tabel, dan tanpa
+  GRANT setiap query gagal `42501`.
 - **Performa:** index pada FK & kolom filter (`schoolId`, `date`, `status`).
-- **Backup:** pg_dump harian + retensi 30 hari.
+- **Backup:** pg_dump harian + retensi 30 hari, **termasuk `var/uploads/`**
+  (backup database saja tidak menyelamatkan logo sekolah).
 - **Observability:** log terstruktur + alert kegagalan kirim WA.
 - **Zona waktu:** simpan UTC, tampilkan `Asia/Jakarta`.

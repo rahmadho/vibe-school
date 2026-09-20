@@ -231,11 +231,33 @@ describe("resolveDevFallback — cadangan pengembangan", () => {
 });
 
 describe("allowDevFallback", () => {
-  it("hanya true di luar produksi", () => {
-    expect(allowDevFallback("production")).toBe(false);
-    expect(allowDevFallback("development")).toBe(true);
-    expect(allowDevFallback("test")).toBe(true);
-    expect(allowDevFallback(undefined)).toBe(true);
+  it("SELALU false di produksi, apa pun flag-nya", () => {
+    // Pengaman terpenting: di produksi tidak boleh ada cara masuk selain
+    // subdomain, walau ALLOW_SCHOOL_QUERY sengaja diset.
+    expect(allowDevFallback({ NODE_ENV: "production" })).toBe(false);
+    expect(
+      allowDevFallback({ NODE_ENV: "production", ALLOW_SCHOOL_QUERY: "true" }),
+    ).toBe(false);
+  });
+
+  it("aktif secara bawaan di luar produksi", () => {
+    expect(allowDevFallback({ NODE_ENV: "development" })).toBe(true);
+    expect(allowDevFallback({ NODE_ENV: "test" })).toBe(true);
+    // NODE_ENV tidak diisi sama sekali → dianggap bukan produksi.
+    expect(allowDevFallback({})).toBe(true);
+  });
+
+  it("bisa dimatikan di pengembangan lewat ALLOW_SCHOOL_QUERY=false", () => {
+    // Berguna untuk menguji perilaku subdomain asli di mesin lokal.
+    expect(
+      allowDevFallback({ NODE_ENV: "development", ALLOW_SCHOOL_QUERY: "false" }),
+    ).toBe(false);
+    expect(
+      allowDevFallback({ NODE_ENV: "development", ALLOW_SCHOOL_QUERY: "0" }),
+    ).toBe(false);
+    expect(
+      allowDevFallback({ NODE_ENV: "development", ALLOW_SCHOOL_QUERY: "true" }),
+    ).toBe(true);
   });
 });
 

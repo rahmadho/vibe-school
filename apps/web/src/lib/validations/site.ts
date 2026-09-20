@@ -54,6 +54,22 @@ const hexColor = z
   .trim()
   .regex(/^#?[0-9A-Fa-f]{6}$/, "Warna harus format hex, mis. #1E40AF");
 
+/**
+ * Alamat halaman yang DIPAKAI fitur bawaan web sekolah.
+ *
+ * Sekolah tidak boleh membuat halaman dengan alamat ini: halaman kustom
+ * bernama "spmb" akan menutupi formulir pendaftaran, dan "berita" menutupi
+ * daftar berita. Daftar ini harus selaras dengan `RESERVED_SLUGS` di
+ * `app/(public)/[pageSlug]/page.tsx`.
+ */
+export const RESERVED_PAGE_SLUGS = [
+  "spmb",
+  "berita",
+  "agenda",
+  "galeri",
+  "kontak",
+] as const;
+
 /* ============================================================
  * BLOK HALAMAN DEPAN
  * ============================================================ */

@@ -1,6 +1,7 @@
 import { PrismaClient, type SchoolLevel, type UserRole } from "@prisma/client";
-import { hashPassword } from "../src/lib/password";
+import { hashPassword } from "../src/lib/password-hash";
 import { TEMPLATE_SEEDS } from "../src/lib/templates-seed";
+import { seedActivityForSchool } from "./seed-activity";
 
 /**
  * Seed Fase 1:
@@ -286,7 +287,28 @@ async function main() {
   console.log(`  ✓ super-admin: ${superEmail}`);
   console.log(`  ✓ admin SMP   : admin@smpn1.sch.id (${smp.slug})`);
   console.log(`  ✓ admin SD    : admin@tunasharapan.sch.id (${sd.slug})`);
-  console.log("  ℹ password semua akun demo: password12345");
+
+  // ------------------------------------------------------------------
+  // AKTIVITAS DEMO — hanya untuk SATU sekolah.
+  // ------------------------------------------------------------------
+  //
+  // Mengisi riwayat 2 tahun (absensi, nilai, tagihan, notifikasi, log
+  // aktivitas, SPMB) supaya tampilan bisa dinilai dengan data yang padat.
+  //
+  // HANYA SMP: mengisi dua sekolah berarti menggandakan waktu seed tanpa
+  // menambah hal baru untuk dilihat — sekolah kedua tetap berguna sebagai
+  // bukti isolasi tenant (angkanya harus berbeda).
+  //
+  // Bisa dimatikan: SEED_DEMO_ACTIVITY=0
+  // Aman dijalankan ulang: fungsi ini berhenti sendiri bila absensi sudah ada.
+  if (process.env.SEED_DEMO_ACTIVITY !== "0") {
+    console.log("\nMengisi aktivitas demo 2 tahun (SMP Negeri 1 Nusantara)…");
+    await seedActivityForSchool(prisma, smp.id);
+  } else {
+    console.log("\nℹ SEED_DEMO_ACTIVITY=0 — aktivitas demo dilewati");
+  }
+
+  console.log("\n  ℹ password semua akun demo: password12345");
   console.log("Seeding selesai.");
 }
 

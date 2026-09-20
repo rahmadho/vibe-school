@@ -73,6 +73,12 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     website: ["manage"],
     notifications: ["manage"],
     audit: ["read"],
+    // `billing` HANYA baca: admin sekolah perlu tahu paket & sisa kuotanya,
+    // tetapi mengubah langganan menyentuh penagihan ke yayasan — itu alur
+    // tersendiri (super-admin / penyedia layanan), bukan tombol di dasbor
+    // sekolah. Tanpa baris ini, menu "Langganan" tidak muncul dan halamannya
+    // menolak admin sekolah yang justru pemakainya.
+    billing: ["read"],
   },
   PRINCIPAL: {
     users: ["read"],
@@ -88,6 +94,7 @@ const PERMISSIONS: Record<UserRole, Partial<Record<Module, Action[]>>> = {
     website: ["manage"],
     notifications: ["read"],
     audit: ["read"],
+    billing: ["read"],
   },
   TREASURER: {
     students: ["read"],

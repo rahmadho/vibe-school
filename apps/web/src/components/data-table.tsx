@@ -115,12 +115,15 @@ export function Pagination({
   total,
   basePath,
   params,
+  itemLabel = "data",
 }: {
   page: number;
   totalPages: number;
   total: number;
   basePath: string;
   params: Record<string, string | undefined>;
+  /** Kata benda untuk baris hitungan, mis. "siswa" atau "catatan". */
+  itemLabel?: string;
 }) {
   const build = (p: number) => {
     const sp = new URLSearchParams();
@@ -137,7 +140,7 @@ export function Pagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate">
       <p>
-        Menampilkan {from}–{to} dari {total} siswa
+        Menampilkan {from}–{to} dari {total} {itemLabel}
       </p>
       <div className="flex items-center gap-2">
         <PageLink href={build(page - 1)} disabled={page <= 1}>

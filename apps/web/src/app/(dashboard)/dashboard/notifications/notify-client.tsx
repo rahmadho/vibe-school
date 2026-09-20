@@ -39,7 +39,8 @@ export function TestSendForm({ defaultBody = "" }: { defaultBody?: string }) {
       <h2 className="font-medium text-ink">Kirim pesan uji</h2>
       <p className="text-xs text-slate">
         Uji coba memakai jalur antrean yang sama dengan pesan sungguhan, jadi hasilnya
-        menggambarkan kondisi sebenarnya.
+        menggambarkan kondisi sebenarnya. Secara bawaan pesan langsung dikirim (tanpa
+        menunggu jam kirim).
       </p>
 
       <Field label="Nomor WhatsApp" htmlFor="test-phone">
@@ -62,6 +63,16 @@ export function TestSendForm({ defaultBody = "" }: { defaultBody?: string }) {
           required
         />
       </Field>
+
+      <label className="flex items-center gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          name="sendNow"
+          defaultChecked
+          className="h-4 w-4 accent-board"
+        />
+        Kirim sekarang (abaikan jam kirim 07:00–20:00)
+      </label>
 
       <FormError message={error} />
       <FormSuccess message={success} />
