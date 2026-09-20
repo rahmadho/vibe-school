@@ -10,13 +10,14 @@ import {
 } from "@/lib/notification-labels";
 import { QueueRow } from "../queue-row";
 import { QueueBulkActions } from "../notify-client";
+import { Pagination } from "@/components/data-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function QueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -25,9 +26,16 @@ export default async function QueuePage({
   const sp = await searchParams;
   const schoolId = session.user.schoolId as string;
   const status = sp.status ?? "ALL";
+  const page = sp.page ? Number(sp.page) : 1;
+  const perPage = 30;
 
   const [queue, stats] = await Promise.all([
-    listQueue(schoolId, { status, search: sp.q, take: 200 }),
+    listQueue(schoolId, {
+      status,
+      search: sp.q,
+      take: perPage,
+      skip: (page - 1) * perPage,
+    }),
     getQueueStats(schoolId),
   ]);
 
@@ -138,10 +146,28 @@ export default async function QueuePage({
         )}
       </div>
 
-      <p className="text-xs text-slate">
-        Menampilkan {queue.length} pesan terbaru. Nomor disamarkan untuk melindungi
-        data pribadi wali murid.
-      </p>
+      {(() => {
+        const total =
+          status === "ALL"
+            ? stats.total
+            : (stats[status.toLowerCase() as keyof typeof stats] as number) ??
+              queue.length;
+        const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+        return (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            basePath="/dashboard/notifications/queue"
+            params={{
+              status: sp.status,
+              q: sp.q,
+            }}
+            itemLabel="pesan"
+          />
+        );
+      })()}
     </div>
   );
 }

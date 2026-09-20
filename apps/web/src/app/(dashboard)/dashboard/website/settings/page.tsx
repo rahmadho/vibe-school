@@ -1,10 +1,6 @@
 import { guard } from "@/lib/action-guard";
 import { getSiteConfig } from "@/lib/data/site";
-import {
-  allowDevFallback,
-  buildSchoolUrl,
-  rootDomainConfigFromEnv,
-} from "@/lib/site-host";
+import { getSchoolPreviewUrl } from "@/lib/site-preview";
 import { prisma } from "@/lib/prisma";
 import { LogoBox } from "./logo-box";
 import { SettingsForm } from "./settings-form";
@@ -49,19 +45,10 @@ export default async function WebsiteSettingsPage() {
   const schoolName = school?.name ?? "Sekolah";
   const slug = school?.slug?.trim() ?? "";
 
-  /*
-   * Alamat web publik untuk tombol pratinjau.
-   *
-   * Di luar produksi dipakai `?school=<slug>` — jembatan yang sudah teruji di
-   * middleware.ts — karena port server dev (3000/3001/…) tidak diketahui dari
-   * sini, sedangkan subdomain butuh port itu. Di produksi subdomain wajib
-   * (allowDevFallback() selalu false), jadi alamat dibangun dari ROOT_DOMAIN.
-   */
-  const previewUrl = !slug
-    ? null
-    : allowDevFallback()
-      ? `/?school=${encodeURIComponent(slug)}`
-      : buildSchoolUrl(slug, rootDomainConfigFromEnv());
+  // Alamat web publik untuk tombol pratinjau. Logikanya dipusatkan di
+  // lib/site-preview.ts supaya tombol di sidebar dan di halaman ini tidak
+  // pernah berbeda alamat.
+  const previewUrl = await getSchoolPreviewUrl(schoolId);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -73,7 +60,6 @@ export default async function WebsiteSettingsPage() {
       <SettingsForm
         schoolName={schoolName}
         slug={slug}
-        previewUrl={previewUrl}
         config={{
           tagline: config?.tagline ?? "",
           shortDescription: config?.shortDescription ?? "",

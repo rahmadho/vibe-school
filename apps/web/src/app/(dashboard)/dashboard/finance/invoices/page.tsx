@@ -5,11 +5,9 @@ import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { listInvoices } from "@/lib/data/finance";
 import { INVOICE_STATUS_LABEL, formatRupiah, remainingAmount } from "@/lib/finance-calc";
-import { PageHeader, Table, EmptyState } from "@/components/data-table";
+import { PageHeader, Table, EmptyState, Pagination } from "@/components/data-table";
 import { Button } from "@/components/ui";
 import { Select } from "@/components/form-fields";
-
-export const metadata = { title: "Tagihan" };
 
 const STATUSES = ["ALL", "UNPAID", "PARTIAL", "OVERDUE", "PAID", "CANCELLED"] as const;
 
@@ -28,24 +26,53 @@ export default async function InvoicesPage({
   }
 
   const sp = await searchParams;
+  const years = await prisma.academicYear.findMany({
+    where: { schoolId },
+    select: { id: true, name: true, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  const activeYear = years.find((y) => y.isActive);
+
+  let academicYearId: string | undefined;
+  if (sp.academicYearId === "all") {
+    academicYearId = undefined;
+  } else if (typeof sp.academicYearId === "string" && sp.academicYearId.length > 0) {
+    academicYearId = sp.academicYearId;
+  } else {
+    academicYearId = activeYear?.id;
+  }
+
   const status = typeof sp.status === "string" ? sp.status : "ALL";
   const classId = typeof sp.classId === "string" ? sp.classId : "";
   const search = typeof sp.q === "string" ? sp.q : "";
+  const page = sp.page ? Number(sp.page) : 1;
 
-  const [classes, invoices] = await Promise.all([
+  const [classes, invoiceData] = await Promise.all([
     prisma.class.findMany({
-      where: { schoolId, deletedAt: null },
+      where: {
+        schoolId,
+        deletedAt: null,
+        ...(academicYearId ? { academicYearId } : {}),
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
-    listInvoices(schoolId, { status, classId: classId || undefined, search }),
+    listInvoices(schoolId, {
+      status,
+      classId: classId || undefined,
+      academicYearId,
+      search,
+      page,
+      perPage: 25,
+    }),
   ]);
+  const invoices = invoiceData.items;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tagihan"
-        context={`${invoices.length} tagihan ditampilkan`}
+        context={`${invoiceData.total} tagihan · halaman ${invoiceData.page} dari ${invoiceData.totalPages}`}
         actions={
           <>
             <Link href="/dashboard/finance/invoices/new">
@@ -62,6 +89,23 @@ export default async function InvoicesPage({
         action="/dashboard/finance/invoices"
         className="flex flex-wrap items-end gap-3 rounded-lg border border-chalk bg-white p-4"
       >
+        <div className="w-52">
+          <label htmlFor="academicYearId" className="mb-1 block text-xs font-medium text-slate">
+            Tahun ajaran
+          </label>
+          <Select
+            id="academicYearId"
+            name="academicYearId"
+            defaultValue={sp.academicYearId === "all" ? "all" : (academicYearId ?? "")}
+          >
+            <option value="all">Semua tahun</option>
+            {years.map((y) => (
+              <option key={y.id} value={y.id}>
+                {y.name} {y.isActive ? "(aktif)" : ""}
+              </option>
+            ))}
+          </Select>
+        </div>
         <div className="w-40">
           <label htmlFor="status" className="mb-1 block text-xs font-medium text-slate">
             Status
@@ -113,20 +157,21 @@ export default async function InvoicesPage({
           }
         />
       ) : (
-        <Table
-          head={
-            <>
-              <th className="w-40">No. tagihan</th>
-              <th>Siswa</th>
-              <th className="w-52">Judul</th>
-              <th className="w-28 text-right">Tagihan</th>
-              <th className="w-28 text-right">Dibayar</th>
-              <th className="w-28 text-right">Sisa</th>
-              <th className="w-24">Jatuh tempo</th>
-              <th className="w-28">Status</th>
-            </>
-          }
-        >
+        <>
+          <Table
+            head={
+              <>
+                <th className="w-40">No. tagihan</th>
+                <th>Siswa</th>
+                <th className="w-52">Judul</th>
+                <th className="w-28 text-right">Tagihan</th>
+                <th className="w-28 text-right">Dibayar</th>
+                <th className="w-28 text-right">Sisa</th>
+                <th className="w-24">Jatuh tempo</th>
+                <th className="w-28">Status</th>
+              </>
+            }
+          >
           {invoices.map((inv) => {
             const sisa = remainingAmount(inv.totalAmount, inv.paidAmount);
             const overdue =
@@ -183,6 +228,19 @@ export default async function InvoicesPage({
             );
           })}
         </Table>
+        <Pagination
+          page={invoiceData.page}
+          totalPages={invoiceData.totalPages}
+          total={invoiceData.total}
+          basePath="/dashboard/finance/invoices"
+          params={{
+            status,
+            classId,
+            q: search,
+          }}
+          itemLabel="tagihan"
+        />
+        </>
       )}
     </div>
   );

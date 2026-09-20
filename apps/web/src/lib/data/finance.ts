@@ -46,12 +46,15 @@ export async function listPaymentMethods(schoolId: string) {
 export type InvoiceFilter = {
   status?: string;
   classId?: string;
+  academicYearId?: string;
   studentId?: string;
   /** Hanya yang masih ada sisa & sudah lewat jatuh tempo. */
   overdueOnly?: boolean;
   search?: string;
   take?: number;
   skip?: number;
+  page?: number;
+  perPage?: number;
 };
 
 export async function listInvoices(schoolId: string, filter: InvoiceFilter = {}) {
@@ -62,6 +65,12 @@ export async function listInvoices(schoolId: string, filter: InvoiceFilter = {})
   }
   if (filter.studentId) where.studentId = filter.studentId;
   if (filter.classId) where.student = { classId: filter.classId };
+  if (filter.academicYearId) {
+    where.student = {
+      ...(where.student as Record<string, unknown> | undefined),
+      class: { academicYearId: filter.academicYearId },
+    };
+  }
   if (filter.search) {
     where.OR = [
       { invoiceNo: { contains: filter.search, mode: "insensitive" } },
@@ -69,32 +78,32 @@ export async function listInvoices(schoolId: string, filter: InvoiceFilter = {})
       { student: { fullName: { contains: filter.search, mode: "insensitive" } } },
     ];
   }
+  const page = filter.page ?? 1;
+  const perPage = filter.perPage ?? filter.take ?? 25;
+  const skip = filter.skip ?? (page - 1) * perPage;
 
-  const rows = await prisma.invoice.findMany({
-    where,
-    orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }],
-    take: filter.take ?? 100,
-    skip: filter.skip ?? 0,
-    include: {
-      student: { select: { id: true, fullName: true, nis: true, class: { select: { name: true } } } },
-      items: true,
-      _count: { select: { payments: true } },
-    },
-  });
+  const [items, total] = await Promise.all([
+    prisma.invoice.findMany({
+      where,
+      orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }],
+      take: perPage,
+      skip,
+      include: {
+        student: { select: { id: true, fullName: true, nis: true, class: { select: { name: true } } } },
+        items: true,
+        _count: { select: { payments: true } },
+      },
+    }),
+    prisma.invoice.count({ where }),
+  ]);
 
-  // Filter tunggakan dilakukan di memori karena butuh perbandingan
-  // paidAmount < totalAmount (tidak bisa diekspresikan langsung di Prisma).
-  if (filter.overdueOnly) {
-    const now = new Date();
-    return rows.filter(
-      (r) =>
-        r.paidAmount < r.totalAmount &&
-        r.dueDate.getTime() < now.getTime() &&
-        r.status !== "CANCELLED" &&
-        r.status !== "REFUNDED",
-    );
-  }
-  return rows;
+  return {
+    items,
+    total,
+    page,
+    perPage,
+    totalPages: Math.max(1, Math.ceil(total / perPage)),
+  };
 }
 
 export async function getInvoice(schoolId: string, id: string) {
@@ -124,9 +133,14 @@ export async function getInvoice(schoolId: string, id: string) {
 }
 
 /** Ringkasan keuangan sekolah untuk dasbor. */
-export async function getFinanceSummary(schoolId: string) {
+export async function getFinanceSummary(schoolId: string, academicYearId?: string) {
+  const where: Record<string, unknown> = { schoolId, deletedAt: null };
+  if (academicYearId) {
+    where.student = { class: { academicYearId } };
+  }
+
   const rows = await prisma.invoice.findMany({
-    where: { schoolId, deletedAt: null },
+    where,
     select: { totalAmount: true, paidAmount: true, dueDate: true, status: true },
   });
   const s = summarizeInvoices(
@@ -147,13 +161,23 @@ export async function getFinanceSummary(schoolId: string) {
 }
 
 /** Daftar siswa dengan tunggakan (untuk penagihan). */
-export async function listOverdueByStudent(schoolId: string, limit = 200) {
+export async function listOverdueByStudent(
+  schoolId: string,
+  opts: { limit?: number; academicYearId?: string } = {},
+) {
+  const limit = opts.limit ?? 200;
+  const where: Record<string, unknown> = {
+    schoolId,
+    deletedAt: null,
+    status: { notIn: ["PAID", "CANCELLED", "REFUNDED"] },
+  };
+
+  if (opts.academicYearId) {
+    where.student = { class: { academicYearId: opts.academicYearId } };
+  }
+
   const rows = await prisma.invoice.findMany({
-    where: {
-      schoolId,
-      deletedAt: null,
-      status: { notIn: ["PAID", "CANCELLED", "REFUNDED"] },
-    },
+    where,
     orderBy: { dueDate: "asc" },
     include: {
       student: {

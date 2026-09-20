@@ -1093,8 +1093,10 @@ function fromForm<T extends z.ZodTypeAny>(
   for (const key of Object.keys(shape)) {
     if (!formData.has(key)) continue;
     const value = formData.get(key);
-    // Checkbox HTML hanya mengirim "on" saat dicentang.
-    raw[key] = key.startsWith("is") || key.startsWith("show") ? value === "on" : value;
+    // Checkbox HTML hanya mengirim "on" saat dicentang. Nilai "" atau tidak dicentang dianggap false.
+    const isBoolField =
+      key.startsWith("is") || key.startsWith("show") || key.startsWith("only");
+    raw[key] = isBoolField ? value === "on" : value;
   }
 
   const parsed = schema.safeParse(raw);

@@ -38,13 +38,10 @@ export function SettingsForm({
   config,
   schoolName,
   slug,
-  previewUrl,
 }: {
   config: ConfigShape;
   schoolName: string;
   slug: string;
-  /** Alamat web publik, atau null bila sekolah belum punya alamat. */
-  previewUrl: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,19 +69,15 @@ export function SettingsForm({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b-2 border-[var(--ink)] pb-3">
-        <div className="min-w-0">
-          <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
-            Identitas &amp; kontak
-          </h2>
-          <p className="mt-0.5 text-sm text-[var(--slate)]">
-            Kalimat, kontak, dan tautan yang tampil di seluruh halaman web{" "}
-            {schoolName}. Semakin lengkap, semakin mudah orang tua menghubungi
-            sekolah.
-          </p>
-        </div>
-
-        <PreviewButton href={previewUrl} />
+      <header className="border-b-2 border-[var(--ink)] pb-3">
+        <h2 className="font-display text-lg font-semibold text-[var(--ink)]">
+          Identitas &amp; kontak
+        </h2>
+        <p className="mt-0.5 text-sm text-[var(--slate)]">
+          Kalimat, kontak, dan tautan yang tampil di seluruh halaman web{" "}
+          {schoolName}. Semakin lengkap, semakin mudah orang tua menghubungi
+          sekolah.
+        </p>
       </header>
 
       <FormBanner result={result} />
@@ -364,50 +357,6 @@ function SlugBox({ initialSlug }: { initialSlug: string }) {
         )}
       </form>
     </section>
-  );
-}
-
-/**
- * Tombol "Lihat Web Sekolah" — membuka web publik di tab baru.
- *
- * Diletakkan di header, bukan di dalam <form>: tautan di dalam form ikut
- * terkirim/ter-reset bersama penyimpanan, dan operator sering ingin melihat
- * hasil sebelum menyimpan. Tanpa alamat, tombol diganti keterangan supaya
- * tidak ada tautan mati yang membingungkan.
- */
-function PreviewButton({ href }: { href: string | null }) {
-  if (!href) {
-    return (
-      <p className="text-xs text-[var(--slate)]">
-        Isi alamat web di bawah untuk melihat pratinjau.
-      </p>
-    );
-  }
-
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex shrink-0 items-center gap-1.5 border-2 border-[var(--ink)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--paper)]"
-    >
-      Lihat Web Sekolah
-      <svg
-        aria-hidden
-        viewBox="0 0 16 16"
-        className="h-3.5 w-3.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M6.5 3H3.5v9.5H13V9.5" />
-        <path d="M9.5 2.5H13.5V6.5" />
-        <path d="M13.5 2.5 7.5 8.5" />
-      </svg>
-      <span className="sr-only">(terbuka di tab baru)</span>
-    </a>
   );
 }
 

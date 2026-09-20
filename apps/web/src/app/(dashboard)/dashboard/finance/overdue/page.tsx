@@ -2,14 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { listOverdueByStudent } from "@/lib/data/finance";
-import { formatRupiah } from "@/lib/finance-calc";
+import { prisma } from "@/lib/prisma";
+import { listOverdueByStudent, formatRupiah } from "@/lib/data/finance";
 import { PageHeader, Table, EmptyState } from "@/components/data-table";
 import { Button } from "@/components/ui";
-
+import { YearFilterSelect } from "../year-filter";
 export const metadata = { title: "Tunggakan" };
 
-export default async function OverduePage() {
+export default async function OverduePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!session.user.schoolId) redirect("/dashboard");
@@ -19,21 +23,47 @@ export default async function OverduePage() {
     return <p className="text-slate">Anda tidak punya akses ke modul keuangan.</p>;
   }
 
-  const rows = await listOverdueByStudent(schoolId);
+  const sp = await searchParams;
+  const years = await prisma.academicYear.findMany({
+    where: { schoolId },
+    select: { id: true, name: true, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  const activeYear = years.find((y) => y.isActive);
+
+  let academicYearId: string | undefined;
+  if (sp.academicYearId === "all") {
+    academicYearId = undefined;
+  } else if (typeof sp.academicYearId === "string" && sp.academicYearId.length > 0) {
+    academicYearId = sp.academicYearId;
+  } else {
+    academicYearId = activeYear?.id;
+  }
+
+  const selectedYear = years.find((y) => y.id === academicYearId);
+  const rows = await listOverdueByStudent(schoolId, { academicYearId });
   const total = rows.reduce((a, r) => a + r.total, 0);
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Tunggakan"
-        context={`${rows.length} siswa · total ${formatRupiah(total)}`}
-        actions={
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Tunggakan</h1>
+          <p className="mt-1 text-sm text-slate">
+            {rows.length} siswa · total {formatRupiah(total)} ·{" "}
+            {selectedYear ? `Tahun ${selectedYear.name}` : "Semua tahun"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <YearFilterSelect
+            years={years}
+            currentValue={sp.academicYearId === "all" ? "all" : (academicYearId ?? "")}
+          />
           <Link href="/dashboard/finance">
             <Button variant="ghost">Kembali</Button>
           </Link>
-        }
-      />
-
+        </div>
+      </div>
       {rows.length === 0 ? (
         <EmptyState
           title="Tidak ada tunggakan"

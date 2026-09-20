@@ -249,11 +249,11 @@ export const navigationCreateSchema = z.object({
   area: z.enum(["header", "footer"]).default("header"),
   order: z.coerce.number().int().min(0).max(50).default(0),
   isExternal: z
-    .union([z.literal("on"), z.boolean()])
+    .union([z.literal("on"), z.literal(""), z.boolean()])
     .optional()
     .transform((v) => v === "on" || v === true),
   onlyIfSpmb: z
-    .union([z.literal("on"), z.boolean()])
+    .union([z.literal("on"), z.literal(""), z.boolean()])
     .optional()
     .transform((v) => v === "on" || v === true),
 });

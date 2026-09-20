@@ -5,27 +5,46 @@ import { can } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { listCampaigns } from "@/lib/data/notifications";
 import { AUDIENCE_LABEL, type AudienceTypeValue } from "@/lib/validations/notification";
+import { Pagination } from "@/components/data-table";
 import { AnnouncementForm } from "./announcement-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnnouncementsPage() {
+export default async function AnnouncementsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!can(session.user.role, "notifications", "manage")) redirect("/dashboard");
 
+  const sp = await searchParams;
   const schoolId = session.user.schoolId as string;
+  const page = sp.page ? Number(sp.page) : 1;
+  const perPage = 20;
 
-  const [classes, campaigns, school] = await Promise.all([
+  const [classes, campaigns, total, school] = await Promise.all([
     prisma.class.findMany({
       where: { schoolId, deletedAt: null },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    listCampaigns(schoolId),
+    prisma.announcementCampaign.findMany({
+      where: { schoolId },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * perPage,
+      take: perPage,
+      include: {
+        audienceClass: { select: { name: true } },
+        createdBy: { select: { name: true } },
+      },
+    }),
+    prisma.announcementCampaign.count({ where: { schoolId } }),
     prisma.school.findUnique({ where: { id: schoolId }, select: { name: true } }),
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
   return (
     <div className="space-y-6">
       <div>
@@ -104,6 +123,15 @@ export default async function AnnouncementsPage() {
           </div>
         )}
       </section>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        basePath="/dashboard/notifications/announcements"
+        params={{}}
+        itemLabel="pengumuman"
+      />
     </div>
   );
 }

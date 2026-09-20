@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { guard } from "@/lib/action-guard";
 import { prisma } from "@/lib/prisma";
+import { Pagination } from "@/components/data-table";
 import { RegistrationTable } from "./registration-table";
-
 /**
  * Daftar pendaftar SPMB untuk panitia.
  *
@@ -29,9 +29,11 @@ export default async function RegistrationsPage({
   searchParams,
 }: {
   // Next.js 15: `searchParams` juga Promise.
-  searchParams: Promise<{ batch?: string; path?: string; status?: string }>;
+  searchParams: Promise<{ batch?: string; path?: string; status?: string; page?: string }>;
 }) {
   const sp = await searchParams;
+  const page = sp.page ? Number(sp.page) : 1;
+  const perPage = 25;
   const g = await guard("spmb", "read");
   if ("fail" in g) {
     return (
@@ -48,34 +50,37 @@ export default async function RegistrationsPage({
 
   const { schoolId } = g.ctx;
 
-  const [batches, registrations, canManage] = await Promise.all([
+  const regWhere = {
+    schoolId,
+    ...(sp.batch ? { batchId: sp.batch } : {}),
+    ...(sp.path ? { pathId: sp.path } : {}),
+    ...(sp.status ? { status: sp.status as never } : {}),
+  };
+
+  const [batches, registrations, total, canManage] = await Promise.all([
     prisma.admissionBatch.findMany({
       where: { schoolId },
       orderBy: { openDate: "desc" },
       select: { id: true, name: true, paths: { select: { id: true, name: true } } },
     }),
     prisma.registration.findMany({
-      where: {
-        schoolId,
-        ...(sp.batch ? { batchId: sp.batch } : {}),
-        ...(sp.path ? { pathId: sp.path } : {}),
-        ...(sp.status
-          ? { status: sp.status as never }
-          : {}),
-      },
+      where: regWhere,
       orderBy: { submittedAt: "desc" },
-      take: 300,
+      skip: (page - 1) * perPage,
+      take: perPage,
       include: {
         batch: { select: { name: true } },
         path: { select: { name: true, code: true } },
       },
     }),
+    prisma.registration.count({ where: regWhere }),
     (async () => {
       const gg = await guard("spmb", "manage");
       return !("fail" in gg);
     })(),
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="border-b-2 border-[var(--ink)] pb-4">
@@ -176,6 +181,19 @@ export default async function RegistrationsPage({
           resultNote: r.resultNote,
           submittedAt: r.submittedAt.toISOString(),
         }))}
+      />
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        basePath="/dashboard/spmb/registrations"
+        params={{
+          batch: sp.batch,
+          path: sp.path,
+          status: sp.status,
+        }}
+        itemLabel="pendaftar"
       />
     </div>
   );

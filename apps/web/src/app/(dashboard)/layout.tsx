@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { modulesFor } from "@/lib/rbac";
+import { getSchoolPreviewUrl } from "@/lib/site-preview";
 import { Sidebar } from "@/components/sidebar";
 
 /**
@@ -28,6 +29,10 @@ export default async function DashboardLayout({
     schoolName = school?.name ?? "Sekolah tidak ditemukan";
   }
 
+  // Tautan web publik untuk tombol "Lihat Web Sekolah" di sidebar — tersedia
+  // dari halaman mana pun agar operator tidak perlu membuka menu Identitas.
+  const previewUrl = await getSchoolPreviewUrl(schoolId);
+
   /**
    * KENAPA `h-screen` + `overflow-hidden`, BUKAN `min-h-screen`:
    *
@@ -50,6 +55,7 @@ export default async function DashboardLayout({
         userName={name ?? "Pengguna"}
         role={role}
         modules={modulesFor(role)}
+        previewUrl={previewUrl}
       />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>

@@ -28,20 +28,33 @@ export default async function NewInvoicePage({
   const sp = await searchParams;
   const isBulk = sp.bulk === "1";
 
+  const activeYear = await prisma.academicYear.findFirst({
+    where: { schoolId, isActive: true },
+    select: { id: true, name: true },
+  });
+
   const [students, classes, feeTypes] = await Promise.all([
     prisma.student.findMany({
-      where: { schoolId, deletedAt: null },
+      where: {
+        schoolId,
+        deletedAt: null,
+        status: "ACTIVE",
+        ...(activeYear ? { class: { academicYearId: activeYear.id } } : {}),
+      },
       orderBy: { fullName: "asc" },
       select: { id: true, fullName: true, nis: true, classId: true },
     }),
     prisma.class.findMany({
-      where: { schoolId, deletedAt: null },
+      where: {
+        schoolId,
+        deletedAt: null,
+        ...(activeYear ? { academicYearId: activeYear.id } : {}),
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
     listFeeTypes(schoolId, true),
   ]);
-
   return (
     <div className="space-y-6">
       <PageHeader

@@ -244,11 +244,14 @@ export function Sidebar({
   userName,
   role,
   modules,
+  previewUrl,
 }: {
   schoolName: string;
   userName: string;
   role: UserRole;
   modules: string[];
+  /** Alamat web publik sekolah, atau null bila belum diatur. */
+  previewUrl: string | null;
 }) {
   const pathname = usePathname();
 
@@ -277,10 +280,41 @@ export function Sidebar({
 
   return (
     <aside className="flex h-screen w-sidebar shrink-0 flex-col border-r border-chalk bg-white">
-      {/* Identitas sekolah */}
+      {/* Identitas sekolah + tautan web publik */}
       <div className="border-b border-chalk px-5 py-5">
         <p className="font-display text-lg leading-tight text-ink">{schoolName}</p>
         <p className="mt-0.5 text-xs text-slate">{USER_ROLE_LABEL[role]}</p>
+
+        {/* Tautan pratinjau web publik. Ditaruh di sini karena identitas sekolah
+            dan wajah publiknya satu urusan; dan karena sidebar diam (h-screen),
+            tautan ini terjangkau dari halaman mana pun tanpa menggulir.
+            Gaya sengaja garis rambut, bukan tombol hijau — hijau papan tulis
+            disimpan untuk aksi utama & status aktif menu. */}
+        {previewUrl ? (
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2.5 inline-flex items-center gap-1.5 border border-chalk px-2 py-1 text-[11px] font-medium text-slate transition-colors hover:border-ink hover:text-ink"
+          >
+            Lihat Web Sekolah
+            <svg
+              aria-hidden
+              viewBox="0 0 16 16"
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6.5 3H3.5v9.5H13V9.5" />
+              <path d="M9.5 2.5H13.5V6.5" />
+              <path d="M13.5 2.5 7.5 8.5" />
+            </svg>
+            <span className="sr-only">(terbuka di tab baru)</span>
+          </a>
+        ) : null}
       </div>
 
       {/* Navigasi */}

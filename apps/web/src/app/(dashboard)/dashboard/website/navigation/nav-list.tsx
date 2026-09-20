@@ -269,9 +269,8 @@ function NavForm({
     fd.set("href", href.trim());
     fd.set("area", area);
     fd.set("order", String(initial?.order ?? 0));
-    fd.set("isExternal", isExternal ? "on" : "");
-    fd.set("onlyIfSpmb", onlyIfSpmb ? "on" : "");
-
+    if (isExternal) fd.set("isExternal", "on");
+    if (onlyIfSpmb) fd.set("onlyIfSpmb", "on");
     startTransition(async () => {
       const r = mode === "create" ? await createNavItem(fd) : await updateNavItem(fd);
       setResult(r);
