@@ -48,12 +48,27 @@ export const TENANT_MODELS = [
   "payment",
   "paymentGatewayTransaction",
   "post",
+  // Fase 8: web sekolah publik + SPMB multi-jalur.
+  "siteTheme",
+  "siteConfig",
+  "siteBlock",
+  "page",
+  "pageBlock",
+  "navigationItem",
+  "admissionPath",
   "announcement",
   "notificationTemplate",
   "notificationQueue",
   "auditLog",
   "studentClassHistory",
   "subscription",
+  // Fase 7 yang terlewat (ditemukan test tenant-isolation).
+  "messageTemplate",
+  "announcementCampaign",
+  // `waSession` menyimpan kredensial sesi WhatsApp; `schoolPaymentGateway`
+  // menyimpan kunci API gateway terenkripsi. Keduanya WAJIB ter-scope.
+  "waSession",
+  "schoolPaymentGateway",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

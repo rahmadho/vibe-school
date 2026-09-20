@@ -37,7 +37,20 @@ DECLARE
     'fee_types','invoices','payment_methods','payments',
     'payment_gateway_transactions','posts','announcements',
     'notification_templates','notification_queue','audit_logs',
-    'student_class_histories','subscriptions'
+    'student_class_histories','subscriptions',
+    -- Fase 8: web sekolah publik + SPMB multi-jalur.
+    -- WAJIB ada di sini: ini lapisan pertahanan KEDUA. Kode sudah memfilter
+    -- schoolId, tetapi RLS memastikan query yang lupa memfilter tetap tidak
+    -- bisa membaca data sekolah lain — dan satu query yang lupa cukup untuk
+    -- membocorkan nama serta nomor HP anak orang lain.
+    'site_themes','site_configs','site_blocks','pages','page_blocks',
+    'navigation_items','admission_paths',
+    -- Fase 7 yang terlewat (ditemukan test tenant-isolation):
+    -- wa_sessions memuat KREDENSIAL sesi WhatsApp satu sekolah — kebocoran
+    -- di sini berarti sekolah lain bisa mengirim pesan atas nama sekolah itu.
+    'message_templates','announcement_campaigns','wa_sessions',
+    -- school_payment_gateways menyimpan KUNCI API gateway terenkripsi.
+    'school_payment_gateways'
   ];
 BEGIN
   FOREACH t IN ARRAY tenant_tables LOOP

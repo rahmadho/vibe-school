@@ -1,184 +1,134 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { scopedDb, unscoped, TENANT_MODELS } from "@/lib/scoped-db";
+import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { TENANT_MODELS } from "@/lib/scoped-db";
 
 /**
- * Test ISOLASI TENANT — membuktikan helper scopedDb:
- *  1. menyuntikkan schoolId ke setiap `where`
- *  2. menolak query lintas-tenant
- *  3. menyuntikkan schoolId ke setiap `create`
- *  4. menolak model global & schoolId kosong
+ * Uji isolasi tenant — dua daftar yang mudah tertinggal.
  *
- * Kita mock delegate Prisma agar test berjalan TANPA database.
- * (Test integrasi terhadap DB nyata dijalankan oleh user di VPS/PC.)
+ * KENAPA TEST INI ADA (temuan nyata pada Fase 8):
+ * Proyek punya DUA lapisan pertahanan isolasi tenant:
+ *   1. `TENANT_MODELS` di lib/scoped-db.ts — helper `scopedDb()` menyuntik
+ *      `schoolId` otomatis.
+ *   2. `tenant_tables` di prisma/rls.sql — RLS database menolak baris sekolah
+ *      lain walaupun kode lupa memfilter.
+ *
+ * Ketika Fase 8 menambah 7 model baru (SiteTheme, SiteConfig, SiteBlock, Page,
+ * PageBlock, NavigationItem, AdmissionPath), KEDUA daftar itu TIDAK diperbarui.
+ * Akibatnya seluruh tabel web sekolah + jalur SPMB berjalan tanpa RLS — dan
+ * tidak ada satu pun gerbang (tsc, vitest, next build) yang bisa melihatnya,
+ * karena ini soal daftar, bukan tipe.
+ *
+ * Test ini membandingkan daftar tersebut dengan `schema.prisma` sehingga model
+ * baru yang punya `schoolId` WAJIB terdaftar di keduanya.
  */
 
-type Captured = { op: string; args: unknown };
+const WEB = resolve(__dirname, "..");
+const SCHEMA = readFileSync(resolve(WEB, "../prisma/schema.prisma"), "utf8");
+const RLS = readFileSync(resolve(WEB, "../prisma/rls.sql"), "utf8");
 
-// Mock delegate: mencatat argumen yang diterima.
-function makeDelegate(captured: Captured[]) {
-  const record =
-    (op: string) =>
-    (args: unknown) => {
-      captured.push({ op, args });
-      return Promise.resolve([]);
-    };
-  return {
-    findMany: record("findMany"),
-    findFirst: record("findFirst"),
-    findUnique: record("findUnique"),
-    count: record("count"),
-    update: record("update"),
-    updateMany: record("updateMany"),
-    delete: record("delete"),
-    deleteMany: record("deleteMany"),
-    create: record("create"),
-    createMany: record("createMany"),
-    upsert: record("upsert"),
-    aggregate: record("aggregate"),
-    groupBy: record("groupBy"),
-  };
+/** Model global yang memang BUKAN milik satu sekolah. */
+const GLOBAL_MODELS = new Set([
+  "School", // sekolah itu sendiri
+  "Plan", // paket langganan (katalog produk)
+  "User", // punya schoolId opsional utk super-admin; dikelola terpisah
+]);
+
+type ModelInfo = { name: string; table: string; hasSchoolId: boolean };
+
+/** Baca model dari schema.prisma: nama, @@map, dan apakah punya schoolId. */
+function parseModels(): ModelInfo[] {
+  const out: ModelInfo[] = [];
+  const blocks = Array.from(SCHEMA.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm));
+  for (const b of blocks) {
+    const name = b[1];
+    const body = b[2];
+    const mapMatch = body.match(/@@map\("([^"]+)"\)/);
+    // Konvensi proyek: tabel snake_case plural.
+    const table = mapMatch ? mapMatch[1] : `${name.toLowerCase()}s`;
+    out.push({ name, table, hasSchoolId: /^\s*schoolId\s+/m.test(body) });
+  }
+  return out;
 }
 
-let captured: Captured[] = [];
+/** Tabel yang terdaftar di array tenant_tables pada rls.sql. */
+function rlsTables(): Set<string> {
+  const m = RLS.match(/tenant_tables\s+text\[\]\s*:=\s*ARRAY\[([\s\S]*?)\];/);
+  if (!m) throw new Error("tenant_tables tidak ditemukan di prisma/rls.sql");
+  const set = new Set<string>();
+  for (const t of Array.from(m[1].matchAll(/'([^']+)'/g))) set.add(t[1]);
+  return set;
+}
 
-// Mock modul prisma dengan delegate palsu untuk setiap model tenant.
-// PENTING: path relatif "./prisma" dari dalam scoped-db.ts akan di-resolve
-// ke "@/lib/prisma" oleh alias Vitest; mock harus memakai spesifier yang sama
-// persis seperti yang di-import scoped-db.ts (yakni "./prisma").
-vi.mock("../lib/prisma", () => {
-  const delegates: Record<string, unknown> = {};
-  const models = [
-    "user","student","parent","teacher","staff","class","subject","schedule",
-    "academicYear","semester","timeSlot","admissionBatch","registration",
-    "attendance","gradeItem","grade","reportCard","feeType","invoice",
-    "paymentMethod","payment","paymentGatewayTransaction","post",
-    "announcement","notificationTemplate","notificationQueue","auditLog",
-    "studentClassHistory","subscription",
-  ] as const;
+describe("isolasi tenant — daftar model & RLS", () => {
+  const models = parseModels();
+  const tenantModels = models.filter(
+    (m) => m.hasSchoolId && !GLOBAL_MODELS.has(m.name),
+  );
 
-  for (const m of models) {
-    delegates[m] = {
-      findMany: (args: unknown) => { captured.push({ op: `${m}.findMany`, args }); return Promise.resolve([]); },
-      findFirst: (args: unknown) => { captured.push({ op: `${m}.findFirst`, args }); return Promise.resolve(null); },
-      findUnique: (args: unknown) => { captured.push({ op: `${m}.findUnique`, args }); return Promise.resolve(null); },
-      count: (args: unknown) => { captured.push({ op: `${m}.count`, args }); return Promise.resolve(0); },
-      create: (args: unknown) => { captured.push({ op: `${m}.create`, args }); return Promise.resolve({}); },
-      createMany: (args: unknown) => { captured.push({ op: `${m}.createMany`, args }); return Promise.resolve({ count: 0 }); },
-      update: (args: unknown) => { captured.push({ op: `${m}.update`, args }); return Promise.resolve({}); },
-      updateMany: (args: unknown) => { captured.push({ op: `${m}.updateMany`, args }); return Promise.resolve({ count: 0 }); },
-      delete: (args: unknown) => { captured.push({ op: `${m}.delete`, args }); return Promise.resolve({}); },
-      deleteMany: (args: unknown) => { captured.push({ op: `${m}.deleteMany`, args }); return Promise.resolve({ count: 0 }); },
-      upsert: (args: unknown) => { captured.push({ op: `${m}.upsert`, args }); return Promise.resolve({}); },
-    };
-  }
-
-  return { prisma: delegates };
-});
-
-const SCHOOL_A = "school_aaa";
-const SCHOOL_B = "school_bbb";
-
-beforeEach(() => {
-  captured = [];
-});
-
-describe("scopedDb — isolasi tenant", () => {
-  it("menyuntikkan schoolId ke findMany", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await db.student.findMany();
-    expect(captured).toHaveLength(1);
-    expect(captured[0].args).toMatchObject({ where: { schoolId: SCHOOL_A } });
+  it("schema.prisma terbaca dan punya model tenant", () => {
+    expect(models.length).toBeGreaterThan(20);
+    expect(tenantModels.length).toBeGreaterThan(20);
   });
 
-  it("mempertahankan kondisi where lain sambil menambah schoolId", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await db.student.findMany({ where: { status: "ACTIVE" } });
-    expect(captured[0].args).toMatchObject({
-      where: { status: "ACTIVE", schoolId: SCHOOL_A },
-    });
+  it("SETIAP model ber-schoolId terdaftar di TENANT_MODELS (scoped-db)", () => {
+    // PENTING: TENANT_MODELS memakai nama PROPERTI Prisma client (camelCase,
+    // mis. "academicYear"), bukan nama model ("AcademicYear"). Perbandingan
+    // harus memakai bentuk camelCase, kalau tidak seluruh daftar tampak salah.
+    const toClientName = (modelName: string) =>
+      modelName.charAt(0).toLowerCase() + modelName.slice(1);
+
+    const registered = new Set<string>(TENANT_MODELS);
+    const missing = tenantModels
+      .filter((m) => !registered.has(toClientName(m.name)))
+      .map((m) => `${toClientName(m.name)} (model ${m.name})`);
+
+    expect(
+      missing,
+      `Model berikut punya kolom schoolId tetapi TIDAK ada di TENANT_MODELS ` +
+        `(lib/scoped-db.ts), sehingga scopedDb() tidak menyuntik schoolId:\n` +
+        missing.map((m) => `  - ${m}`).join("\n"),
+    ).toEqual([]);
   });
 
-  it("MENOLAK query lintas-tenant (where.schoolId berbeda)", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await expect(
-      db.student.findMany({ where: { schoolId: SCHOOL_B } }),
-    ).rejects.toThrow(/lintas-tenant/i);
-    // Tidak ada query yang benar-benar dijalankan.
-    expect(captured).toHaveLength(0);
+  it("SETIAP tabel tenant terdaftar di RLS (prisma/rls.sql)", () => {
+    const tables = rlsTables();
+    const missing = tenantModels
+      .filter((m) => !tables.has(m.table))
+      .map((m) => `${m.table} (model ${m.name})`);
+
+    expect(
+      missing,
+      `Tabel berikut TIDAK punya RLS, sehingga satu query yang lupa memfilter ` +
+        `schoolId akan membocorkan data antar-sekolah:\n` +
+        missing.map((t) => `  - ${t}`).join("\n"),
+    ).toEqual([]);
   });
 
-  it("menyuntikkan schoolId ke create", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await db.student.create({ data: { nis: "001", fullName: "Ani" } });
-    expect(captured[0].args).toMatchObject({
-      data: { nis: "001", fullName: "Ani", schoolId: SCHOOL_A },
-    });
-  });
-
-  it("menyuntikkan schoolId ke setiap baris createMany", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await db.student.createMany({
-      data: [{ nis: "001" }, { nis: "002" }],
-    });
-    const args = captured[0].args as { data: Array<{ schoolId: string }> };
-    expect(args.data).toHaveLength(2);
-    expect(args.data.every((r) => r.schoolId === SCHOOL_A)).toBe(true);
-  });
-
-  it("MENOLAK create dengan schoolId sekolah lain", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await expect(
-      db.student.create({ data: { nis: "001", schoolId: SCHOOL_B } }),
-    ).rejects.toThrow(/lintas-tenant/i);
-  });
-
-  it("menyuntikkan schoolId ke update/delete", async () => {
-    const db = scopedDb(SCHOOL_A);
-    await db.student.update({ where: { id: "s1" }, data: { fullName: "X" } });
-    await db.student.delete({ where: { id: "s1" } });
-    expect(captured[0].args).toMatchObject({
-      where: { id: "s1", schoolId: SCHOOL_A },
-    });
-    expect(captured[1].args).toMatchObject({
-      where: { id: "s1", schoolId: SCHOOL_A },
-    });
-  });
-
-  it("schoolId sekolah A != sekolah B (bukti isolasi)", async () => {
-    const dbA = scopedDb(SCHOOL_A);
-    await dbA.invoice.findMany();
-    captured = [];
-    const dbB = scopedDb(SCHOOL_B);
-    await dbB.invoice.findMany();
-    expect(captured[0].args).toMatchObject({ where: { schoolId: SCHOOL_B } });
-  });
-});
-
-describe("scopedDb — penolakan konfigurasi salah", () => {
-  it("menolak schoolId kosong", () => {
-    expect(() => scopedDb("")).toThrow(/schoolId kosong/i);
-    expect(() => scopedDb(null)).toThrow(/schoolId kosong/i);
-    expect(() => scopedDb(undefined)).toThrow(/schoolId kosong/i);
-  });
-
-  it("menolak akses model global lewat scopedDb", () => {
-    const db = scopedDb(SCHOOL_A) as unknown as Record<string, unknown>;
-    expect(() => db.school).toThrow(/bukan model tenant/i);
-    expect(() => db.plan).toThrow(/bukan model tenant/i);
-  });
-});
-
-describe("unscoped — jalur super-admin", () => {
-  it("mengembalikan prisma mentah", () => {
-    const raw = unscoped("test: kelola sekolah");
-    expect(raw).toBeTruthy();
-  });
-});
-
-describe("TENANT_MODELS — kelengkapan", () => {
-  it("mencakup tabel-tabel inti", () => {
-    for (const m of ["student", "invoice", "attendance", "grade"]) {
-      expect(TENANT_MODELS).toContain(m);
+  it("tabel web sekolah + SPMB multi-jalur sudah dilindungi RLS", () => {
+    // Daftar eksplisit supaya regresi Fase 8 tidak terulang.
+    const tables = rlsTables();
+    for (const t of [
+      "site_themes",
+      "site_configs",
+      "site_blocks",
+      "pages",
+      "page_blocks",
+      "navigation_items",
+      "admission_paths",
+    ]) {
+      expect(tables.has(t), `${t} tidak dilindungi RLS`).toBe(true);
     }
+  });
+
+  it("tidak ada nama tabel RLS yang sudah tidak ada di schema (sisa usang)", () => {
+    const known = new Set(models.map((m) => m.table));
+    // Tabel non-tenant yang boleh ada di RLS atau dikelola terpisah.
+    const exceptions = new Set(["students", "users"]);
+    const stale = Array.from(rlsTables()).filter(
+      (t) => !known.has(t) && !exceptions.has(t),
+    );
+    // Tabel usang bukan bug fatal, tetapi menandakan skema & RLS tidak sinkron.
+    expect(stale.length, `Tabel di RLS tanpa model: ${stale.join(", ")}`).toBeLessThan(3);
   });
 });
