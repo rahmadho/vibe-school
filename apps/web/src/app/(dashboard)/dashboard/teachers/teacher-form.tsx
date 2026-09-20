@@ -29,6 +29,7 @@ export function TeacherForm({
     gender?: string;
     phone?: string;
     email?: string;
+    photoUrl?: string | null;
     isActive?: boolean;
     subjectIds?: string[];
   };
@@ -38,9 +39,10 @@ export function TeacherForm({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [pending, setPending] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(initial?.photoUrl ?? null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   const fe = (name: string) => fieldErrors[name]?.[0];
-
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
@@ -49,7 +51,7 @@ export function TeacherForm({
 
     const formData = new FormData(e.currentTarget);
     if (mode === "edit" && initial?.id) formData.set("id", initial.id);
-
+    if (removePhoto) formData.set("removePhoto", "1");
     const res = await action(formData);
     if (res.ok) {
       router.push(res.id ? `/dashboard/teachers/${res.id}` : "/dashboard/teachers");
@@ -129,6 +131,68 @@ export function TeacherForm({
               Aktif mengajar
             </label>
           </Field>
+
+          <div className="sm:col-span-2">
+            <Field label="Foto guru (opsional)" htmlFor="photo" error={fe("photo")}>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded border border-chalk bg-paper text-slate">
+                  {photoPreview && !removePhoto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photoPreview}
+                      alt="Foto guru"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <svg
+                      aria-hidden
+                      viewBox="0 0 24 24"
+                      className="h-8 w-8 text-slate/50"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <div className="space-y-1.5 text-xs text-slate">
+                  <input
+                    id="photo"
+                    name="photo"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="block text-sm text-ink file:mr-3 file:rounded file:border file:border-chalk file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink hover:file:bg-chalk/40"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setPhotoPreview(URL.createObjectURL(file));
+                        setRemovePhoto(false);
+                      }
+                    }}
+                  />
+                  <p>Maksimal 2 MB (PNG, JPEG, WEBP).</p>
+                  {photoPreview && !removePhoto && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRemovePhoto(true);
+                        const input = document.getElementById("photo") as HTMLInputElement | null;
+                        if (input) input.value = "";
+                      }}
+                      className="text-xs text-marker hover:underline"
+                    >
+                      Hapus foto
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Field>
+          </div>
         </div>
       </section>
 

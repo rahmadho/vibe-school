@@ -25,6 +25,7 @@ export const teacherCreateSchema = z.object({
   gender: z.enum(GENDERS, { message: "Pilih jenis kelamin" }),
   phone: optionalPhone,
   email: optionalEmail,
+  photoUrl: z.string().trim().optional(),
   isActive: z
     .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
     .optional()

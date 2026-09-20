@@ -36,9 +36,31 @@ export default async function GradesPage({
 
   const sp = await searchParams;
 
-  const [classes, subjects, year, semesters] = await Promise.all([
+  const years = await prisma.academicYear.findMany({
+    where: { schoolId },
+    select: { id: true, name: true, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  const activeYear = years.find((y) => y.isActive);
+
+  let academicYearId: string | undefined;
+  if (sp.academicYearId === "all") {
+    academicYearId = undefined;
+  } else if (typeof sp.academicYearId === "string" && sp.academicYearId.length > 0) {
+    academicYearId = sp.academicYearId;
+  } else {
+    academicYearId = activeYear?.id;
+  }
+
+  const effectiveYearId = academicYearId ?? activeYear?.id;
+
+  const [classes, subjects, semesters] = await Promise.all([
     prisma.class.findMany({
-      where: { schoolId, deletedAt: null },
+      where: {
+        schoolId,
+        deletedAt: null,
+        ...(academicYearId ? { academicYearId } : {}),
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
@@ -47,10 +69,14 @@ export default async function GradesPage({
       orderBy: { name: "asc" },
       select: { id: true, name: true, kkm: true },
     }),
-    getActiveAcademicYear(schoolId),
-    listSemestersOfActiveYear(schoolId),
+    effectiveYearId
+      ? prisma.semester.findMany({
+          where: { academicYearId: effectiveYearId },
+          orderBy: { startDate: "asc" },
+          select: { id: true, name: true },
+        })
+      : [],
   ]);
-
   const classId = typeof sp.classId === "string" ? sp.classId : classes[0]?.id ?? "";
   const subjectId =
     typeof sp.subjectId === "string" ? sp.subjectId : subjects[0]?.id ?? "";
@@ -62,8 +88,8 @@ export default async function GradesPage({
   const subject = subjectId ? await getSubject(schoolId, subjectId) : null;
 
   const components =
-    subjectId && year
-      ? await listGradeItems(schoolId, { subjectId, academicYearId: year.id })
+    subjectId && effectiveYearId
+      ? await listGradeItems(schoolId, { subjectId, academicYearId: effectiveYearId })
       : [];
 
   const [students, grades] = classId
@@ -85,9 +111,8 @@ export default async function GradesPage({
 
   const kkm = subject?.kkm ?? 70;
   const totalWeight = components.reduce((a, c) => a + c.weight, 0);
-
-  const hasPrereq = classes.length > 0 && subjects.length > 0 && year && semesters.length > 0;
-
+  const hasPrereq =
+    classes.length > 0 && subjects.length > 0 && effectiveYearId && semesters.length > 0;
   return (
     <div className="space-y-6">
       <PageHeader
@@ -125,6 +150,23 @@ export default async function GradesPage({
             action="/dashboard/grades"
             className="flex flex-wrap items-end gap-3 rounded-lg border border-chalk bg-white p-4"
           >
+            <div className="w-52">
+              <label htmlFor="academicYearId" className="mb-1 block text-xs font-medium text-slate">
+                Tahun ajaran
+              </label>
+              <Select
+                id="academicYearId"
+                name="academicYearId"
+                defaultValue={sp.academicYearId === "all" ? "all" : (academicYearId ?? "")}
+              >
+                <option value="all">Semua tahun</option>
+                {years.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name} {y.isActive ? "(aktif)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <div className="w-52">
               <label htmlFor="classId" className="mb-1 block text-xs font-medium text-slate">
                 Kelas

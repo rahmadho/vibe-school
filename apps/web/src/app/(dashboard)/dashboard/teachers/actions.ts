@@ -14,6 +14,12 @@ import {
   teacherCreateSchema,
   teacherUpdateSchema,
 } from "@/lib/validations/personnel";
+import {
+  MAX_IMAGE_BYTES,
+  sniffImageType,
+  saveImage,
+  removeStoredUrl,
+} from "@/lib/storage";
 
 /**
  * Server Actions Guru.
@@ -65,6 +71,37 @@ export async function createTeacher(
     subjectIds = valid.map((s) => s.id);
   }
 
+  // Unggah foto jika ada berkas gambar valid
+  const photoFile = formData.get("photo");
+  let photoUrl: string | null = null;
+  if (photoFile instanceof File && photoFile.size > 0) {
+    if (photoFile.size > MAX_IMAGE_BYTES) {
+      return {
+        ok: false,
+        error: `Ukuran foto maksimal ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)} MB.`,
+        fieldErrors: { photo: ["Ukuran foto maksimal 2 MB"] },
+      };
+    }
+    const buf = Buffer.from(await photoFile.arrayBuffer());
+    const type = sniffImageType(buf);
+    if (!type) {
+      return {
+        ok: false,
+        error: "Foto harus berupa format gambar PNG, JPEG, atau WEBP.",
+        fieldErrors: { photo: ["Format foto tidak didukung (gunakan PNG/JPEG/WEBP)"] },
+      };
+    }
+    try {
+      const stored = await saveImage({ data: buf, prefix: `${schoolId}/teachers`, type });
+      photoUrl = stored.url;
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Gagal menyimpan foto: ${err instanceof Error ? err.message : "terjadi kesalahan"}`,
+      };
+    }
+  }
+
   const meta = await requestMeta();
   const created = await prisma.teacher.create({
     data: {
@@ -74,6 +111,7 @@ export async function createTeacher(
       gender: d.gender,
       phone: d.phone ?? null,
       email: d.email ?? null,
+      photoUrl,
       isActive: d.isActive,
       ...(subjectIds.length
         ? {
@@ -151,6 +189,45 @@ export async function updateTeacher(
 
   const meta = await requestMeta();
 
+  // Penanganan foto: hapus, unggah baru, atau pertahankan
+  const removePhotoFlag = formData.get("removePhoto") === "1";
+  const photoFile = formData.get("photo");
+  let nextPhotoUrl: string | null = existing.photoUrl;
+
+  if (removePhotoFlag) {
+    nextPhotoUrl = null;
+  }
+
+  let newlyUploadedUrl: string | null = null;
+  if (photoFile instanceof File && photoFile.size > 0) {
+    if (photoFile.size > MAX_IMAGE_BYTES) {
+      return {
+        ok: false,
+        error: `Ukuran foto maksimal ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)} MB.`,
+        fieldErrors: { photo: ["Ukuran foto maksimal 2 MB"] },
+      };
+    }
+    const buf = Buffer.from(await photoFile.arrayBuffer());
+    const type = sniffImageType(buf);
+    if (!type) {
+      return {
+        ok: false,
+        error: "Foto harus berupa format gambar PNG, JPEG, atau WEBP.",
+        fieldErrors: { photo: ["Format foto tidak didukung (gunakan PNG/JPEG/WEBP)"] },
+      };
+    }
+    try {
+      const stored = await saveImage({ data: buf, prefix: `${schoolId}/teachers`, type });
+      newlyUploadedUrl = stored.url;
+      nextPhotoUrl = stored.url;
+    } catch (err) {
+      return {
+        ok: false,
+        error: `Gagal menyimpan foto: ${err instanceof Error ? err.message : "terjadi kesalahan"}`,
+      };
+    }
+  }
+
   // Ganti daftar mapel: hapus relasi lama, buat yang baru (dalam transaksi).
   await prisma.$transaction([
     prisma.teacherSubject.deleteMany({ where: { teacherId: id } }),
@@ -162,6 +239,7 @@ export async function updateTeacher(
         gender: d.gender,
         phone: d.phone ?? null,
         email: d.email ?? null,
+        photoUrl: nextPhotoUrl,
         isActive: d.isActive,
         ...(subjectIds.length
           ? { subjects: { create: subjectIds.map((sid) => ({ subjectId: sid })) } }
@@ -170,14 +248,19 @@ export async function updateTeacher(
     }),
   ]);
 
+  // Bersihkan berkas lama di storage jika diganti atau dihapus
+  if ((removePhotoFlag || newlyUploadedUrl) && existing.photoUrl && existing.photoUrl !== nextPhotoUrl) {
+    await removeStoredUrl(existing.photoUrl);
+  }
+
   await recordAudit({
     schoolId,
     userId,
     action: "UPDATE",
     entity: "Teacher",
     entityId: id,
-    before: { fullName: existing.fullName, nip: existing.nip },
-    after: { fullName: d.fullName, nip: d.nip ?? null },
+    before: { fullName: existing.fullName, nip: existing.nip, photoUrl: existing.photoUrl },
+    after: { fullName: d.fullName, nip: d.nip ?? null, photoUrl: nextPhotoUrl },
     ...meta,
   });
 

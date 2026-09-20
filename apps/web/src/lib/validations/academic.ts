@@ -91,7 +91,36 @@ export const subjectUpdateSchema = subjectCreateSchema.extend({
 export const subjectFilterSchema = z.object({
   q: z.string().trim().optional(),
 });
-
 export type AcademicYearInput = z.infer<typeof academicYearCreateSchema>;
 export type ClassInput = z.infer<typeof classCreateSchema>;
 export type SubjectInput = z.infer<typeof subjectCreateSchema>;
+
+/* ============================================================
+ * KENAIKAN KELAS & MUTASI
+ * ============================================================ */
+export const CLASS_PROGRESSION_TYPES = ["NAIK", "TINGGAL", "LULUS", "MUTASI"] as const;
+export type ClassProgressionType = (typeof CLASS_PROGRESSION_TYPES)[number];
+
+export const CLASS_PROGRESSION_LABEL: Record<ClassProgressionType, string> = {
+  NAIK: "Naik Kelas",
+  TINGGAL: "Tinggal Kelas",
+  LULUS: "Lulus",
+  MUTASI: "Pindah / Mutasi",
+};
+
+export const progressionItemSchema = z.object({
+  studentId: z.string().min(1, "ID siswa wajib"),
+  result: z.enum(CLASS_PROGRESSION_TYPES, { message: "Status kenaikan tidak valid" }),
+  targetClassId: z.string().trim().optional(),
+  note: z.string().trim().max(200, "Catatan maksimal 200 karakter").optional(),
+});
+
+export const bulkProgressionSchema = z.object({
+  sourceClassId: z.string().min(1, "Kelas asal wajib dipilih"),
+  sourceAcademicYearId: z.string().min(1, "Tahun ajaran asal wajib dipilih"),
+  targetAcademicYearId: z.string().min(1, "Tahun ajaran tujuan wajib dipilih"),
+  items: z.array(progressionItemSchema).min(1, "Minimal pilih 1 siswa"),
+});
+
+export type ProgressionItemInput = z.infer<typeof progressionItemSchema>;
+export type BulkProgressionInput = z.infer<typeof bulkProgressionSchema>;

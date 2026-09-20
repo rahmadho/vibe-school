@@ -11,8 +11,8 @@ import {
   classUpdateSchema,
   subjectCreateSchema,
   subjectUpdateSchema,
+  bulkProgressionSchema,
 } from "@/lib/validations/academic";
-
 /* ============================================================
  * TAHUN AJARAN
  * ============================================================ */
@@ -472,4 +472,180 @@ export async function softDeleteSubject(id: string): Promise<ActionResult> {
 
   revalidatePath("/dashboard/academic/subjects");
   return { ok: true, message: "Mapel dihapus." };
+}
+
+/* ============================================================
+ * KENAIKAN KELAS MASSAL (Fase 9)
+ * ============================================================ */
+export async function executeBulkProgression(rawInput: unknown): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const parsed = bulkProgressionSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Data kenaikan kelas tidak lengkap atau tidak valid.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+
+  const { sourceClassId, sourceAcademicYearId, targetAcademicYearId, items } = parsed.data;
+
+  // Verifikasi kelas asal & tahun ajaran milik tenant
+  const [sourceClass, sourceYear, targetYear] = await Promise.all([
+    prisma.class.findFirst({
+      where: { id: sourceClassId, schoolId, deletedAt: null },
+      select: { id: true, name: true, level: true },
+    }),
+    prisma.academicYear.findFirst({
+      where: { id: sourceAcademicYearId, schoolId },
+      select: { id: true, name: true },
+    }),
+    prisma.academicYear.findFirst({
+      where: { id: targetAcademicYearId, schoolId },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  if (!sourceClass) return { ok: false, error: "Kelas asal tidak ditemukan." };
+  if (!sourceYear) return { ok: false, error: "Tahun ajaran asal tidak ditemukan." };
+  if (!targetYear) return { ok: false, error: "Tahun ajaran tujuan tidak ditemukan." };
+
+  // Validasi ID siswa: semua harus milik tenant dan sedang di kelas asal
+  const studentIds = items.map((i) => i.studentId);
+  const studentsInClass = await prisma.student.findMany({
+    where: {
+      id: { in: studentIds },
+      schoolId,
+      deletedAt: null,
+    },
+    select: { id: true, fullName: true, classId: true, status: true },
+  });
+
+  if (studentsInClass.length !== studentIds.length) {
+    return { ok: false, error: "Sebagian siswa tidak valid atau bukan milik sekolah ini." };
+  }
+
+  // Kumpulkan kelas tujuan yang dibutuhkan (untuk NAIK / TINGGAL)
+  const targetClassIds = Array.from(
+    new Set(
+      items
+        .filter((i) => i.result === "NAIK" || i.result === "TINGGAL")
+        .map((i) => i.targetClassId)
+        .filter((cid): cid is string => Boolean(cid)),
+    ),
+  );
+
+  if (targetClassIds.length > 0) {
+    const validTargetClasses = await prisma.class.findMany({
+      where: {
+        id: { in: targetClassIds },
+        schoolId,
+        deletedAt: null,
+      },
+      select: { id: true, name: true, level: true },
+    });
+    if (validTargetClasses.length !== targetClassIds.length) {
+      return { ok: false, error: "Sebagian kelas tujuan tidak ditemukan di sekolah ini." };
+    }
+
+    // ATURAN: Kelas tujuan tidak boleh di bawah tingkat kelas asal
+    const targetMap = new Map(validTargetClasses.map((c) => [c.id, c.level]));
+    for (const item of items) {
+      if (item.targetClassId) {
+        const targetLevel = targetMap.get(item.targetClassId);
+        if (targetLevel !== undefined) {
+          if (item.result === "NAIK" && targetLevel <= sourceClass.level) {
+            return {
+              ok: false,
+              error: `Siswa yang naik kelas harus menuju ke kelas dengan tingkat lebih tinggi dari tingkat ${sourceClass.level}.`,
+            };
+          }
+          if (item.result === "TINGGAL" && targetLevel !== sourceClass.level) {
+            return {
+              ok: false,
+              error: `Siswa yang tinggal kelas harus tetap di kelas dengan tingkat ${sourceClass.level}.`,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  const meta = await requestMeta();
+
+  // Eksekusi atomik
+  await prisma.$transaction(async (tx) => {
+    for (const item of items) {
+      // 1. Catat riwayat kelas
+      await tx.studentClassHistory.create({
+        data: {
+          schoolId,
+          studentId: item.studentId,
+          classId: sourceClassId,
+          academicYearId: sourceAcademicYearId,
+          result: item.result,
+          note: item.note ?? null,
+        },
+      });
+
+      // 2. Mutasi status & kelas pada siswa
+      if (item.result === "LULUS") {
+        await tx.student.update({
+          where: { id: item.studentId },
+          data: {
+            classId: null,
+            status: "GRADUATED",
+          },
+        });
+      } else if (item.result === "MUTASI") {
+        await tx.student.update({
+          where: { id: item.studentId },
+          data: {
+            classId: null,
+            status: "TRANSFERRED",
+          },
+        });
+      } else {
+        // NAIK atau TINGGAL: update ke targetClassId
+        if (!item.targetClassId) {
+          throw new Error(`Kelas tujuan wajib dipilih untuk siswa yang berstatus ${item.result}.`);
+        }
+        await tx.student.update({
+          where: { id: item.studentId },
+          data: {
+            classId: item.targetClassId,
+            status: "ACTIVE",
+          },
+        });
+      }
+    }
+
+    // 3. Catat audit log transaksi massal
+    await recordAudit({
+      schoolId,
+      userId,
+      action: "UPDATE",
+      entity: "StudentClassHistory",
+      entityId: sourceClassId,
+      after: {
+        sourceClass: sourceClass.name,
+        sourceYear: sourceYear.name,
+        targetYear: targetYear.name,
+        processedCount: items.length,
+      },
+      ...meta,
+    });
+  });
+
+  revalidatePath("/dashboard/academic/classes");
+  revalidatePath("/dashboard/academic/progression");
+  revalidatePath("/dashboard/students");
+
+  return {
+    ok: true,
+    message: `Berhasil memproses status kenaikan ${items.length} siswa kelas ${sourceClass.name}.`,
+  };
 }

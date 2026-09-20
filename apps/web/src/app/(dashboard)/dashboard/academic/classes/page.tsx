@@ -19,26 +19,39 @@ export default async function ClassesPage({
 
   const schoolId = session.user.schoolId;
   const sp = await searchParams;
-  const academicYearId = typeof sp.academicYearId === "string" ? sp.academicYearId : undefined;
-
-  const [years, classes] = await Promise.all([
-    getAcademicYearOptions(schoolId),
-    listClasses(schoolId, { academicYearId }),
-  ]);
-
-  const canManage = can(session.user.role, "academic", "manage");
+  const years = await getAcademicYearOptions(schoolId);
   const activeYear = years.find((y) => y.isActive);
+
+  // Jika parameter "academicYearId" bernilai "all", tampilkan semua.
+  // Jika tidak diset, default ke tahun ajaran aktif.
+  let academicYearId: string | undefined;
+  if (sp.academicYearId === "all") {
+    academicYearId = undefined;
+  } else if (typeof sp.academicYearId === "string" && sp.academicYearId.length > 0) {
+    academicYearId = sp.academicYearId;
+  } else {
+    academicYearId = activeYear?.id;
+  }
+
+  const classes = await listClasses(schoolId, { academicYearId });
+  const canManage = can(session.user.role, "academic", "manage");
+  const selectedYear = years.find((y) => y.id === academicYearId);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Kelas"
-        context={`${classes.length} kelas${academicYearId ? "" : ` · total semua tahun ajaran`}`}
+        context={`${classes.length} kelas · ${selectedYear ? `Tahun ${selectedYear.name}` : "semua tahun ajaran"}`}
         actions={
           canManage && years.length > 0 ? (
-            <Link href="/dashboard/academic/classes/new">
-              <Button>Tambah kelas</Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/dashboard/academic/progression">
+                <Button variant="secondary">Kenaikan kelas</Button>
+              </Link>
+              <Link href="/dashboard/academic/classes/new">
+                <Button>Tambah kelas</Button>
+              </Link>
+            </div>
           ) : null
         }
       />
@@ -66,10 +79,10 @@ export default async function ClassesPage({
               <select
                 id="academicYearId"
                 name="academicYearId"
-                defaultValue={academicYearId ?? (activeYear?.id ?? "")}
+                defaultValue={sp.academicYearId === "all" ? "all" : (academicYearId ?? "")}
                 className="h-10 w-full rounded border border-chalk bg-white px-3 text-sm focus:border-board focus:outline-none"
               >
-                <option value="">Semua tahun ajaran</option>
+                <option value="all">Semua tahun ajaran</option>
                 {years.map((y) => (
                   <option key={y.id} value={y.id}>
                     {y.name}

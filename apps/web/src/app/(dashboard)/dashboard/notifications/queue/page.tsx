@@ -111,21 +111,21 @@ export default async function QueuePage({
         />
       )}
 
-      <div className="rounded-lg border border-chalk bg-paper">
+      <div className="overflow-hidden rounded-lg border border-chalk bg-white">
         {queue.length === 0 ? (
           <div className="p-10 text-center text-sm text-slate">
             Tidak ada pesan pada filter ini.
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-board/80 text-left text-xs uppercase tracking-wide text-slate backdrop-blur">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-4 py-2 font-medium">Penerima</th>
-                  <th className="px-4 py-2 font-medium">Isi pesan</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                  <th className="px-4 py-2 font-medium">Percobaan</th>
-                  {canManage && <th className="px-4 py-2 font-medium">Aksi</th>}
+                  <th className="w-48">Penerima</th>
+                  <th>Isi pesan</th>
+                  <th className="w-36">Status</th>
+                  <th className="w-44">Percobaan</th>
+                  {canManage && <th className="w-28 text-right">Aksi</th>}
                 </tr>
               </thead>
               <tbody>

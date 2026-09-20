@@ -98,11 +98,10 @@ Prinsip: **jangan lompat tahap**. Setiap fase harus lolos Definition of Done (li
 
 ---
 
-## Fase 9 — Kenaikan Kelas & Administrasi (BELUM)
-- [ ] **Wizard kenaikan kelas massal**
-- [ ] Tandai siswa **tinggal kelas** & **lulus**
-- [x] Riwayat kelas (`StudentClassHistory`) — tabel sudah ada, alur belum
-
+## Fase 9 — Kenaikan Kelas & Administrasi ✅ (SELESAI)
+- [x] **Wizard kenaikan kelas massal** (`/dashboard/academic/progression`)
+- [x] Tandai siswa **tinggal kelas**, **naik kelas**, **lulus**, dan **mutasi**
+- [x] Riwayat kelas (`StudentClassHistory`) tercatat otomatis per mutasi
 ---
 
 ## Fase 10 — Komersial & Rilis (SEBAGIAN)

@@ -41,6 +41,7 @@ export default async function EditTeacherPage({
           gender: teacher.gender,
           phone: teacher.phone ?? "",
           email: teacher.email ?? "",
+          photoUrl: teacher.photoUrl ?? null,
           isActive: teacher.isActive,
           subjectIds: teacher.subjects.map((s) => s.subject.id),
         }}

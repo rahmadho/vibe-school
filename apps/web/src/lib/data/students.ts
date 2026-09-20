@@ -89,10 +89,14 @@ export async function getStudentStats(schoolId: string) {
   return { total, active, male, female };
 }
 
-/** Opsi kelas untuk dropdown filter/form. */
-export async function getClassOptions(schoolId: string) {
+/** Opsi kelas untuk dropdown filter/form (bisa difilter tahun ajaran). */
+export async function getClassOptions(schoolId: string, academicYearId?: string) {
   return prisma.class.findMany({
-    where: { schoolId, deletedAt: null },
+    where: {
+      schoolId,
+      deletedAt: null,
+      ...(academicYearId ? { academicYearId } : {}),
+    },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

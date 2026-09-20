@@ -32,13 +32,30 @@ export default async function GradeItemsPage({
   }
 
   const sp = await searchParams;
-  const [subjects, year, teachers] = await Promise.all([
+  const years = await prisma.academicYear.findMany({
+    where: { schoolId },
+    select: { id: true, name: true, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  const activeYear = years.find((y) => y.isActive);
+
+  let academicYearId: string | undefined;
+  if (sp.academicYearId === "all") {
+    academicYearId = undefined;
+  } else if (typeof sp.academicYearId === "string" && sp.academicYearId.length > 0) {
+    academicYearId = sp.academicYearId;
+  } else {
+    academicYearId = activeYear?.id;
+  }
+
+  const effectiveYearId = academicYearId ?? activeYear?.id;
+
+  const [subjects, teachers] = await Promise.all([
     prisma.subject.findMany({
       where: { schoolId, deletedAt: null },
       orderBy: { name: "asc" },
       select: { id: true, name: true, kkm: true },
     }),
-    getActiveAcademicYear(schoolId),
     prisma.teacher.findMany({
       where: { schoolId, deletedAt: null, isActive: true },
       orderBy: { fullName: "asc" },
@@ -50,10 +67,9 @@ export default async function GradeItemsPage({
     typeof sp.subjectId === "string" ? sp.subjectId : subjects[0]?.id ?? "";
 
   const items =
-    subjectId && year
-      ? await listGradeItems(schoolId, { subjectId, academicYearId: year.id })
+    subjectId && effectiveYearId
+      ? await listGradeItems(schoolId, { subjectId, academicYearId: effectiveYearId })
       : [];
-
   const totalWeight = items.reduce((a, c) => a + c.weight, 0);
   const activeSubject = subjects.find((s) => s.id === subjectId);
 
@@ -73,7 +89,7 @@ export default async function GradeItemsPage({
         }
       />
 
-      {subjects.length === 0 || !year ? (
+      {subjects.length === 0 || !effectiveYearId ? (
         <EmptyState
           title="Belum bisa menyusun komponen"
           description="Diperlukan mata pelajaran dan tahun ajaran aktif. Lengkapi di menu Akademik."
@@ -85,8 +101,25 @@ export default async function GradeItemsPage({
         />
       ) : (
         <>
-          <form action="/dashboard/grades/items" className="flex items-end gap-3">
-            <div className="w-72">
+          <form action="/dashboard/grades/items" className="flex flex-wrap items-end gap-3 rounded border border-chalk bg-white p-4">
+            <div className="w-56">
+              <label htmlFor="academicYearId" className="mb-1 block text-xs font-medium text-slate">
+                Tahun ajaran
+              </label>
+              <Select
+                id="academicYearId"
+                name="academicYearId"
+                defaultValue={sp.academicYearId === "all" ? "all" : (academicYearId ?? "")}
+              >
+                <option value="all">Semua tahun</option>
+                {years.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name} {y.isActive ? "(aktif)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-64">
               <label htmlFor="subjectId" className="mb-1 block text-xs font-medium text-slate">
                 Mata pelajaran
               </label>
@@ -151,13 +184,15 @@ export default async function GradeItemsPage({
               Komponen baru akan dibuat untuk mapel{" "}
               <span className="font-medium text-ink">{activeSubject?.name}</span>,
               tahun ajaran{" "}
-              <span className="font-medium text-ink">{year.name}</span>.
+              <span className="font-medium text-ink">
+                {years.find((y) => y.id === effectiveYearId)?.name ?? "aktif"}
+              </span>.
             </p>
             <GradeItemForm
               action={createGradeItem}
               context={{
                 subjectId,
-                academicYearId: year.id,
+                academicYearId: effectiveYearId,
                 teacherId: teachers[0]?.id ?? "",
               }}
             />

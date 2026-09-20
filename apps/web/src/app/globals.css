@@ -37,6 +37,35 @@
     text-rendering: optimizeLegibility;
   }
 
+  /*
+   * Scrollbar — ramping & menyatu dengan tema "papan tulis & arsip".
+   *
+   * Track dibiarkan tembus pandang supaya konten tidak "dipotong" garis abu,
+   * thumb memakai --chalk (kertas berkapur) dan menguat ke --slate saat hover.
+   * `scrollbar-color` bersifat warisan, jadi cukup di :root — berlaku untuk
+   * window, <main>, modal, tabel bergulir, dan textarea sekaligus.
+   */
+  :root {
+    scrollbar-width: thin;
+    scrollbar-color: var(--chalk) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--chalk);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--slate);
+  }
+
   body {
     @apply bg-paper text-ink font-sans antialiased;
     font-feature-settings: "kern", "liga";

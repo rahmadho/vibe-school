@@ -527,54 +527,53 @@ export async function seedActivityForSchool(
 
   /* ---------- 9. KOMPONEN NILAI + NILAI ---------- */
   let gradeCount = 0;
-  for (const cls of currentClasses) {
-    for (const subject of subjects) {
-      const teacher = pick(rnd, teachers);
-      const semesters = currentYear.semesters;
+  const gradeItemsDefs = [
+    { name: "Tugas 1", type: "ASSIGNMENT" as const, weight: 20 },
+    { name: "Kuis", type: "QUIZ" as const, weight: 15 },
+    { name: "UTS", type: "MIDTERM" as const, weight: 30 },
+    { name: "UAS", type: "FINAL" as const, weight: 35 },
+  ];
 
-      for (const semester of semesters) {
-        const items = [
-          { name: "Tugas 1", type: "ASSIGNMENT" as const, weight: 20 },
-          { name: "Kuis", type: "QUIZ" as const, weight: 15 },
-          { name: "UTS", type: "MIDTERM" as const, weight: 30 },
-          { name: "UAS", type: "FINAL" as const, weight: 35 },
-        ];
+  for (const subject of subjects) {
+    const teacher = pick(rnd, teachers);
+    const subjectGradeItems: { id: string }[] = [];
 
-        const classStudents = students.filter((s) => s.classId === cls.id);
+    // Buat tepat 1 paket komponen per mapel (total bobot = 100%)
+    for (const item of gradeItemsDefs) {
+      const gradeItem = await prisma.gradeItem.create({
+        data: {
+          schoolId,
+          subjectId: subject.id,
+          academicYearId: currentYear.id,
+          teacherId: teacher.id,
+          name: `${item.name} — ${subject.code}`,
+          type: item.type,
+          weight: item.weight,
+          maxScore: 100,
+        },
+        select: { id: true },
+      });
+      subjectGradeItems.push(gradeItem);
+    }
 
-        for (const item of items) {
-          const gradeItem = await prisma.gradeItem.create({
-            data: {
-              schoolId,
-              subjectId: subject.id,
-              academicYearId: currentYear.id,
-              teacherId: teacher.id,
-              name: `${item.name} — ${subject.code} ${cls.name}`,
-              type: item.type,
-              weight: item.weight,
-              maxScore: 100,
-            },
-            select: { id: true },
-          });
+    // Isi nilai untuk siswa di kelas-kelas berjalan
+    for (const cls of currentClasses) {
+      const classStudents = students.filter((s) => s.classId === cls.id);
+      for (const gradeItem of subjectGradeItems) {
+        const rows = classStudents
+          .filter(() => rnd() > 0.05)
+          .map((s) => ({
+            schoolId,
+            gradeItemId: gradeItem.id,
+            studentId: s.id,
+            subjectId: subject.id,
+            classId: cls.id,
+            score: Math.min(100, Math.max(35, Math.round(58 + rnd() * 40))),
+          }));
 
-          // Nilai per siswa. Sebagian siswa belum dinilai (baru sebagian) —
-          // mencerminkan keadaan nyata menjelang akhir semester.
-          const rows = classStudents
-            .filter(() => rnd() > 0.05)
-            .map((s) => ({
-              schoolId,
-              gradeItemId: gradeItem.id,
-              studentId: s.id,
-              subjectId: subject.id,
-              classId: cls.id,
-              semesterId: semester.id,
-              score: Math.min(100, Math.max(35, Math.round(58 + rnd() * 40))),
-            }));
-
-          if (rows.length > 0) {
-            await prisma.grade.createMany({ data: rows, skipDuplicates: true });
-            gradeCount += rows.length;
-          }
+        if (rows.length > 0) {
+          await prisma.grade.createMany({ data: rows, skipDuplicates: true });
+          gradeCount += rows.length;
         }
       }
     }

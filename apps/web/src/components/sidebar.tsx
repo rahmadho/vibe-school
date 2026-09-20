@@ -183,6 +183,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Akademik",
     entries: [
       { href: "/dashboard/academic", label: "Akademik", icon: "academic", module: "academic" },
+      { href: "/dashboard/academic/progression", label: "Kenaikan Kelas", icon: "summary", module: "academic" },
       { href: "/dashboard/academic/schedules", label: "Jadwal", icon: "schedule", module: "academic" },
       { href: "/dashboard/academic/time-slots", label: "Jam Pelajaran", icon: "timeslot", module: "academic" },
       { href: "/dashboard/attendance", label: "Absensi", icon: "attendance", module: "attendance" },

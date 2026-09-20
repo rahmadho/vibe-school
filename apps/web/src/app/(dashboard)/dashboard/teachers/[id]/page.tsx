@@ -48,14 +48,41 @@ export default async function TeacherDetailPage({
       <div className="grid gap-6 lg:grid-cols-3">
         <section className="card lg:col-span-2">
           <h2 className="card-title">Data diri</h2>
-          <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
-            <Row label="Nama lengkap" value={teacher.fullName} />
-            <Row label="NIP" value={teacher.nip ?? "—"} mono />
-            <Row label="Jenis kelamin" value={GENDER_LABEL[teacher.gender]} />
-            <Row label="No. WA" value={teacher.phone ?? "—"} mono />
-            <Row label="Email" value={teacher.email ?? "—"} />
-            <Row label="Status" value={teacher.isActive ? "Aktif" : "Nonaktif"} />
-          </dl>
+          <div className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-start">
+            {teacher.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={teacher.photoUrl}
+                alt={teacher.fullName}
+                className="h-24 w-24 shrink-0 rounded border border-chalk object-cover"
+              />
+            ) : (
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded border border-chalk bg-paper text-slate">
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="h-10 w-10 text-slate/50"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                  />
+                </svg>
+              </div>
+            )}
+            <dl className="grid flex-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              <Row label="Nama lengkap" value={teacher.fullName} />
+              <Row label="NIP" value={teacher.nip ?? "—"} mono />
+              <Row label="Jenis kelamin" value={GENDER_LABEL[teacher.gender]} />
+              <Row label="No. WA" value={teacher.phone ?? "—"} mono />
+              <Row label="Email" value={teacher.email ?? "—"} />
+              <Row label="Status" value={teacher.isActive ? "Aktif" : "Nonaktif"} />
+            </dl>
+          </div>
         </section>
 
         <section className="card">

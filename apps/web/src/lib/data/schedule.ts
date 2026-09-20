@@ -44,13 +44,14 @@ export type ScheduleRow = Prisma.ScheduleGetPayload<{
 /** Ambil semua jadwal sekolah (untuk cek bentrok & tampilan grid). */
 export async function listSchedules(
   schoolId: string,
-  opts: { classId?: string; teacherId?: string } = {},
+  opts: { classId?: string; teacherId?: string; academicYearId?: string } = {},
 ) {
   return prisma.schedule.findMany({
     where: {
       schoolId, // isolasi tenant
       ...(opts.classId ? { classId: opts.classId } : {}),
       ...(opts.teacherId ? { teacherId: opts.teacherId } : {}),
+      ...(opts.academicYearId ? { class: { academicYearId: opts.academicYearId } } : {}),
     },
     include: scheduleInclude,
     orderBy: [{ dayOfWeek: "asc" }, { timeSlot: { slotNumber: "asc" } }],

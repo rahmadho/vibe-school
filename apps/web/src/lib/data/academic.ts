@@ -133,3 +133,58 @@ export async function getAcademicYearOptions(schoolId: string) {
     orderBy: { startDate: "desc" },
   });
 }
+
+/* ============================================================
+ * RIWAYAT KENAIKAN KELAS
+ * ============================================================ */
+export async function getProgressionContext(
+  schoolId: string,
+  opts: { sourceClassId?: string; targetAcademicYearId?: string },
+) {
+  const [classes, academicYears] = await Promise.all([
+    prisma.class.findMany({
+      where: { schoolId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        level: true,
+        academicYearId: true,
+        academicYear: { select: { id: true, name: true, isActive: true } },
+        _count: { select: { students: { where: { deletedAt: null, status: "ACTIVE" } } } },
+      },
+      orderBy: [{ level: "asc" }, { name: "asc" }],
+    }),
+    prisma.academicYear.findMany({
+      where: { schoolId },
+      select: { id: true, name: true, isActive: true },
+      orderBy: { startDate: "desc" },
+    }),
+  ]);
+
+  let students: Array<{
+    id: string;
+    nis: string;
+    fullName: string;
+    gender: string;
+  }> = [];
+
+  if (opts.sourceClassId) {
+    const s = await prisma.student.findMany({
+      where: {
+        schoolId,
+        classId: opts.sourceClassId,
+        deletedAt: null,
+        status: "ACTIVE",
+      },
+      select: { id: true, nis: true, fullName: true, gender: true },
+      orderBy: { fullName: "asc" },
+    });
+    students = s;
+  }
+
+  return {
+    classes,
+    academicYears,
+    students,
+  };
+}

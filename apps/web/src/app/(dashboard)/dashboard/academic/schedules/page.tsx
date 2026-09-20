@@ -30,10 +30,31 @@ export default async function SchedulesPage({
   const sp = await searchParams;
   const view = typeof sp.view === "string" ? sp.view : "class";
 
-  // Data referensi
+  // Ambil tahun ajaran aktif sebagai default filter kelas
+  const years = await prisma.academicYear.findMany({
+    where: { schoolId },
+    select: { id: true, name: true, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  const activeYear = years.find((y) => y.isActive);
+
+  let academicYearId: string | undefined;
+  if (sp.academicYearId === "all") {
+    academicYearId = undefined;
+  } else if (typeof sp.academicYearId === "string" && sp.academicYearId.length > 0) {
+    academicYearId = sp.academicYearId;
+  } else {
+    academicYearId = activeYear?.id;
+  }
+
+  // Data referensi (kelas difilter tahun ajaran aktif jika ada)
   const [classes, subjects, teachers, slots, stats] = await Promise.all([
     prisma.class.findMany({
-      where: { schoolId, deletedAt: null },
+      where: {
+        schoolId,
+        deletedAt: null,
+        ...(academicYearId ? { academicYearId } : {}),
+      },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
@@ -50,7 +71,6 @@ export default async function SchedulesPage({
     listTimeSlots(schoolId),
     getScheduleStats(schoolId),
   ]);
-
   // ===== Tampilan per guru =====
   if (view === "teacher") {
     const teacherId = typeof sp.teacherId === "string" ? sp.teacherId : teachers[0]?.id;
@@ -178,8 +198,25 @@ export default async function SchedulesPage({
         />
       ) : (
         <>
-          <form action="/dashboard/academic/schedules" className="flex items-end gap-3">
-            <div className="w-72">
+          <form action="/dashboard/academic/schedules" className="flex flex-wrap items-end gap-3 rounded border border-chalk bg-white p-4">
+            <div className="w-56">
+              <label htmlFor="academicYearId" className="mb-1 block text-xs font-medium text-slate">
+                Tahun ajaran
+              </label>
+              <Select
+                id="academicYearId"
+                name="academicYearId"
+                defaultValue={sp.academicYearId === "all" ? "all" : (academicYearId ?? "")}
+              >
+                <option value="all">Semua tahun</option>
+                {years.map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name} {y.isActive ? "(aktif)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="w-64">
               <label htmlFor="classId" className="mb-1 block text-xs font-medium text-slate">
                 Pilih kelas
               </label>

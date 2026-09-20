@@ -3,6 +3,7 @@ import {
   academicYearCreateSchema,
   classCreateSchema,
   subjectCreateSchema,
+  bulkProgressionSchema,
 } from "@/lib/validations/academic";
 
 describe("academicYearCreateSchema", () => {
@@ -101,5 +102,31 @@ describe("subjectCreateSchema", () => {
 
   it("menolak nama terlalu pendek", () => {
     expect(subjectCreateSchema.safeParse({ code: "X", name: "A" }).success).toBe(false);
+  });
+});
+
+describe("bulkProgressionSchema", () => {
+  it("menerima data kenaikan kelas lengkap", () => {
+    const r = bulkProgressionSchema.safeParse({
+      sourceClassId: "cls_source",
+      sourceAcademicYearId: "ay_2023",
+      targetAcademicYearId: "ay_2024",
+      items: [
+        { studentId: "std_1", result: "NAIK", targetClassId: "cls_target_8a" },
+        { studentId: "std_2", result: "TINGGAL", targetClassId: "cls_source" },
+        { studentId: "std_3", result: "LULUS" },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("menolak jika items kosong", () => {
+    const r = bulkProgressionSchema.safeParse({
+      sourceClassId: "cls_source",
+      sourceAcademicYearId: "ay_2023",
+      targetAcademicYearId: "ay_2024",
+      items: [],
+    });
+    expect(r.success).toBe(false);
   });
 });
