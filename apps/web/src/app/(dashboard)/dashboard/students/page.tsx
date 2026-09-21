@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import {
   listStudents,
   getClassOptions,
   getStudentStats,
 } from "@/lib/data/students";
+import { getMajorOptions } from "@/lib/data/academic";
+import { majorTerminology } from "@/lib/major-labels";
 import { studentFilterSchema } from "@/lib/validations/student";
 import {
   GENDER_LABEL,
@@ -48,19 +51,23 @@ export default async function StudentsPage({
   const filter = studentFilterSchema.parse({
     q: typeof sp.q === "string" ? sp.q : undefined,
     classId: typeof sp.classId === "string" ? sp.classId : undefined,
+    majorId: typeof sp.majorId === "string" ? sp.majorId : undefined,
     status: typeof sp.status === "string" ? sp.status : undefined,
     page: sp.page ?? 1,
     perPage: sp.perPage ?? 20,
   });
 
-  const [result, classes, stats] = await Promise.all([
+  const [result, classes, majors, school, stats] = await Promise.all([
     listStudents(schoolId, filter),
     getClassOptions(schoolId),
+    getMajorOptions(schoolId),
+    prisma.school.findUnique({ where: { id: schoolId }, select: { level: true } }),
     getStudentStats(schoolId),
   ]);
 
+  const term = majorTerminology(school?.level);
   const canManage = can(session.user.role, "students", "create");
-  const hasFilter = Boolean(filter.q || filter.classId || filter.status);
+  const hasFilter = Boolean(filter.q || filter.classId || filter.majorId || filter.status);
 
   return (
     <div className="space-y-6">
@@ -83,9 +90,12 @@ export default async function StudentsPage({
 
       <StudentFilters
         classes={classes}
+        majors={majors}
+        terminology={term.singular}
         current={{
           q: filter.q ?? "",
           classId: filter.classId ?? "",
+          majorId: filter.majorId ?? "",
           status: filter.status ?? "",
         }}
       />
@@ -127,6 +137,7 @@ export default async function StudentsPage({
                 <th className="w-28">NIS</th>
                 <th>Nama</th>
                 <th className="w-24">Kelas</th>
+                {majors.length > 0 ? <th className="w-28">{term.singular}</th> : null}
                 <th className="w-28">Jenis kelamin</th>
                 <th className="w-32">Status</th>
                 <th className="w-24 text-right">Aksi</th>
@@ -147,6 +158,9 @@ export default async function StudentsPage({
                   </Link>
                 </td>
                 <td className="text-slate">{s.class?.name ?? "—"}</td>
+                {majors.length > 0 ? (
+                  <td className="text-xs text-slate">{s.major?.code ?? "—"}</td>
+                ) : null}
                 <td className="text-slate">{GENDER_LABEL[s.gender]}</td>
                 <td>
                   <StatusMarker

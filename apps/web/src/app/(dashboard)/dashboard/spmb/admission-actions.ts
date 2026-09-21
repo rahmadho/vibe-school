@@ -596,5 +596,179 @@ export async function saveSpmbBlockProps(formData: FormData): Promise<ActionResu
   }
 }
 
+/* ============================================================
+ * KONVERSI PENDAFTAR DITERIMA → SISWA
+ * ============================================================ */
+
+/**
+ * Ubah pendaftar yang sudah DITERIMA menjadi data siswa resmi.
+ *
+ * KENAPA DI SINI, BUKAN DI MENU SISWA:
+ * Data pendaftar sudah lengkap (nama, jenis kelamin, tempat/tanggal lahir,
+ * agama, alamat, wali). Meminta panitia mengetik ulang semuanya berarti
+ * pekerjaan berlipat DAN peluang salah ketik pada data anak orang. Konversi
+ * memindahkan apa yang sudah ada, lalu meminta hanya yang belum ada: NIS,
+ * tahun masuk, dan kelas.
+ *
+ * JURUSAN IKUT TERBAWA: pilihan jurusan pendaftar disalin ke `Student.majorId`.
+ * Tanpa itu, panitia SMK harus membuka satu per satu siswa untuk mengisi
+ * jurusan yang sudah dipilih saat mendaftar.
+ *
+ * Bersifat idempoten terhadap pendaftaran: kolom `Registration.studentId`
+ * menandai pendaftar ini sudah dikonversi, sehingga menekan tombol dua kali
+ * tidak membuat siswa kembar.
+ */
+export async function convertRegistrationToStudent(
+  formData: FormData,
+): Promise<ActionResult> {
+  const g = await guard("students", "create");
+  if ("fail" in g) return g.fail;
+  const ctx = g.ctx;
+  const meta = await requestMeta();
+  const { schoolId } = ctx;
+
+  const registrationId = String(formData.get("registrationId") ?? "");
+  const nis = String(formData.get("nis") ?? "").trim();
+  const classId = String(formData.get("classId") ?? "").trim();
+  const entryYearRaw = String(formData.get("entryYear") ?? "").trim();
+
+  if (!registrationId) return { ok: false, error: "Pendaftar tidak dikenali." };
+  if (!nis) {
+    return {
+      ok: false,
+      error: "NIS wajib diisi.",
+      fieldErrors: { nis: ["NIS wajib diisi"] },
+    };
+  }
+
+  const registration = await prisma.registration.findFirst({
+    where: { id: registrationId, schoolId },
+    select: {
+      id: true,
+      fullName: true,
+      gender: true,
+      birthPlace: true,
+      birthDate: true,
+      religion: true,
+      address: true,
+      phone: true,
+      parentName: true,
+      parentPhone: true,
+      parentRelation: true,
+      status: true,
+      majorId: true,
+      studentId: true,
+    },
+  });
+  if (!registration) return { ok: false, error: "Pendaftar tidak ditemukan." };
+
+  if (registration.status !== "ACCEPTED") {
+    return {
+      ok: false,
+      error: "Hanya pendaftar berstatus Diterima yang dapat dijadikan siswa.",
+    };
+  }
+  if (registration.studentId) {
+    return { ok: false, error: "Pendaftar ini sudah pernah dijadikan siswa." };
+  }
+
+  // NIS tidak boleh kembar di sekolah yang sama.
+  const dupNis = await prisma.student.findFirst({
+    where: { schoolId, nis },
+    select: { id: true },
+  });
+  if (dupNis) {
+    return {
+      ok: false,
+      error: "NIS sudah dipakai siswa lain.",
+      fieldErrors: { nis: ["NIS sudah dipakai"] },
+    };
+  }
+
+  // Kelas tujuan (opsional) harus milik sekolah ini.
+  let majorId = registration.majorId;
+  if (classId) {
+    const targetClass = await prisma.class.findFirst({
+      where: { id: classId, schoolId, deletedAt: null },
+      select: { id: true, majorId: true },
+    });
+    if (!targetClass) return { ok: false, error: "Kelas tujuan tidak ditemukan." };
+    // Kelas berjurusan menang atas pilihan awal pendaftar: keputusan panitia
+    // tentang penempatan lebih akhir dan lebih mengikat.
+    if (targetClass.majorId) majorId = targetClass.majorId;
+  }
+
+  const entryYear = entryYearRaw ? Number(entryYearRaw) : new Date().getFullYear();
+  if (!Number.isInteger(entryYear) || entryYear < 1900 || entryYear > 2200) {
+    return {
+      ok: false,
+      error: "Tahun masuk tidak valid.",
+      fieldErrors: { entryYear: ["Tahun masuk tidak valid"] },
+    };
+  }
+
+  try {
+    const student = await prisma.$transaction(async (tx) => {
+      const created = await tx.student.create({
+        data: {
+          schoolId,
+          nis,
+          fullName: registration.fullName,
+          gender: registration.gender,
+          birthPlace: registration.birthPlace,
+          birthDate: registration.birthDate,
+          religion: registration.religion,
+          address: registration.address,
+          phone: registration.phone,
+          entryYear,
+          classId: classId || null,
+          majorId,
+          status: "ACTIVE",
+          parents: {
+            create: {
+              fullName: registration.parentName,
+              relation: registration.parentRelation,
+              phone: registration.parentPhone,
+              isPrimary: true,
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      // Tandai pendaftaran sudah dikonversi — penanda idempotensi.
+      await tx.registration.update({
+        where: { id: registration.id },
+        data: { studentId: created.id },
+      });
+
+      return created;
+    });
+
+    await recordAudit({
+      schoolId,
+      userId: ctx.userId,
+      action: "CREATE",
+      entity: "Student",
+      entityId: student.id,
+      after: { fullName: registration.fullName, nis, fromRegistration: registration.id },
+      ...meta,
+    });
+
+    revalidatePath("/dashboard/students");
+    revalidatePath("/dashboard/spmb/registrations");
+    return {
+      ok: true,
+      id: student.id,
+      message: `${registration.fullName} kini terdaftar sebagai siswa.`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `Gagal membuat data siswa: ${error instanceof Error ? error.message : "tidak diketahui"}`,
+    };
+  }
+}
+
 // Re-export tipe agar bisa dipakai di form client tanpa impor ulang.
 export type { ActionResult };

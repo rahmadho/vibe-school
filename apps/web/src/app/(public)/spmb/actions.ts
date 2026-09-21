@@ -98,6 +98,7 @@ export async function submitPublicRegistration(
   const parsed = publicRegistrationSchema.safeParse({
     batchId: formData.get("batchId"),
     pathId: formData.get("pathId"),
+    majorId: formData.get("majorId") ?? "",
     fullName: formData.get("fullName"),
     gender: formData.get("gender"),
     birthPlace: formData.get("birthPlace"),
@@ -144,8 +145,22 @@ export async function submitPublicRegistration(
     return { ok: false, error: "Jalur pendaftaran yang dipilih tidak tersedia." };
   }
 
+  // 3b. Jurusan opsional: hanya sekolah yang punya daftar jurusan aktif yang
+  //     mengirimnya. Diverifikasi ke DB supaya tidak ada id jurusan sekolah lain
+  //     yang lolos lewat form yang dimanipulasi.
+  let majorId: string | null = null;
+  if (d.majorId) {
+    const major = await prisma.major.findFirst({
+      where: { id: d.majorId, schoolId, deletedAt: null, isActive: true },
+      select: { id: true },
+    });
+    if (!major) {
+      return { ok: false, error: "Jurusan yang dipilih tidak tersedia." };
+    }
+    majorId = major.id;
+  }
+
   // 4. Jalur yang penuh tidak boleh menerima pendaftar baru — mencegah orang tua
-  //    membayar/berharap untuk kursi yang sudah tidak ada.
   if (path.quota > 0) {
     const filled = await prisma.registration.count({
       where: {
@@ -181,8 +196,8 @@ export async function submitPublicRegistration(
           schoolId,
           batchId: batch.id,
           pathId: path.id,
+          majorId,
           registrationNo,
-          status: "PENDING",
           fullName: d.fullName,
           gender: d.gender,
           birthPlace: d.birthPlace,

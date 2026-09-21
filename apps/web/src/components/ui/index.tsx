@@ -63,11 +63,14 @@ export function Input({ className, ...props }: InputProps) {
 export function Field({
   label,
   htmlFor,
+  hint,
   error,
   children,
 }: {
   label: string;
   htmlFor: string;
+  /** Penjelasan singkat di bawah kolom — disembunyikan bila ada galat. */
+  hint?: string;
   error?: string;
   children: ReactNode;
 }) {
@@ -77,6 +80,9 @@ export function Field({
         {label}
       </label>
       {children}
+      {hint && !error ? (
+        <p className="text-xs leading-snug text-slate">{hint}</p>
+      ) : null}
       {error ? (
         <p className="text-sm text-marker" role="alert">
           {error}

@@ -6,19 +6,26 @@
 -- LAPIS KEDUA: RLS di PostgreSQL ini. Kalau ada query yang "lolos" tanpa filter,
 --              RLS tetap menahan data sekolah lain.
 --
--- CARA PAKAI:
---   Aplikasi harus terhubung sebagai role DB NON-OWNER dan NON-SUPERUSER.
---   Setiap request set variabel sesi:
---     SET LOCAL app.current_school_id = '<schoolId>';
---   (dilakukan oleh wrapper koneksi / Prisma middleware di produksi)
+-- ⚠️  PRASYARAT — BACA SEBELUM MENJALANKAN
 --
--- CATATAN KEAMANAN:
---   - Role pemilik tabel & SUPERUSER MEMBYPASS RLS. Jangan pakai role itu untuk
---     koneksi aplikasi di produksi.
---   - Bootstrap/migrasi boleh pakai owner; runtime aplikasi gunakan role terbatas.
+--   1. Aplikasi harus terhubung sebagai role DB NON-OWNER dan NON-SUPERUSER.
+--      Role pemilik tabel & SUPERUSER MEMBYPASS RLS sepenuhnya — kebijakan di
+--      bawah ini akan terpasang tetapi TIDAK BEREFEK APA PUN.
+--      Periksa:  SELECT current_user, usesuper FROM pg_user WHERE usename = current_user;
+--      Periksa:  SELECT tablename, tableowner FROM pg_tables WHERE schemaname='public';
 --
--- Jalankan: npx prisma migrate dev --name rls   (setelah migration utama)
--- atau:     psql $DATABASE_URL -f prisma/rls.sql
+--   2. Setiap request WAJIB menyetel variabel sesi:
+--        SELECT set_config('app.current_school_id', '<schoolId>', true);
+--      Tanpa itu, `app_current_school_id()` bernilai NULL dan SETIAP query
+--      mengembalikan NOL baris — aplikasi tampak "kosong", bukan error.
+--      Pembungkus yang benar sudah ada: `withRls(schoolId, fn)` di
+--      src/lib/rls-context.ts. Saat berkas ini ditulis, `withRls()` BELUM
+--      dipanggil di mana pun, sehingga mengaktifkan RLS akan mengosongkan
+--      seluruh halaman. Sambungkan dulu sebelum memasang kebijakan ini.
+--
+--   3. Bootstrap/migrasi boleh memakai owner; runtime memakai role terbatas.
+--
+-- Jalankan: psql "$OWNER_URL" -f prisma/rls.sql   (SETELAH grants.sql)
 -- ============================================================
 
 -- Helper: ambil schoolId dari sesi. NULL bila tidak diset.
@@ -50,7 +57,18 @@ DECLARE
     -- di sini berarti sekolah lain bisa mengirim pesan atas nama sekolah itu.
     'message_templates','announcement_campaigns','wa_sessions',
     -- school_payment_gateways menyimpan KUNCI API gateway terenkripsi.
-    'school_payment_gateways'
+    'school_payment_gateways',
+    -- Fase SMK/SMA: jurusan/peminatan, PKL, dan UKK.
+    -- WAJIB terdaftar: data jurusan & nilai PKL adalah data akademik per
+    -- sekolah. Tanpa RLS, satu query yang lupa memfilter schoolId cukup untuk
+    -- membocorkan daftar siswa beserta nilai praktik kerjanya.
+    'majors','internships','competency_tests',
+    -- Pustaka media web sekolah. Berkas sekolah lain tidak boleh terlihat
+    -- (nama berkas & URL-nya bisa menyingkap kegiatan internal sekolah).
+    'media',
+    -- Pengaturan AI menyimpan KUNCI API terenkripsi per sekolah. Kebocoran di
+    -- sini berarti sekolah lain bisa memakai kuota AI sekolah ini.
+    'ai_settings'
   ];
 BEGIN
   FOREACH t IN ARRAY tenant_tables LOOP
@@ -59,11 +77,16 @@ BEGIN
 
     -- Kebijakan: hanya baris dengan schoolId = sesi saat ini.
     -- USING untuk SELECT/UPDATE/DELETE; WITH CHECK untuk INSERT/UPDATE.
+    --
+    -- Nama kolom HARUS "schoolId" berkutip: Prisma tidak mengubah nama kolom
+    -- menjadi snake_case (hanya nama TABEL yang di-@@map). Versi sebelumnya
+    -- memakai `school_id` dan seluruh blok gagal dengan
+    -- `column "school_id" does not exist` — sehingga RLS tidak pernah terpasang.
     EXECUTE format($f$
       DROP POLICY IF EXISTS tenant_isolation ON %I;
       CREATE POLICY tenant_isolation ON %I
-        USING (school_id = app_current_school_id())
-        WITH CHECK (school_id = app_current_school_id());
+        USING ("schoolId" = app_current_school_id())
+        WITH CHECK ("schoolId" = app_current_school_id());
     $f$, t, t);
   END LOOP;
 END $$;

@@ -29,6 +29,36 @@ import {
   type ContactInfo,
 } from "@/components/site/blocks/contact";
 
+/* ---- Blok general (halaman kustom) ---- */
+import {
+  RichTextBlock,
+  type RichTextProps,
+  ImageBlock,
+  type ImageProps as ImageBlockProps,
+  SectionBlock,
+  type SectionProps as SectionBlockProps,
+  DividerBlock,
+  type DividerProps,
+} from "@/components/site/blocks/general-text";
+import {
+  TableBlock,
+  type TableProps,
+  StepsBlock,
+  type StepsProps,
+  TimelineBlock,
+  type TimelineProps,
+  AchievementsBlock,
+  type AchievementsProps,
+  DownloadsBlock,
+  type DownloadsProps,
+  CardsBlock,
+  type CardsProps,
+  QuoteBlock,
+  type QuoteProps,
+  VideoBlock,
+  type VideoProps,
+} from "@/components/site/blocks/general-data";
+
 /**
  * PUSAT RENDER WEB SEKOLAH
  *
@@ -388,6 +418,68 @@ export function BlockRenderer({
           batches={data.spmbBatches}
         />
       );
+    }
+
+    /* ---- Blok general (halaman kustom) ---- */
+
+    case "richtext": {
+      const p = block.props as RichTextProps;
+      return <RichTextBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "image": {
+      const p = block.props as ImageBlockProps;
+      return <ImageBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "section": {
+      const p = block.props as SectionBlockProps;
+      return <SectionBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "divider": {
+      const p = block.props as DividerProps;
+      return <DividerBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "table": {
+      const p = block.props as TableProps;
+      return <TableBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "steps": {
+      const p = block.props as StepsProps;
+      return <StepsBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "timeline": {
+      const p = block.props as TimelineProps;
+      return <TimelineBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "achievements": {
+      const p = block.props as AchievementsProps;
+      return <AchievementsBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "downloads": {
+      const p = block.props as DownloadsProps;
+      return <DownloadsBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "cards": {
+      const p = block.props as CardsProps;
+      return <CardsBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "quote": {
+      const p = block.props as QuoteProps;
+      return <QuoteBlock props={p} variantKey={block.variantKey} />;
+    }
+
+    case "video": {
+      const p = block.props as VideoProps;
+      return <VideoBlock props={p} variantKey={block.variantKey} />;
     }
 
     /* Blok usang / tak dikenal — lihat penjelasan di atas fungsi ini. */

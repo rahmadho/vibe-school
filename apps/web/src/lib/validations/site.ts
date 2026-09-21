@@ -210,6 +210,141 @@ export const BLOCK_PROPS_SCHEMAS: Record<string, z.ZodObject<z.ZodRawShape>> = {
     title: z.string().trim().max(120).default(""),
     subtitle: z.string().trim().max(300).default(""),
   }),
+
+  /* ============================================================
+   * BLOK GENERAL (halaman kustom)
+   *
+   * Batas panjang di sini BUKAN hiasan: isi blok tampil di halaman publik
+   * sekolah, dan tanpa batas satu operator bisa menempelkan dokumen sepanjang
+   * apa pun ke satu blok — memperlambat halaman bagi semua pengunjung.
+   * ============================================================ */
+  richtext: z.object({
+    heading: z.string().trim().max(160).default(""),
+    // Isi dari editor teks kaya (HTML). Batas lebih longgar karena tag
+    // menambah panjang, tetapi tetap dibatasi agar tidak tak terhingga.
+    body: z.string().max(30000).default(""),
+  }),
+
+  section: z.object({
+    heading: z.string().trim().max(160).default(""),
+    subheading: z.string().trim().max(300).default(""),
+  }),
+
+  image: z.object({
+    imageUrl: imageUrl.default(""),
+    alt: z.string().trim().max(200).default(""),
+    caption: z.string().trim().max(300).default(""),
+  }),
+
+  table: z.object({
+    heading: z.string().trim().max(160).default(""),
+    columns: z
+      .array(z.object({ label: z.string().trim().max(60).default("") }))
+      .max(5, "Maksimal 5 kolom agar tetap terbaca di ponsel")
+      .default([]),
+    rows: z
+      .array(
+        z.object({
+          c0: z.string().trim().max(300).default(""),
+          c1: z.string().trim().max(300).default(""),
+          c2: z.string().trim().max(300).default(""),
+          c3: z.string().trim().max(300).default(""),
+          c4: z.string().trim().max(300).default(""),
+        }),
+      )
+      .max(30, "Maksimal 30 baris")
+      .default([]),
+    footnote: z.string().trim().max(300).default(""),
+  }),
+
+  steps: z.object({
+    heading: z.string().trim().max(160).default(""),
+    items: z
+      .array(
+        z.object({
+          title: z.string().trim().max(120).default(""),
+          body: z.string().trim().max(600).default(""),
+        }),
+      )
+      .max(12, "Maksimal 12 langkah")
+      .default([]),
+  }),
+
+  timeline: z.object({
+    heading: z.string().trim().max(160).default(""),
+    items: z
+      .array(
+        z.object({
+          year: z.string().trim().max(20).default(""),
+          title: z.string().trim().max(160).default(""),
+          body: z.string().trim().max(600).default(""),
+        }),
+      )
+      .max(20, "Maksimal 20 peristiwa")
+      .default([]),
+  }),
+
+  cards: z.object({
+    heading: z.string().trim().max(160).default(""),
+    items: z
+      .array(
+        z.object({
+          title: z.string().trim().max(120).default(""),
+          body: z.string().trim().max(600).default(""),
+          imageUrl: imageUrl.default(""),
+          value: z.string().trim().max(20).default(""),
+        }),
+      )
+      .max(12, "Maksimal 12 kartu")
+      .default([]),
+  }),
+
+  downloads: z.object({
+    heading: z.string().trim().max(160).default(""),
+    items: z
+      .array(
+        z.object({
+          title: z.string().trim().max(160).default(""),
+          url: safeUrl.default(""),
+          note: z.string().trim().max(200).default(""),
+          size: z.string().trim().max(20).default(""),
+        }),
+      )
+      .max(20, "Maksimal 20 berkas")
+      .default([]),
+  }),
+
+  achievements: z.object({
+    heading: z.string().trim().max(160).default(""),
+    items: z
+      .array(
+        z.object({
+          year: z.string().trim().max(20).default(""),
+          title: z.string().trim().max(200).default(""),
+          winner: z.string().trim().max(120).default(""),
+          level: z.string().trim().max(60).default(""),
+        }),
+      )
+      .max(30, "Maksimal 30 prestasi")
+      .default([]),
+  }),
+
+  quote: z.object({
+    quote: z.string().trim().max(1000).default(""),
+    attribution: z.string().trim().max(120).default(""),
+    role: z.string().trim().max(120).default(""),
+    photoUrl: imageUrl.default(""),
+  }),
+
+  video: z.object({
+    heading: z.string().trim().max(160).default(""),
+    youtubeUrl: safeUrl.default(""),
+    caption: z.string().trim().max(300).default(""),
+  }),
+
+  divider: z.object({
+    label: z.string().trim().max(80).default(""),
+  }),
 };
 
 /** Semua kunci blok harus punya skema props (dijaga oleh test). */

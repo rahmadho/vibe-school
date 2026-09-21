@@ -438,9 +438,9 @@ export function recommendPreset(level: string): string {
     case "SD":
     case "MI":
       return "ramah-jingga";
-    case "MI ":
     case "MTs":
     case "MA":
+    case "MAK":
       return "pesantren-hijau";
     case "SMA":
     case "SMK":

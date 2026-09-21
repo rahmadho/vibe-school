@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveSchoolFromRequest } from "@/lib/site-server";
 import { getPublicBatches } from "@/lib/data/site";
+import { getMajorOptions } from "@/lib/data/academic";
 import { Section, SectionHeading, SiteButton, BlockEmpty, formatSiteDate } from "@/components/site/site-ui";
 import { SpmbForm, type PublicBatch } from "./spmb-form";
 
@@ -20,7 +21,10 @@ export default async function SpmbPage() {
   const ctx = await resolveSchoolFromRequest();
   if (ctx.status !== "ok") notFound();
 
-  const batches = await getPublicBatches(ctx.school.id);
+  const [batches, majors] = await Promise.all([
+    getPublicBatches(ctx.school.id),
+    getMajorOptions(ctx.school.id),
+  ]);
 
   // Hanya kirim yang diperlukan browser. Mengirim objek Prisma utuh akan
   // membawa kolom internal ke HTML tanpa alasan.
@@ -77,7 +81,7 @@ export default async function SpmbPage() {
         />
       )}
 
-      {open.length > 0 && <SpmbForm batches={open} />}
+      {open.length > 0 && <SpmbForm batches={open} majors={majors} />}
 
       {open.length === 0 && closed.length > 0 && (
         <div className="mt-4 border-l-4 border-amber-600 bg-amber-50 px-4 py-3 text-sm text-amber-900">

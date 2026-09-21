@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import type { UserRole } from "@prisma/client";
 import { USER_ROLE_LABEL } from "@/lib/validations/user";
+import { usesVocationalModules } from "@/lib/major-labels";
 import { cx } from "./ui";
 
 /**
@@ -75,6 +76,12 @@ const ICON_PATHS: Record<string, string> = {
   summary: "M4 20.2V13M10 20.2V5.4M16 20.2v-5M20 20.2H3",
   grades: "m4 20.2 1-4.2L16 5l3.2 3.2L8.2 19.2zM14.2 6.8 17.4 10",
   gradeitems: "M4 7.4h16M4 12h16M4 16.6h16M9.4 5v4.8M15 9.6v4.8M11.6 14.2v4.8",
+  majors:
+    "M4 6.2h16M4 12h16M4 17.8h16M8.2 4v4.4M15.8 9.8v4.4M11 15.6v4.4",
+  internship:
+    "M3.5 8h17v11h-17zM9 8V6.2A1.2 1.2 0 0 1 10.2 5h3.6A1.2 1.2 0 0 1 15 6.2V8M3.5 12.4h17M12 12.4v3",
+  competency:
+    "M12 3.4l7.4 3.4-7.4 3.4-7.4-3.4zM6 9v5.4c0 1.8 2.7 3.2 6 3.2s6-1.4 6-3.2V9M19.4 10.2v5.4",
   report:
     "M13.6 3.4H7.4a2 2 0 0 0-2 2v13.2a2 2 0 0 0 2 2h9.2a2 2 0 0 0 2-2V8.4zM13.6 3.4v5h5M8.8 13h6.4M8.8 16.4h4.4",
   // Keuangan
@@ -104,12 +111,17 @@ const ICON_PATHS: Record<string, string> = {
     "M12 3.4a8.6 8.6 0 0 0 0 17.2c1 0 1.6-.7 1.6-1.5 0-.4-.2-.8-.5-1.1-.3-.3-.5-.7-.5-1.1 0-.8.7-1.5 1.5-1.5h1.6a5 5 0 0 0 5-5c0-4.3-3.9-7-8.7-7zM7.8 11.6h.02M10.4 8h.02M14.4 7.6h.02",
   pages: "M4 5.6h10.4v13.8H4zM17.2 5.6H20v13.8h-2.8M7 9.4h4.4M7 12.6h4.4",
   menu: "m12 3.4 8.6 4.8-8.6 4.8-8.6-4.8zM3.4 13.2l8.6 4.8 8.6-4.8",
+  gallery:
+    "M4 5.6h16v12.8H4zM8.6 10.4a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3M4 15.2l4.8-3.8 3.8 2.9 2.9-2.4 4.5 3.9",
   identity:
     "M12 15.6a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2zM16.4 12v1.6a2.4 2.4 0 0 0 4.8 0V12a9.2 9.2 0 1 0-3.6 7.3",
   // Sistem
   audit: "M3.4 12a8.6 8.6 0 1 0 2.9-6.4M3.4 4.6v4.6h4.6M12 8v4.4l3.2 2",
   billing:
     "m12 3.4 2.6 5.3 5.8.9-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.2-4.1 5.8-.9z",
+  // Percikan: menandai bantuan AI tanpa memakai ikon robot yang ramai.
+  sparkle:
+    "M12 3.6l1.6 4.4 4.4 1.6-4.4 1.6L12 15.6l-1.6-4.4L6 9.6l4.4-1.6zM18.4 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z",
 };
 
 /** Ukuran ikon: 15px — cukup dikenali, tidak sampai bersaing dengan label. */
@@ -144,6 +156,14 @@ type NavEntry = {
   icon: string;
   /** Modul RBAC yang menguasai tautan ini (lihat lib/rbac.ts). */
   module: string;
+  /**
+   * Tautan hanya relevan untuk sekolah kejuruan (SMK/MAK).
+   *
+   * PKL dan UKK tidak dipakai SMA/SMP; menampilkannya hanya membuat menu
+   * penuh tautan yang tidak pernah dibuka. Disaring di komponen, bukan
+   * disembunyikan lewat CSS.
+   */
+  vocational?: boolean;
 };
 
 type NavGroup = {
@@ -183,6 +203,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Akademik",
     entries: [
       { href: "/dashboard/academic", label: "Akademik", icon: "academic", module: "academic" },
+      { href: "/dashboard/academic/majors", label: "Jurusan", icon: "majors", module: "academic" },
       { href: "/dashboard/academic/progression", label: "Kenaikan Kelas", icon: "summary", module: "academic" },
       { href: "/dashboard/academic/schedules", label: "Jadwal", icon: "schedule", module: "academic" },
       { href: "/dashboard/academic/time-slots", label: "Jam Pelajaran", icon: "timeslot", module: "academic" },
@@ -191,6 +212,9 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/grades", label: "Penilaian", icon: "grades", module: "grades" },
       { href: "/dashboard/grades/report", label: "Rekap & Rapor", icon: "report", module: "grades" },
       { href: "/dashboard/grades/items", label: "Komponen Nilai", icon: "gradeitems", module: "grades" },
+      // Hanya SMK/MAK.
+      { href: "/dashboard/academic/internships", label: "PKL / Prakerin", icon: "internship", module: "academic", vocational: true },
+      { href: "/dashboard/academic/competency-tests", label: "Uji Kompetensi", icon: "competency", module: "academic", vocational: true },
     ],
   },
   {
@@ -222,6 +246,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/website/theme", label: "Tema & Warna", icon: "theme", module: "website" },
       { href: "/dashboard/website/pages", label: "Halaman", icon: "pages", module: "website" },
       { href: "/dashboard/website/navigation", label: "Menu", icon: "menu", module: "website" },
+      { href: "/dashboard/website/media", label: "Media", icon: "gallery", module: "website" },
       { href: "/dashboard/website/settings", label: "Identitas & Kontak", icon: "identity", module: "website" },
     ],
   },
@@ -231,6 +256,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/schools", label: "Kelola Sekolah", icon: "schools", module: "schools" },
       { href: "/dashboard/audit", label: "Log Aktivitas", icon: "audit", module: "audit" },
       { href: "/dashboard/billing", label: "Langganan", icon: "billing", module: "billing" },
+      { href: "/dashboard/settings/ai", label: "Pengaturan AI", icon: "sparkle", module: "content" },
     ],
   },
 ];
@@ -245,6 +271,7 @@ export function Sidebar({
   role,
   modules,
   previewUrl,
+  schoolLevel,
 }: {
   schoolName: string;
   userName: string;
@@ -252,14 +279,22 @@ export function Sidebar({
   modules: string[];
   /** Alamat web publik sekolah, atau null bila belum diatur. */
   previewUrl: string | null;
+  /** Jenjang sekolah — menentukan menu yang relevan (mis. PKL/UKK untuk SMK). */
+  schoolLevel: string | null;
 }) {
   const pathname = usePathname();
+
+  // Menu PKL & UKK hanya untuk sekolah kejuruan. Menampilkannya di SMA/SMP
+  // berarti menaruh dua tautan yang tidak akan pernah dibuka.
+  const vocational = usesVocationalModules(schoolLevel);
 
   // Saring per izin role, lalu buang kelompok yang jadi kosong. Tanpa ini,
   // bendahara melihat judul "Akademik" menggantung tanpa isi.
   const groups = NAV_GROUPS.map((g) => ({
     ...g,
-    entries: g.entries.filter((e) => modules.includes(e.module)),
+    entries: g.entries.filter(
+      (e) => modules.includes(e.module) && (!e.vocational || vocational),
+    ),
   })).filter((g) => g.entries.length > 0);
 
   const allEntries = groups.flatMap((g) => g.entries);

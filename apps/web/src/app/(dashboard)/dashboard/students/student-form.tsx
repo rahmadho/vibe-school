@@ -25,6 +25,7 @@ type StudentFormValues = {
   phone: string;
   entryYear: number;
   classId: string;
+  majorId: string;
   status: string;
   parentName: string;
   parentRelation: string;
@@ -39,11 +40,16 @@ type StudentFormValues = {
 export function StudentForm({
   mode,
   classes,
+  majors,
+  terminology,
   initial,
   action,
 }: {
   mode: "create" | "edit";
   classes: Array<{ id: string; name: string }>;
+  /** Opsi jurusan. Kosong = sekolah belum memakai jurusan → field disembunyikan. */
+  majors: Array<{ id: string; code: string; name: string }>;
+  terminology: string;
   initial?: Partial<StudentFormValues>;
   action: (formData: FormData) => Promise<ActionResult>;
 }) {
@@ -64,6 +70,7 @@ export function StudentForm({
     phone: initial?.phone ?? "",
     entryYear: initial?.entryYear ?? new Date().getFullYear(),
     classId: initial?.classId ?? "",
+    majorId: initial?.majorId ?? "",
     status: initial?.status ?? "ACTIVE",
     parentName: initial?.parentName ?? "",
     parentRelation: initial?.parentRelation ?? "",
@@ -176,6 +183,20 @@ export function StudentForm({
               ))}
             </Select>
           </Field>
+
+          {/* Muncul hanya bila sekolah sudah mengisi data jurusan. */}
+          {majors.length > 0 ? (
+            <Field label={`${terminology} (opsional)`} htmlFor="majorId">
+              <Select id="majorId" name="majorId" defaultValue={v.majorId}>
+                <option value="">Belum ditentukan</option>
+                {majors.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.code} — {m.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
           <Field label="Status" htmlFor="status" error={fe("status")}>
             <Select id="status" name="status" defaultValue={v.status}>
               {STUDENT_STATUSES.map((s) => (

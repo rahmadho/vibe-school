@@ -57,7 +57,7 @@ export default async function RegistrationsPage({
     ...(sp.status ? { status: sp.status as never } : {}),
   };
 
-  const [batches, registrations, total, canManage] = await Promise.all([
+  const [batches, registrations, total, canManage, classes, majors] = await Promise.all([
     prisma.admissionBatch.findMany({
       where: { schoolId },
       orderBy: { openDate: "desc" },
@@ -71,6 +71,7 @@ export default async function RegistrationsPage({
       include: {
         batch: { select: { name: true } },
         path: { select: { name: true, code: true } },
+        major: { select: { id: true, name: true } },
       },
     }),
     prisma.registration.count({ where: regWhere }),
@@ -78,9 +79,21 @@ export default async function RegistrationsPage({
       const gg = await guard("spmb", "manage");
       return !("fail" in gg);
     })(),
+    // Kelas tahun ajaran aktif — untuk penempatan saat konversi ke siswa.
+    prisma.class.findMany({
+      where: { schoolId, deletedAt: null, academicYear: { isActive: true } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.major.findMany({
+      where: { schoolId, deletedAt: null, isActive: true },
+      orderBy: { code: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / perPage));
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="border-b-2 border-[var(--ink)] pb-4">
@@ -167,6 +180,8 @@ export default async function RegistrationsPage({
 
       <RegistrationTable
         canManage={canManage}
+        classes={classes}
+        majors={majors}
         rows={registrations.map((r) => ({
           id: r.id,
           registrationNo: r.registrationNo,
@@ -178,6 +193,8 @@ export default async function RegistrationsPage({
           statusLabel: STATUS_LABEL[r.status] ?? r.status,
           batchName: r.batch.name,
           pathName: r.path?.name ?? null,
+          majorName: r.major?.name ?? null,
+          isConverted: Boolean(r.studentId),
           resultNote: r.resultNote,
           submittedAt: r.submittedAt.toISOString(),
         }))}

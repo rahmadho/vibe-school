@@ -62,7 +62,16 @@ const birthDateField = z
 export const publicRegistrationSchema = z.object({
   batchId: z.string().trim().min(1, "Gelombang pendaftaran tidak dikenali"),
   pathId: z.string().trim().min(1, "Silakan pilih jalur pendaftaran"),
-
+  /**
+   * Jurusan/peminatan pilihan pendaftar. Opsional karena sekolah non-SMK
+   * (SD/SMP) tidak memakainya — form hanya mengirimnya bila sekolah punya
+   * daftar jurusan aktif.
+   */
+  majorId: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? undefined : v))
+    .optional(),
   // --- Calon murid ---
   fullName: z
     .string()

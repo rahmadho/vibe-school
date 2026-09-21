@@ -8,6 +8,7 @@ import { guard, requestMeta, flattenZodErrors } from "@/lib/action-guard";
 import type { ActionResult } from "@/lib/action-result";
 import { postCreateSchema, postUpdateSchema, POST_TYPES } from "@/lib/validations/site";
 import { isSlugTaken } from "@/lib/data/content";
+import { sanitizeRichText } from "@/lib/rich-text";
 
 /**
  * ============================================================
@@ -68,7 +69,7 @@ export async function createPost(formData: FormData): Promise<ActionResult> {
         title: parsed.data.title,
         slug,
         excerpt: parsed.data.excerpt ?? null,
-        content: parsed.data.content,
+        content: sanitizeRichText(parsed.data.content),
         coverUrl: parsed.data.coverUrl || null,
         type: parsed.data.type,
         isPublished: parsed.data.isPublished,
@@ -138,7 +139,7 @@ export async function updatePost(formData: FormData): Promise<ActionResult> {
         title: parsed.data.title,
         slug,
         excerpt: parsed.data.excerpt ?? null,
-        content: parsed.data.content,
+        content: sanitizeRichText(parsed.data.content),
         coverUrl: parsed.data.coverUrl || null,
         type: parsed.data.type,
         isPublished: parsed.data.isPublished,

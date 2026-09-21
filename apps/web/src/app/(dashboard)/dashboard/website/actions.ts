@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { guard, requestMeta, flattenZodErrors } from "@/lib/action-guard";
 import type { ActionResult } from "@/lib/action-result";
+import { Prisma } from "@prisma/client";
+import { sanitizeRichText } from "@/lib/rich-text";
+import { validatePageBlocks, type PageBlockInput } from "@/lib/validations/page-blocks";
+import { defaultPropsFor } from "@/lib/site-blocks";
 import {
   BLOCK_PROPS_SCHEMAS,
   RESERVED_PAGE_SLUGS,
@@ -307,6 +311,48 @@ export async function applyPresetLayout(formData: FormData): Promise<ActionResul
  * HALAMAN KUSTOM
  * ============================================================ */
 
+/**
+ * Baca susunan blok dari FormData dan validasi.
+ *
+ * Blok dikirim sebagai satu field JSON (`blocks`). Nilainya bisa diubah siapa
+ * saja sebelum sampai ke server, jadi ia divalidasi ketat — bukan dipercaya.
+ *
+ * Isi tiap blok juga dilewatkan `sanitizeRichText` bila memuat HTML (blok teks
+ * memakai editor kaya). Tanpa ini, satu blok teks bisa menyelipkan `<script>`
+ * ke halaman publik sekolah.
+ */
+async function parseBlocksFromForm(
+  formData: FormData,
+): Promise<PageBlockInput[]> {
+  const raw = formData.get("blocks");
+  if (typeof raw !== "string" || raw.trim() === "") return [];
+
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+
+  const result = validatePageBlocks(parsedJson);
+  if (!result.ok) {
+    // Susunan tidak valid → simpan sebagai kosong daripada menyimpan data
+    // setengah benar yang bisa merusak render halaman publik.
+    return [];
+  }
+
+  // Bersihkan isi teks tiap blok, dan isi bawaan untuk field yang kosong.
+  return result.blocks.map((b) => {
+    const props: Record<string, unknown> = { ...defaultPropsFor(b.blockKey), ...b.props };
+    for (const [key, value] of Object.entries(props)) {
+      if (typeof value === "string" && /<(p|h[1-6]|ul|ol|li|blockquote|strong|em)\b/i.test(value)) {
+        props[key] = sanitizeRichText(value);
+      }
+    }
+    return { ...b, props };
+  });
+}
+
 export async function createPage(formData: FormData): Promise<ActionResult> {
   const g = await guard("website", "manage");
   if ("fail" in g) return g.fail;
@@ -325,6 +371,10 @@ export async function createPage(formData: FormData): Promise<ActionResult> {
   const problem = explainSlugProblem(slug);
   if (problem) return { ok: false, error: problem };
 
+  // Susunan blok datang dari form sebagai JSON — divalidasi ketat sebelum
+  // disimpan, karena isinya menentukan apa yang tampil di halaman publik.
+  const blocks = await parseBlocksFromForm(formData);
+
   const duplicate = await prisma.page.findFirst({
     where: { schoolId, slug, deletedAt: null },
   });
@@ -336,7 +386,10 @@ export async function createPage(formData: FormData): Promise<ActionResult> {
         schoolId,
         title: parsed.data.title,
         slug,
-        content: parsed.data.content,
+        // Isi teks dibersihkan dengan pembersih yang sama seperti berita —
+        // halaman ini tampil di web publik sekolah.
+        content: sanitizeRichText(parsed.data.content),
+        blocks: blocks as unknown as Prisma.InputJsonValue,
         showInNav: parsed.data.showInNav,
         isPublished: parsed.data.isPublished,
         publishedAt: parsed.data.isPublished ? new Date() : null,
@@ -391,6 +444,8 @@ export async function updatePage(formData: FormData): Promise<ActionResult> {
   const problem = explainSlugProblem(slug);
   if (problem) return { ok: false, error: problem };
 
+  const blocks = await parseBlocksFromForm(formData);
+
   const duplicate = await prisma.page.findFirst({
     where: { schoolId, slug, deletedAt: null, id: { not: parsed.data.id } },
   });
@@ -402,7 +457,8 @@ export async function updatePage(formData: FormData): Promise<ActionResult> {
       data: {
         title: parsed.data.title,
         slug,
-        content: parsed.data.content,
+        content: sanitizeRichText(parsed.data.content),
+        blocks: blocks as unknown as Prisma.InputJsonValue,
         showInNav: parsed.data.showInNav,
         isPublished: parsed.data.isPublished,
         // Tanggal terbit diisi sekali saja saat pertama kali diterbitkan.

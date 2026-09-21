@@ -69,6 +69,14 @@ export const TENANT_MODELS = [
   // menyimpan kunci API gateway terenkripsi. Keduanya WAJIB ter-scope.
   "waSession",
   "schoolPaymentGateway",
+  // Fase SMK/SMA: jurusan/peminatan, PKL, dan UKK.
+  "major",
+  "internship",
+  "competencyTest",
+  // Pustaka media web sekolah.
+  "media",
+  // Pengaturan AI menyimpan kunci API terenkripsi per sekolah.
+  "aiSetting",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

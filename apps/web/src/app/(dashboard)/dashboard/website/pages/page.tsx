@@ -1,5 +1,7 @@
 import { guard } from "@/lib/action-guard";
 import { listPages } from "@/lib/data/site";
+import { listMedia } from "@/lib/data/media";
+import { parseStoredPageBlocks } from "@/lib/validations/page-blocks";
 import { PageList } from "./page-list";
 
 /**
@@ -28,16 +30,39 @@ export default async function WebsitePagesPage() {
     );
   }
 
-  const pages = await listPages(g.ctx.schoolId);
+  // Pustaka media untuk pemilih gambar di dalam blok (blok gambar, kartu,
+  // kutipan). Hanya kolom yang dipakai yang dikirim — objek Prisma utuh akan
+  // membawa kolom internal ke HTML tanpa alasan.
+  const [pages, media] = await Promise.all([
+    listPages(g.ctx.schoolId),
+    listMedia(g.ctx.schoolId),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl">
       <PageList
+        media={media.map((m) => ({
+          id: m.id,
+          name: m.name,
+          url: m.url,
+          width: m.width,
+          height: m.height,
+        }))}
         pages={pages.map((p) => ({
           id: p.id,
           title: p.title,
           slug: p.slug,
           content: p.content,
+          // Susunan blok divalidasi ulang saat dibaca: data bisa berasal dari
+          // versi aplikasi lama atau suntingan langsung di database.
+          blocks: parseStoredPageBlocks(p.blocks).map((b) => ({
+            id: b.id,
+            blockKey: b.blockKey,
+            variantKey: b.variantKey,
+            order: b.order,
+            isEnabled: b.isEnabled,
+            props: b.props,
+          })),
           showInNav: p.showInNav,
           isPublished: p.isPublished,
           publishedAt: p.publishedAt ? p.publishedAt.toISOString() : null,

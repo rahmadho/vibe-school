@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { guard } from "@/lib/action-guard";
 import { getPostForAdmin } from "@/lib/data/content";
+import { listMedia } from "@/lib/data/media";
+import { isAiReady } from "@/lib/data/ai";
 import { PostForm } from "../../post-form";
 import { updatePost } from "../../actions";
 
@@ -22,7 +24,9 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
   if ("fail" in g) {
     return (
       <div className="mx-auto max-w-md border-2 border-[var(--chalk)] bg-white p-6 text-center">
-        <p className="font-display text-lg font-semibold text-[var(--ink)]">Tidak dapat diakses</p>
+        <p className="font-display text-lg font-semibold text-[var(--ink)]">
+          Tidak dapat diakses
+        </p>
         <p className="mt-2 text-sm text-[var(--slate)]">
           {g.fail.ok ? "Anda tidak memiliki izin mengubah konten." : g.fail.error}
         </p>
@@ -30,7 +34,13 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
     );
   }
 
-  const post = await getPostForAdmin(g.ctx.schoolId, id);
+  // Tiga query independen — dijalankan bersamaan.
+  const [post, media, aiEnabled] = await Promise.all([
+    getPostForAdmin(g.ctx.schoolId, id),
+    listMedia(g.ctx.schoolId),
+    isAiReady(g.ctx.schoolId),
+  ]);
+
   // Tulisan sekolah lain terlihat sama saja dengan "tidak ada" — tidak ada
   // gunanya memberi tahu penyerang bahwa ID-nya benar tapi milik sekolah lain.
   if (!post) notFound();
@@ -44,12 +54,22 @@ export default async function EditPostPage({ params }: { params: Promise<{ id: s
           </Link>{" "}
           / Ubah
         </p>
-        <h1 className="font-display text-2xl font-semibold text-[var(--ink)]">{post.title}</h1>
+        <h1 className="font-display text-2xl font-semibold text-[var(--ink)]">
+          {post.title}
+        </h1>
       </header>
 
       <PostForm
         mode="edit"
         action={updatePost}
+        aiEnabled={aiEnabled}
+        media={media.map((m) => ({
+          id: m.id,
+          name: m.name,
+          url: m.url,
+          width: m.width,
+          height: m.height,
+        }))}
         initial={{
           id: post.id,
           title: post.title,

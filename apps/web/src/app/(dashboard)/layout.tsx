@@ -21,12 +21,14 @@ export default async function DashboardLayout({
 
   // SUPER_ADMIN lintas-sekolah tidak punya schoolId → tampilkan label khusus.
   let schoolName = "Semua Sekolah";
+  let schoolLevel: string | null = null;
   if (schoolId) {
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      select: { name: true },
+      select: { name: true, level: true },
     });
     schoolName = school?.name ?? "Sekolah tidak ditemukan";
+    schoolLevel = school?.level ?? null;
   }
 
   // Tautan web publik untuk tombol "Lihat Web Sekolah" di sidebar — tersedia
@@ -56,6 +58,7 @@ export default async function DashboardLayout({
         role={role}
         modules={modulesFor(role)}
         previewUrl={previewUrl}
+        schoolLevel={schoolLevel}
       />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>

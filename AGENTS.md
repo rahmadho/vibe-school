@@ -13,7 +13,9 @@ Sistem Informasi Sekolah (SIS) multi-tenant yang mencakup:
 |-------|-----------|
 | **Web Sekolah** | Website publik: profil, berita, pengumuman, galeri, kontak |
 | **SPMB** | Sistem Penerimaan Murid Baru: pendaftaran online, seleksi, pengumuman |
-| **Akademik** | Kelas, mata pelajaran, jadwal, tahun ajaran, semester |
+| **Akademik** | Kelas, mata pelajaran, jadwal, tahun ajaran, semester, **kenaikan kelas massal** |
+| **Jurusan** | Jurusan / peminatan / kompetensi keahlian. Satu model `Major` untuk SMA ("Peminatan") dan SMK ("Kompetensi Keahlian"); label menyesuaikan jenjang di UI. |
+| **PKL & UKK** | Praktik Kerja Lapangan dan Uji Kompetensi Keahlian — **hanya jenjang SMK/MAK**; menu otomatis tersembunyi di jenjang lain |
 | **Absensi** | Absen siswa & guru (harian, per-mapel), rekap otomatis |
 | **Penilaian** | Nilai tugas/UTS/UAS, rapor, KKM, peringkat |
 | **Keuangan** | Tagihan, pembayaran (SPP/uang pangkal), kwitansi, tunggakan |
@@ -145,6 +147,23 @@ Sebuah fitur dianggap selesai jika:
 - ❌ Terima unggahan SVG (XML boleh memuat `<script>` → XSS pada sesi admin).
 - ❌ Tulis berkas unggahan ke `public/` (tidak dijamin tersaji di produksi).
 - ❌ Pasang `rls.sql` tanpa `grants.sql` (query langsung gagal `42501`).
+- ❌ **Menambah model baru lalu langsung `next build`/`next dev` tanpa
+  `prisma generate`.** Gejalanya halaman 500 dengan
+  `Cannot read properties of undefined (reading 'findMany')` — Prisma client
+  lama tidak mengenal model itu. Jalankan `npm run prisma:generate` (atau
+  `prisma migrate dev` yang sudah memuatnya).
+- ❌ **Menambah model ber-`schoolId` tanpa mendaftarkannya di DUA tempat:**
+  `TENANT_MODELS` (`src/lib/scoped-db.ts`) dan `tenant_tables`
+  (`prisma/rls.sql`). Tanpa keduanya, tabel itu berjalan tanpa isolasi tenant.
+  `src/test/tenant-isolation.test.ts` akan gagal — jangan menonaktifkan test
+  itu; itulah gerbangnya.
+- ❌ **Memakai `defaultValue` pada input React yang nilainya bergantung pada
+  input lain.** `defaultValue` hanya dibaca saat mount; field seperti "jurusan
+  mengikuti siswa" harus memakai state terkendali, atau form terkirim dengan
+  nilai kosong walaupun layar terlihat terisi.
+- ❌ **Menyimpan HTML dari pengguna tanpa `sanitizeRichText()`
+  (`lib/rich-text.ts`).** Isi berita tampil di halaman publik sekolah; satu
+  `<script>` yang lolos cukup untuk mencuri sesi orang tua.
 
 ## 8. Referensi Dokumentasi
 

@@ -54,10 +54,18 @@ export type PublicBatch = {
   paths: PublicPath[];
 };
 
-export function SpmbForm({ batches }: { batches: PublicBatch[] }) {
+export function SpmbForm({
+  batches,
+  majors,
+}: {
+  batches: PublicBatch[];
+  /** Jurusan/peminatan aktif sekolah. Kosong = sekolah tidak memakai jurusan. */
+  majors: Array<{ id: string; code: string; name: string }>;
+}) {
   const [step, setStep] = useState(1);
   const [batchId, setBatchId] = useState(batches[0]?.id ?? "");
   const [pathId, setPathId] = useState("");
+  const [majorId, setMajorId] = useState(majors.length === 1 ? majors[0].id : "");
   const [result, setResult] = useState<PublicActionResult | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -136,6 +144,7 @@ export function SpmbForm({ batches }: { batches: PublicBatch[] }) {
         {/* Field yang dibawa antar-langkah — form ini satu, hanya tampilannya dibagi. */}
         <input type="hidden" name="batchId" value={batchId} />
         <input type="hidden" name="pathId" value={pathId} />
+        <input type="hidden" name="majorId" value={majorId} />
 
         {step === 1 && (
           <SiteCard className="space-y-4 p-5">
@@ -215,6 +224,32 @@ export function SpmbForm({ batches }: { batches: PublicBatch[] }) {
               })}
             </div>
 
+            {/* Jurusan/peminatan: hanya muncul bila sekolah memilikinya.
+                Sekolah SD/SMP tidak melihat field ini sama sekali. */}
+            {majors.length > 0 && (
+              <label className="block text-sm">
+                <span className="font-medium text-[var(--site-text)]">
+                  {majors.length === 1 ? "Jurusan" : "Pilih jurusan"}
+                </span>
+                <select
+                  value={majorId}
+                  onChange={(e) => setMajorId(e.target.value)}
+                  className="mt-1 w-full border bg-transparent px-3 py-2 text-sm text-[var(--site-text)]"
+                  style={{ borderColor: "var(--site-border)" }}
+                >
+                  <option value="">Belum menentukan pilihan</option>
+                  {majors.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-xs text-[var(--site-muted)]">
+                  Boleh dikosongkan; panitia dapat menentukannya saat verifikasi.
+                </span>
+              </label>
+            )}
+
             {batch.requirements && (
               <p className="border-t pt-3 text-sm text-[var(--site-muted)]"
                  style={{ borderColor: "var(--site-border)" }}>
@@ -222,7 +257,6 @@ export function SpmbForm({ batches }: { batches: PublicBatch[] }) {
                 {batch.requirements}
               </p>
             )}
-
             <div className="pt-1">
               <button
                 type="submit"

@@ -143,9 +143,14 @@ export default async function ReportPage({
             : "Nilai akhir, peringkat, dan draf rapor"
         }
         actions={
-          <Link href="/dashboard/grades">
-            <Button variant="ghost">Kembali ke input nilai</Button>
-          </Link>
+          <>
+            <Link href="/dashboard/grades/report/students">
+              <Button variant="secondary">Rapor per siswa</Button>
+            </Link>
+            <Link href="/dashboard/grades">
+              <Button variant="ghost">Kembali ke input nilai</Button>
+            </Link>
+          </>
         }
       />
 

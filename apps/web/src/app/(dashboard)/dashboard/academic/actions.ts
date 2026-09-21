@@ -12,6 +12,12 @@ import {
   subjectCreateSchema,
   subjectUpdateSchema,
   bulkProgressionSchema,
+  majorCreateSchema,
+  majorUpdateSchema,
+  internshipCreateSchema,
+  internshipUpdateSchema,
+  competencyTestCreateSchema,
+  competencyTestUpdateSchema,
 } from "@/lib/validations/academic";
 /* ============================================================
  * TAHUN AJARAN
@@ -211,6 +217,7 @@ export async function createClass(formData: FormData): Promise<ActionResult> {
       level: d.level,
       capacity: d.capacity,
       homeroomTeacherId: d.homeroomTeacherId ?? null,
+      majorId: d.majorId ?? null,
     },
     select: { id: true },
   });
@@ -277,6 +284,7 @@ export async function updateClass(formData: FormData): Promise<ActionResult> {
       level: d.level,
       capacity: d.capacity,
       homeroomTeacherId: d.homeroomTeacherId ?? null,
+      majorId: d.majorId ?? null,
     },
   });
 
@@ -369,7 +377,14 @@ export async function createSubject(
 
   const meta = await requestMeta();
   const created = await prisma.subject.create({
-    data: { schoolId, code: d.code, name: d.name, kkm: d.kkm },
+    data: {
+      schoolId,
+      code: d.code,
+      name: d.name,
+      kkm: d.kkm,
+      group: d.group,
+      majorId: d.majorId ?? null,
+    },
     select: { id: true },
   });
 
@@ -426,7 +441,13 @@ export async function updateSubject(
   const meta = await requestMeta();
   await prisma.subject.update({
     where: { id },
-    data: { code: d.code, name: d.name, kkm: d.kkm },
+    data: {
+      code: d.code,
+      name: d.name,
+      kkm: d.kkm,
+      group: d.group,
+      majorId: d.majorId ?? null,
+    },
   });
 
   await recordAudit({
@@ -538,6 +559,13 @@ export async function executeBulkProgression(rawInput: unknown): Promise<ActionR
     ),
   );
 
+  /**
+   * Peta kelas tujuan → jurusan. Dipakai menyinkronkan `Student.majorId` saat
+   * siswa berpindah kelas. Tanpa ini, siswa pindah ke kelas RPL tetapi
+   * jurusannya tetap TKJ, dan rekap per jurusan (PKL, UKK, rapor) jadi salah.
+   */
+  const targetMajorMap = new Map<string, string | null>();
+
   if (targetClassIds.length > 0) {
     const validTargetClasses = await prisma.class.findMany({
       where: {
@@ -545,7 +573,7 @@ export async function executeBulkProgression(rawInput: unknown): Promise<ActionR
         schoolId,
         deletedAt: null,
       },
-      select: { id: true, name: true, level: true },
+      select: { id: true, name: true, level: true, majorId: true },
     });
     if (validTargetClasses.length !== targetClassIds.length) {
       return { ok: false, error: "Sebagian kelas tujuan tidak ditemukan di sekolah ini." };
@@ -553,6 +581,11 @@ export async function executeBulkProgression(rawInput: unknown): Promise<ActionR
 
     // ATURAN: Kelas tujuan tidak boleh di bawah tingkat kelas asal
     const targetMap = new Map(validTargetClasses.map((c) => [c.id, c.level]));
+    for (const [id, majorId] of validTargetClasses.map(
+      (c) => [c.id, c.majorId] as const,
+    )) {
+      targetMajorMap.set(id, majorId);
+    }
     for (const item of items) {
       if (item.targetClassId) {
         const targetLevel = targetMap.get(item.targetClassId);
@@ -618,6 +651,12 @@ export async function executeBulkProgression(rawInput: unknown): Promise<ActionR
           data: {
             classId: item.targetClassId,
             status: "ACTIVE",
+            // Jurusan mengikuti kelas tujuan. `undefined` (kelas tanpa jurusan)
+            // sengaja TIDAK menimpa jurusan siswa — kelas umum di sekolah
+            // berjurusan bukan alasan menghapus data jurusan siswa.
+            ...(targetMajorMap.get(item.targetClassId)
+              ? { majorId: targetMajorMap.get(item.targetClassId) }
+              : {}),
           },
         });
       }
@@ -648,4 +687,553 @@ export async function executeBulkProgression(rawInput: unknown): Promise<ActionR
     ok: true,
     message: `Berhasil memproses status kenaikan ${items.length} siswa kelas ${sourceClass.name}.`,
   };
+}
+
+/* ============================================================
+ * JURUSAN / PEMINATAN
+ * ============================================================ */
+export async function createMajor(formData: FormData): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const parsed = majorCreateSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali isian yang ditandai.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+  const d = parsed.data;
+
+  // Ketua program harus guru milik sekolah ini (bila diisi).
+  if (d.headTeacherId) {
+    const t = await prisma.teacher.findFirst({
+      where: { id: d.headTeacherId, schoolId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!t) {
+      return {
+        ok: false,
+        error: "Ketua program tidak valid.",
+        fieldErrors: { headTeacherId: ["Guru tidak ditemukan"] },
+      };
+    }
+  }
+
+  // Kode harus unik per sekolah. Kode sama dari sekolah lain tidak masalah
+  // karena isolasi tenant sudah memisahkan datanya.
+  const dup = await prisma.major.findFirst({
+    where: { schoolId, code: d.code, deletedAt: null },
+    select: { id: true },
+  });
+  if (dup) {
+    return {
+      ok: false,
+      error: "Kode sudah dipakai.",
+      fieldErrors: { code: ["Kode sudah dipakai"] },
+    };
+  }
+
+  const meta = await requestMeta();
+  const created = await prisma.major.create({
+    data: {
+      schoolId,
+      code: d.code,
+      name: d.name,
+      description: d.description ?? null,
+      headTeacherId: d.headTeacherId ?? null,
+      isActive: d.isActive,
+    },
+    select: { id: true },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "CREATE",
+    entity: "Major",
+    entityId: created.id,
+    after: { code: d.code, name: d.name },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/majors");
+  return { ok: true, id: created.id, message: "Jurusan dibuat." };
+}
+
+export async function updateMajor(formData: FormData): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const parsed = majorUpdateSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali isian yang ditandai.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+  const { id, ...d } = parsed.data;
+
+  const existing = await prisma.major.findFirst({
+    where: { id, schoolId, deletedAt: null },
+  });
+  if (!existing) return { ok: false, error: "Jurusan tidak ditemukan." };
+
+  if (d.headTeacherId) {
+    const t = await prisma.teacher.findFirst({
+      where: { id: d.headTeacherId, schoolId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!t) {
+      return {
+        ok: false,
+        error: "Ketua program tidak valid.",
+        fieldErrors: { headTeacherId: ["Guru tidak ditemukan"] },
+      };
+    }
+  }
+
+  const dup = await prisma.major.findFirst({
+    where: { schoolId, code: d.code, deletedAt: null, id: { not: id } },
+    select: { id: true },
+  });
+  if (dup) {
+    return {
+      ok: false,
+      error: "Kode sudah dipakai.",
+      fieldErrors: { code: ["Kode sudah dipakai"] },
+    };
+  }
+
+  const meta = await requestMeta();
+  await prisma.major.update({
+    where: { id },
+    data: {
+      code: d.code,
+      name: d.name,
+      description: d.description ?? null,
+      headTeacherId: d.headTeacherId ?? null,
+      isActive: d.isActive,
+    },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "UPDATE",
+    entity: "Major",
+    entityId: id,
+    before: { code: existing.code, name: existing.name },
+    after: { code: d.code, name: d.name },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/majors");
+  return { ok: true, id, message: "Jurusan disimpan." };
+}
+
+/**
+ * Arsipkan jurusan.
+ *
+ * Ditahan bila masih dipakai kelas/siswa aktif: mengarsipkannya diam-diam
+ * akan membuat rapor dan rekap kehilangan konteks jurusan. Operator harus
+ * memindahkan penghuninya lebih dulu.
+ */
+export async function softDeleteMajor(id: string): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const existing = await prisma.major.findFirst({
+    where: { id, schoolId, deletedAt: null },
+    include: {
+      _count: {
+        select: {
+          classes: { where: { deletedAt: null } },
+          students: { where: { deletedAt: null } },
+          subjects: { where: { deletedAt: null } },
+        },
+      },
+    },
+  });
+  if (!existing) return { ok: false, error: "Jurusan tidak ditemukan." };
+
+  const { classes, students, subjects } = existing._count;
+  if (classes > 0 || students > 0 || subjects > 0) {
+    return {
+      ok: false,
+      error:
+        `Jurusan masih dipakai ${classes} kelas, ${students} siswa, dan ` +
+        `${subjects} mapel. Pindahkan atau hapus dulu sebelum mengarsipkan.`,
+    };
+  }
+
+  const meta = await requestMeta();
+  await prisma.major.update({
+    where: { id },
+    data: { deletedAt: new Date(), isActive: false },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "DELETE",
+    entity: "Major",
+    entityId: id,
+    before: { code: existing.code, name: existing.name },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/majors");
+  return { ok: true, message: "Jurusan diarsipkan." };
+}
+
+/* ============================================================
+ * PKL / PRAKERIN
+ * ============================================================ */
+export async function createInternship(
+  formData: FormData,
+): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const parsed = internshipCreateSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali isian yang ditandai.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+  const d = parsed.data;
+
+  const [student, year] = await Promise.all([
+    prisma.student.findFirst({
+      where: { id: d.studentId, schoolId, deletedAt: null },
+      select: { id: true, fullName: true },
+    }),
+    prisma.academicYear.findFirst({
+      where: { id: d.academicYearId, schoolId },
+      select: { id: true },
+    }),
+  ]);
+  if (!student) {
+    return {
+      ok: false,
+      error: "Siswa tidak valid.",
+      fieldErrors: { studentId: ["Siswa tidak ditemukan"] },
+    };
+  }
+  if (!year) {
+    return {
+      ok: false,
+      error: "Tahun ajaran tidak valid.",
+      fieldErrors: { academicYearId: ["Pilih tahun ajaran yang benar"] },
+    };
+  }
+
+  const meta = await requestMeta();
+  const created = await prisma.internship.create({
+    data: {
+      schoolId,
+      studentId: d.studentId,
+      academicYearId: d.academicYearId,
+      teacherId: d.teacherId ?? null,
+      industryName: d.industryName,
+      industryAddress: d.industryAddress ?? null,
+      industryPhone: d.industryPhone ?? null,
+      supervisorName: d.supervisorName ?? null,
+      supervisorPhone: d.supervisorPhone ?? null,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      status: d.status,
+      score: d.score ?? null,
+      certificateNo: d.certificateNo ?? null,
+      note: d.note ?? null,
+    },
+    select: { id: true },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "CREATE",
+    entity: "Internship",
+    entityId: created.id,
+    after: { student: student.fullName, industry: d.industryName },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/internships");
+  return { ok: true, id: created.id, message: "Penempatan PKL disimpan." };
+}
+
+export async function updateInternship(
+  formData: FormData,
+): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { ok: false, error: "Permintaan tidak sah." };
+
+  const parsed = internshipUpdateSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali isian yang ditandai.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+  const d = parsed.data;
+
+  const existing = await prisma.internship.findFirst({ where: { id, schoolId } });
+  if (!existing) return { ok: false, error: "Data PKL tidak ditemukan." };
+
+  const meta = await requestMeta();
+  await prisma.internship.update({
+    where: { id },
+    data: {
+      studentId: d.studentId,
+      academicYearId: d.academicYearId,
+      teacherId: d.teacherId ?? null,
+      industryName: d.industryName,
+      industryAddress: d.industryAddress ?? null,
+      industryPhone: d.industryPhone ?? null,
+      supervisorName: d.supervisorName ?? null,
+      supervisorPhone: d.supervisorPhone ?? null,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      status: d.status,
+      score: d.score ?? null,
+      certificateNo: d.certificateNo ?? null,
+      note: d.note ?? null,
+    },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "UPDATE",
+    entity: "Internship",
+    entityId: id,
+    before: { industry: existing.industryName, status: existing.status },
+    after: { industry: d.industryName, status: d.status },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/internships");
+  return { ok: true, id, message: "Data PKL disimpan." };
+}
+
+export async function deleteInternship(id: string): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const existing = await prisma.internship.findFirst({ where: { id, schoolId } });
+  if (!existing) return { ok: false, error: "Data PKL tidak ditemukan." };
+
+  const meta = await requestMeta();
+  await prisma.internship.delete({ where: { id } });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "DELETE",
+    entity: "Internship",
+    entityId: id,
+    before: { industry: existing.industryName },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/internships");
+  return { ok: true, message: "Data PKL dihapus." };
+}
+
+/* ============================================================
+ * UKK — UJI KOMPETENSI KEAHLIAN
+ * ============================================================ */
+export async function createCompetencyTest(
+  formData: FormData,
+): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const parsed = competencyTestCreateSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali isian yang ditandai.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+  const d = parsed.data;
+
+  const [student, year, major] = await Promise.all([
+    prisma.student.findFirst({
+      where: { id: d.studentId, schoolId, deletedAt: null },
+      select: { id: true, fullName: true },
+    }),
+    prisma.academicYear.findFirst({
+      where: { id: d.academicYearId, schoolId },
+      select: { id: true },
+    }),
+    prisma.major.findFirst({
+      where: { id: d.majorId, schoolId, deletedAt: null },
+      select: { id: true },
+    }),
+  ]);
+  if (!student) {
+    return {
+      ok: false,
+      error: "Siswa tidak valid.",
+      fieldErrors: { studentId: ["Siswa tidak ditemukan"] },
+    };
+  }
+  if (!year) {
+    return {
+      ok: false,
+      error: "Tahun ajaran tidak valid.",
+      fieldErrors: { academicYearId: ["Pilih tahun ajaran yang benar"] },
+    };
+  }
+  if (!major) {
+    return {
+      ok: false,
+      error: "Jurusan tidak valid.",
+      fieldErrors: { majorId: ["Jurusan tidak ditemukan"] },
+    };
+  }
+
+  const meta = await requestMeta();
+  const created = await prisma.competencyTest.create({
+    data: {
+      schoolId,
+      studentId: d.studentId,
+      academicYearId: d.academicYearId,
+      majorId: d.majorId,
+      examinerName: d.examinerName,
+      examinerOrg: d.examinerOrg ?? null,
+      testDate: d.testDate,
+      result: d.result,
+      score: d.score ?? null,
+      certificateNo: d.certificateNo ?? null,
+      note: d.note ?? null,
+    },
+    select: { id: true },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "CREATE",
+    entity: "CompetencyTest",
+    entityId: created.id,
+    after: { student: student.fullName, result: d.result },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/competency-tests");
+  return { ok: true, id: created.id, message: "Hasil UKK disimpan." };
+}
+
+export async function updateCompetencyTest(
+  formData: FormData,
+): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const parsed = competencyTestUpdateSchema.safeParse(
+    Object.fromEntries(formData.entries()),
+  );
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: "Periksa kembali isian yang ditandai.",
+      fieldErrors: flattenZodErrors(parsed.error),
+    };
+  }
+  const { id, ...d } = parsed.data;
+
+  const existing = await prisma.competencyTest.findFirst({
+    where: { id, schoolId },
+  });
+  if (!existing) return { ok: false, error: "Data UKK tidak ditemukan." };
+
+  const meta = await requestMeta();
+  await prisma.competencyTest.update({
+    where: { id },
+    data: {
+      studentId: d.studentId,
+      academicYearId: d.academicYearId,
+      majorId: d.majorId,
+      examinerName: d.examinerName,
+      examinerOrg: d.examinerOrg ?? null,
+      testDate: d.testDate,
+      result: d.result,
+      score: d.score ?? null,
+      certificateNo: d.certificateNo ?? null,
+      note: d.note ?? null,
+    },
+  });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "UPDATE",
+    entity: "CompetencyTest",
+    entityId: id,
+    before: { result: existing.result, certificateNo: existing.certificateNo },
+    after: { result: d.result, certificateNo: d.certificateNo ?? null },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/competency-tests");
+  return { ok: true, id, message: "Hasil UKK disimpan." };
+}
+
+export async function deleteCompetencyTest(id: string): Promise<ActionResult> {
+  const g = await guard("academic", "manage");
+  if ("fail" in g) return g.fail;
+  const { schoolId, userId } = g.ctx;
+
+  const existing = await prisma.competencyTest.findFirst({
+    where: { id, schoolId },
+  });
+  if (!existing) return { ok: false, error: "Data UKK tidak ditemukan." };
+
+  const meta = await requestMeta();
+  await prisma.competencyTest.delete({ where: { id } });
+
+  await recordAudit({
+    schoolId,
+    userId,
+    action: "DELETE",
+    entity: "CompetencyTest",
+    entityId: id,
+    before: { result: existing.result },
+    ...meta,
+  });
+
+  revalidatePath("/dashboard/academic/competency-tests");
+  return { ok: true, message: "Data UKK dihapus." };
 }

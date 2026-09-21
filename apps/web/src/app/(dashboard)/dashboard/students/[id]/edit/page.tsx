@@ -1,7 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { prisma } from "@/lib/prisma";
 import { getStudent, getClassOptions } from "@/lib/data/students";
+import { getMajorOptions } from "@/lib/data/academic";
+import { majorTerminology } from "@/lib/major-labels";
 import { PageHeader } from "@/components/data-table";
 import { updateStudent } from "../../actions";
 import { StudentForm } from "../../student-form";
@@ -20,13 +23,18 @@ export default async function EditStudentPage({
     return <p className="text-slate">Anda tidak punya izin mengubah siswa.</p>;
   }
 
+  const schoolId = session.user.schoolId;
   const { id } = await params;
-  const [student, classes] = await Promise.all([
-    getStudent(session.user.schoolId, id),
-    getClassOptions(session.user.schoolId),
+  const [student, classes, majors, school] = await Promise.all([
+    getStudent(schoolId, id),
+    getClassOptions(schoolId),
+    getMajorOptions(schoolId),
+    prisma.school.findUnique({ where: { id: schoolId }, select: { level: true } }),
   ]);
 
   if (!student) notFound();
+
+  const term = majorTerminology(school?.level);
 
   return (
     <div className="space-y-6">
@@ -37,6 +45,8 @@ export default async function EditStudentPage({
       <StudentForm
         mode="edit"
         classes={classes}
+        majors={majors}
+        terminology={term.singular}
         action={updateStudent}
         initial={{
           id: student.id,
@@ -53,6 +63,7 @@ export default async function EditStudentPage({
           phone: student.phone ?? "",
           entryYear: student.entryYear,
           classId: student.classId ?? "",
+          majorId: student.majorId ?? "",
           status: student.status,
         }}
       />

@@ -116,6 +116,7 @@ export async function createStudent(
       phone: data.phone ?? null,
       entryYear: data.entryYear,
       classId: data.classId ?? null,
+      majorId: data.majorId ?? null,
       status: data.status,
       ...(data.parentName
         ? {
@@ -206,6 +207,7 @@ export async function updateStudent(
       phone: data.phone ?? null,
       entryYear: data.entryYear,
       classId: data.classId ?? null,
+      majorId: data.majorId ?? null,
       status: data.status,
     },
   });

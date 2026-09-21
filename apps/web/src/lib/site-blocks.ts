@@ -19,6 +19,8 @@
  * kebenaran yang sama.
  */
 
+import { GENERAL_BLOCK_DEFINITIONS } from "./site-blocks-general";
+
 /* ============================================================
  * TIPE
  * ============================================================ */
@@ -51,7 +53,7 @@ export type BlockDefinition = {
   name: string;
   /** Satu baris penjelasan untuk admin. */
   description: string;
-  /** Ikon sederhana (emoji aman, tidak butuh pustaka ikon). */
+  /** Nama ikon — digambar sebagai SVG oleh UI, bukan emoji. */
   icon: string;
   requirement: BlockRequirement;
   /** Varian gaya yang tersedia. Minimal satu. */
@@ -73,7 +75,7 @@ export type BlockDefinition = {
  * KATALOG
  * ============================================================ */
 
-export const BLOCK_DEFINITIONS: BlockDefinition[] = [
+const CORE_BLOCK_DEFINITIONS: BlockDefinition[] = [
   {
     key: "hero",
     name: "Pembuka",
@@ -321,9 +323,17 @@ export const BLOCK_DEFINITIONS: BlockDefinition[] = [
   },
 ];
 
-/* ============================================================
- * PENCARIAN & VALIDASI
- * ============================================================ */
+/**
+ * Katalog lengkap: blok inti (halaman depan) + blok general (halaman kustom).
+ *
+ * Digabung di SATU tempat supaya `getBlock`, `getVariant`, dan penyusun blok
+ * otomatis mengenal keduanya — tanpa perlu mengubah berkas inti setiap kali
+ * blok general ditambah.
+ */
+export const BLOCK_DEFINITIONS: BlockDefinition[] = [
+  ...CORE_BLOCK_DEFINITIONS,
+  ...GENERAL_BLOCK_DEFINITIONS,
+];
 
 export function getBlock(key: string): BlockDefinition | undefined {
   return BLOCK_DEFINITIONS.find((b) => b.key === key);
@@ -579,6 +589,45 @@ export function defaultPropsFor(blockKey: string): Record<string, unknown> {
       return { heading: "Hubungi Kami", showMap: true, showHours: true };
     case "spmb":
       return { title: "Penerimaan Murid Baru", subtitle: "" };
+
+    /* ---- Blok general (halaman kustom) ---- */
+    case "richtext":
+      return { heading: "", body: "" };
+    case "section":
+      return { heading: "", subheading: "" };
+    case "image":
+      return { imageUrl: "", alt: "", caption: "" };
+    case "table":
+      return {
+        heading: "",
+        // Dua kolom dan satu baris kosong: cukup untuk memperlihatkan bentuk
+        // tabel tanpa memaksa operator menghapus baris yang tidak dipakai.
+        columns: [{ label: "" }, { label: "" }],
+        rows: [{ c0: "", c1: "", c2: "", c3: "", c4: "" }],
+        footnote: "",
+      };
+    case "steps":
+      return { heading: "", items: [{ title: "", body: "" }] };
+    case "timeline":
+      return { heading: "", items: [{ year: "", title: "", body: "" }] };
+    case "cards":
+      return {
+        heading: "",
+        items: [{ title: "", body: "", imageUrl: "", value: "" }],
+      };
+    case "downloads":
+      return { heading: "", items: [{ title: "", url: "", note: "", size: "" }] };
+    case "achievements":
+      return {
+        heading: "",
+        items: [{ year: "", title: "", winner: "", level: "" }],
+      };
+    case "quote":
+      return { quote: "", attribution: "", role: "", photoUrl: "" };
+    case "video":
+      return { heading: "", youtubeUrl: "", caption: "" };
+    case "divider":
+      return { label: "" };
     default:
       return {};
   }

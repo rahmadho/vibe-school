@@ -23,6 +23,7 @@ const studentListSelect = {
   entryYear: true,
   createdAt: true,
   class: { select: { id: true, name: true } },
+  major: { select: { id: true, code: true, name: true } },
 } satisfies Prisma.StudentSelect;
 
 export type StudentListItem = Prisma.StudentGetPayload<{
@@ -30,13 +31,14 @@ export type StudentListItem = Prisma.StudentGetPayload<{
 }>;
 
 export async function listStudents(schoolId: string, filter: StudentFilter) {
-  const { q, classId, status, page, perPage } = filter;
+  const { q, classId, majorId, status, page, perPage } = filter;
 
   const where: Prisma.StudentWhereInput = {
     schoolId, // ← isolasi tenant (WAJIB)
     deletedAt: null,
     ...(status ? { status } : {}),
     ...(classId ? { classId } : {}),
+    ...(majorId ? { majorId } : {}),
     ...(q
       ? {
           OR: [
@@ -73,6 +75,7 @@ export async function getStudent(schoolId: string, id: string) {
     where: { id, schoolId, deletedAt: null }, // ← isolasi tenant
     include: {
       class: { select: { id: true, name: true } },
+      major: { select: { id: true, code: true, name: true } },
       parents: { orderBy: { isPrimary: "desc" } },
     },
   });

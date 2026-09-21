@@ -102,6 +102,37 @@ Prinsip: **jangan lompat tahap**. Setiap fase harus lolos Definition of Done (li
 - [x] **Wizard kenaikan kelas massal** (`/dashboard/academic/progression`)
 - [x] Tandai siswa **tinggal kelas**, **naik kelas**, **lulus**, dan **mutasi**
 - [x] Riwayat kelas (`StudentClassHistory`) tercatat otomatis per mutasi
+- [x] Jurusan siswa tersinkron dengan jurusan kelas tujuan saat naik kelas
+
+---
+
+## Fase 9b — Dukungan SMK / SMA ✅ (SELESAI)
+
+Jenjang kejuruan dan peminatan. Satu model `Major` melayani tiga istilah:
+**SMA/MA → "Peminatan"**, **SMK/MAK → "Kompetensi Keahlian"**, lainnya
+→ "Jurusan". Label menyesuaikan jenjang di UI (`lib/major-labels.ts`).
+
+- [x] Model `Major` + relasi ke kelas, mapel, siswa, dan pendaftaran
+- [x] Kelompok mapel: `UMUM` / `PEMINATAN` / `KEJURUAN` / `MUATAN_LOKAL`
+- [x] `SchoolLevel.MAK` (Madrasah Aliyah Kejuruan) ditambahkan
+- [x] Halaman Jurusan (`/dashboard/academic/majors`) + ketua program
+- [x] Jurusan terpasang di form kelas, mapel (kelompok + jurusan), dan siswa
+- [x] **PKL / Prakerin** — industri, pembimbing lapangan & sekolah, periode,
+      nilai, sertifikat (`/dashboard/academic/internships`)
+- [x] **UKK** — penguji, asal penguji, hasil, nomor sertifikat
+      (`/dashboard/academic/competency-tests`)
+- [x] Menu PKL & UKK otomatis tersembunyi di jenjang non-kejuruan
+- [x] **SPMB: pilihan jurusan** di form pendaftaran publik
+- [x] Konversi pendaftar diterima → siswa, jurusan ikut terbawa
+- [x] Seed contoh SMK (3 jurusan + 9 mapel produktif + kelas X + contoh nilai)
+- [x] **Rapor per siswa** (`/dashboard/grades/report/students`) — seluruh nilai
+      satu anak dalam satu lembar, dikelompokkan menurut `Subject.group`
+      (Umum / Peminatan / Kejuruan / Muatan Lokal). Melengkapi halaman Rekap
+      & Rapor yang bekerja per satu mapel.
+
+**Belum:** rapor **PDF** siap cetak bertanda tangan (halaman rapor saat ini
+berbentuk HTML yang bisa dicetak lewat peramban).
+
 ---
 
 ## Fase 10 — Komersial & Rilis (SEBAGIAN)
@@ -124,6 +155,16 @@ Prinsip: **jangan lompat tahap**. Setiap fase harus lolos Definition of Done (li
 - [x] **`grants.sql`** — hak akses role aplikasi (pasangan wajib `rls.sql`)
 - [x] **Seed riwayat 2 tahun** (`seed-activity.ts`) untuk menilai tampilan
       dengan data padat
+- [x] **Editor teks kaya (WYSIWYG) untuk berita & pengumuman** — TipTap v3,
+      toolbar berkelompok (bentuk huruf / tingkat judul / daftar / blok &
+      tautan / riwayat). Isi disanitasi daftar-putih SEBELUM simpan dan
+      SEBELUM tampil (`lib/rich-text.ts`) — data lama berupa teks polos tetap
+      tampil benar.
+- [x] **Filter tahun ajaran otomatis** di modul akademik, absensi, penilaian,
+      dan keuangan: default ke tahun ajaran aktif, dapat beralih ke arsip
+      atau "semua tahun".
+- [x] **Pagination + DataTable seragam** pada daftar yang panjang (tagihan,
+      pendaftar SPMB, antrean WA, riwayat pengumuman).
 
 ---
 

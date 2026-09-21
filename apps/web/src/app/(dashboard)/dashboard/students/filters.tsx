@@ -15,16 +15,22 @@ import {
  */
 export function StudentFilters({
   classes,
+  majors,
+  terminology,
   current,
 }: {
   classes: Array<{ id: string; name: string }>;
-  current: { q: string; classId: string; status: string };
+  /** Opsi jurusan. Kosong = sekolah belum memakai jurusan → filter disembunyikan. */
+  majors: Array<{ id: string; code: string; name: string }>;
+  terminology: string;
+  current: { q: string; classId: string; majorId: string; status: string };
 }) {
   const router = useRouter();
   const params = useSearchParams();
 
   const [q, setQ] = useState(current.q);
   const [classId, setClassId] = useState(current.classId);
+  const [majorId, setMajorId] = useState(current.majorId);
   const [status, setStatus] = useState(current.status);
 
   function apply(e: React.FormEvent) {
@@ -32,6 +38,7 @@ export function StudentFilters({
     const sp = new URLSearchParams();
     if (q.trim()) sp.set("q", q.trim());
     if (classId) sp.set("classId", classId);
+    if (majorId) sp.set("majorId", majorId);
     if (status) sp.set("status", status);
     sp.set("page", "1");
     router.push(`/dashboard/students?${sp.toString()}`);
@@ -40,6 +47,7 @@ export function StudentFilters({
   function reset() {
     setQ("");
     setClassId("");
+    setMajorId("");
     setStatus("");
     router.push("/dashboard/students");
   }
@@ -82,6 +90,29 @@ export function StudentFilters({
         </Select>
       </div>
 
+      {majors.length > 0 ? (
+        <div className="w-44">
+          <label
+            htmlFor="majorId"
+            className="mb-1 block text-xs font-medium text-slate"
+          >
+            {terminology}
+          </label>
+          <Select
+            id="majorId"
+            value={majorId}
+            onChange={(e) => setMajorId(e.target.value)}
+          >
+            <option value="">Semua</option>
+            {majors.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.code} — {m.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : null}
+
       <div className="w-40">
         <label
           htmlFor="status"
@@ -105,7 +136,7 @@ export function StudentFilters({
 
       <div className="flex gap-2">
         <Button type="submit">Terapkan</Button>
-        {(current.q || current.classId || current.status) && (
+        {(current.q || current.classId || current.majorId || current.status) && (
           <Button type="button" variant="ghost" onClick={reset}>
             Reset
           </Button>

@@ -3,18 +3,30 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@/components/ui";
-import { FormError } from "@/components/form-fields";
+import { Select, FormError } from "@/components/form-fields";
+import { SUBJECT_GROUPS, SUBJECT_GROUP_LABEL } from "@/lib/validations/academic";
 import type { ActionResult } from "@/lib/action-result";
 
 /** Form mapel — create & edit (inline di halaman daftar). */
 export function SubjectForm({
   mode,
+  majors,
+  terminology,
   initial,
   action,
   onDone,
 }: {
   mode: "create" | "edit";
-  initial?: { id?: string; code?: string; name?: string; kkm?: number };
+  majors: Array<{ id: string; code: string; name: string }>;
+  terminology: string;
+  initial?: {
+    id?: string;
+    code?: string;
+    name?: string;
+    kkm?: number;
+    group?: string;
+    majorId?: string;
+  };
   action: (formData: FormData) => Promise<ActionResult>;
   onDone?: () => void;
 }) {
@@ -83,6 +95,37 @@ export function SubjectForm({
             className="tabular-nums"
           />
         </Field>
+      </div>
+
+      {/* Kelompok mapel menentukan pengelompokan di rapor. Disederhanakan
+          menjadi tiga pilihan yang bermakna untuk SMA maupun SMK. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Kelompok mapel" htmlFor="group" error={fe("group")}>
+          <Select id="group" name="group" defaultValue={initial?.group ?? "UMUM"}>
+            {SUBJECT_GROUPS.map((g) => (
+              <option key={g} value={g}>
+                {SUBJECT_GROUP_LABEL[g]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        {majors.length > 0 ? (
+          <Field
+            label={`${terminology} (opsional)`}
+            htmlFor="majorId"
+            error={fe("majorId")}
+          >
+            <Select id="majorId" name="majorId" defaultValue={initial?.majorId ?? ""}>
+              <option value="">Berlaku untuk semua</option>
+              {majors.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.code} — {m.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
       </div>
       <div className="flex gap-2">
         <Button type="submit" disabled={pending}>

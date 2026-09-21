@@ -14,6 +14,7 @@ export const SCHOOL_LEVELS = [
   "MI",
   "MTs",
   "MA",
+  "MAK",
 ] as const;
 
 export const SCHOOL_LEVEL_LABEL: Record<(typeof SCHOOL_LEVELS)[number], string> = {
@@ -25,6 +26,7 @@ export const SCHOOL_LEVEL_LABEL: Record<(typeof SCHOOL_LEVELS)[number], string> 
   MI: "MI",
   MTs: "MTs",
   MA: "MA",
+  MAK: "MAK",
 };
 
 /** Slug: huruf kecil, angka, tanda hubung. Dipakai untuk subdomain. */

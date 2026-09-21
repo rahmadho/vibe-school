@@ -78,6 +78,13 @@ model School {
   pages           Page[]
   navigationItems NavigationItem[]
   posts           Post[]
+  media           Media[]
+  aiSetting       AiSetting?
+
+  // Jurusan / peminatan (Fase SMK-SMA)
+  majors          Major[]
+  internships     Internship[]
+  competencyTests CompetencyTest[]
 
   @@map("schools")
 }
@@ -91,6 +98,7 @@ enum SchoolLevel {
   MI
   MTs
   MA
+  MAK // Madrasah Aliyah Kejuruan — setara SMK
 }
 
 // ============================================================
@@ -128,6 +136,7 @@ model User {
   gradesCreated     Grade[]                @relation("GradeCreatedBy")
   attendancesMarked Attendance[]           @relation("AttendanceMarkedBy")
   campaignsCreated  AnnouncementCampaign[] @relation("CampaignCreatedBy")
+  mediaUploaded     Media[]                @relation("MediaUploadedBy")
 
   @@index([schoolId])
   @@index([role])
@@ -176,10 +185,12 @@ model AcademicYear {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  semesters      Semester[]
-  classes        Class[]
-  gradeItems     GradeItem[]
-  classHistories StudentClassHistory[]
+  semesters       Semester[]
+  classes         Class[]
+  gradeItems      GradeItem[]
+  classHistories  StudentClassHistory[]
+  internships     Internship[]
+  competencyTests CompetencyTest[]
 
   @@unique([schoolId, name])
   @@index([schoolId])
@@ -210,15 +221,73 @@ enum SemesterType {
   GENAP
 }
 
+/// Jurusan / Peminatan / Kompetensi Keahlian.
+///
+/// SATU model melayani tiga istilah yang berbeda per jenjang:
+///   - SMA/MA  → "Peminatan" (MIPA, IPS, Bahasa)
+///   - SMK/MAK → "Kompetensi Keahlian" (RPL, TKJ, Akuntansi)
+///   - SMP/SD  → umumnya tidak dipakai
+///
+/// Label di UI menyesuaikan jenjang lewat `lib/major-labels.ts`, sehingga
+/// struktur datanya cukup satu. Sekolah yang tidak memakai jurusan cukup
+/// membiarkan tabel ini kosong — seluruh fitur lain tetap berjalan.
+model Major {
+  id          String  @id @default(cuid())
+  schoolId    String
+  school      School  @relation(fields: [schoolId], references: [id])
+  code        String // "RPL", "MIPA"
+  name        String // "Rekayasa Perangkat Lunak"
+  description String?
+
+  /// Ketua program keahlian / koordinator peminatan (opsional).
+  headTeacherId String?
+  headTeacher   Teacher? @relation("MajorHead", fields: [headTeacherId], references: [id])
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  classes         Class[]
+  subjects        Subject[]
+  students        Student[]
+  registrations   Registration[]
+  competencyTests CompetencyTest[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId])
+  @@map("majors")
+}
+
+/// Kelompok mata pelajaran — dipakai untuk rapor & pengelompokan.
+///
+/// Sengaja mencakup istilah SMA DAN SMK sekaligus agar satu enum melayani
+/// semua jenjang tanpa memaksa istilah yang salah:
+///   - UMUM         : wajib semua siswa (Matematika, B. Indonesia)
+///   - PEMINATAN    : mapel pilihan peminatan (SMA/MA) — mis. Matematika Lanjut
+///   - KEJURUAN     : mapel produktif (SMK/MAK) — mis. Pemrograman Web
+///   - MUATAN_LOKAL : Bahasa Daerah, dsb.
+enum SubjectGroup {
+  UMUM
+  PEMINATAN
+  KEJURUAN
+  MUATAN_LOKAL
+}
+
 model Class {
   id             String       @id @default(cuid())
   schoolId       String
   school         School       @relation(fields: [schoolId], references: [id])
   academicYearId String
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
-  name           String // "7A"
+  name           String // "7A" / "X RPL 1"
   level          Int // 7
   capacity       Int          @default(32)
+
+  /// Jurusan/peminatan kelas ini. NULL = kelas umum (perilaku lama, mis. SD/SMP).
+  majorId String?
+  major   Major?  @relation(fields: [majorId], references: [id])
 
   homeroomTeacherId String?
   homeroomTeacher   Teacher? @relation("Homeroom", fields: [homeroomTeacherId], references: [id])
@@ -246,6 +315,15 @@ model Subject {
   code     String
   name     String
   kkm      Int    @default(70) // Kriteria Ketuntasan Minimal
+
+  /// Kelompok mapel untuk pengelompokan rapor. Default UMUM supaya seluruh
+  /// mapel lama (dan sekolah non-SMK) tetap sah tanpa perubahan data.
+  group SubjectGroup @default(UMUM)
+
+  /// Jurusan pemilik mapel ini (khusus mapel PEMINATAN/KEJURUAN).
+  /// NULL = mapel berlaku untuk seluruh sekolah.
+  majorId String?
+  major   Major?  @relation(fields: [majorId], references: [id])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -311,6 +389,8 @@ model Teacher {
   schedules   Schedule[]
   attendances Attendance[]     @relation("TeacherAttendance")
   gradeItems  GradeItem[]
+  majorHeadOf Major[]          @relation("MajorHead")
+  internships Internship[]
 
   @@unique([schoolId, nip])
   @@index([schoolId])
@@ -380,17 +460,23 @@ model Student {
   class     Class?        @relation(fields: [classId], references: [id])
   status    StudentStatus @default(ACTIVE)
 
+  /// Jurusan/peminatan siswa. NULL = belum ditentukan (sekolah tanpa jurusan).
+  majorId String?
+  major   Major?  @relation(fields: [majorId], references: [id])
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  user           User?
-  parents        Parent[]
-  attendances    Attendance[]
-  grades         Grade[]
-  invoices       Invoice[]
-  registration   Registration?
-  classHistories StudentClassHistory[]
+  user            User?
+  parents         Parent[]
+  attendances     Attendance[]
+  grades          Grade[]
+  invoices        Invoice[]
+  registration    Registration?
+  classHistories  StudentClassHistory[]
+  internships     Internship[]
+  competencyTests CompetencyTest[]
 
   @@unique([schoolId, nis])
   @@index([schoolId])
@@ -511,6 +597,11 @@ model Registration {
   /// (pendaftaran sebelum fitur jalur ada); dianggap jalur tunggal.
   pathId         String?
   path           AdmissionPath?     @relation(fields: [pathId], references: [id])
+  /// Jurusan/peminatan yang dipilih pendaftar (untuk SMA/SMK).
+  /// Jalur = CARA masuk; jurusan = TUJUAN. Keduanya berbeda dan bisa berdiri
+  /// sendiri, jadi tidak digabung.
+  majorId        String?
+  major          Major?             @relation(fields: [majorId], references: [id])
   registrationNo String             @unique // nomor pendaftaran
   status         RegistrationStatus @default(PENDING)
 
@@ -1024,6 +1115,108 @@ model Post {
   @@map("posts")
 }
 
+/// Pustaka berkas web sekolah: gambar yang diunggah atau ditautkan.
+///
+/// ============================================================
+/// KENAPA PERLU TABEL, BUKAN CUKUP MENYIMPAN URL DI TIAP TEMPAT
+/// ============================================================
+/// Sebelum ini, gambar hanya hidup sebagai string `coverUrl` di berita atau
+/// `logoUrl` di sekolah. Akibatnya operator tidak punya cara menjawab
+/// pertanyaan wajar: "gambar apa saja yang sudah saya unggah?" dan "berkas ini
+/// masih dipakai di mana?". Tanpa daftar pusat, berkas menumpuk tanpa terlihat
+/// dan yang tidak terpakai tidak pernah dibersihkan.
+///
+/// `source` memisahkan berkas MILIK KITA dari tautan luar. Perbedaannya
+/// penting: berkas milik kita boleh dihapus dari penyimpanan, tautan luar
+/// tidak — menghapusnya akan mematikan gambar di web sekolah, dan berkasnya
+/// bukan milik kita untuk dihapus.
+model Media {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Nama tampil di pustaka. Untuk unggahan, diambil dari nama berkas asli.
+  name     String
+  /// URL publik yang dipakai di halaman web.
+  url      String
+  /// "UPLOAD" = tersimpan di penyimpanan kita; "LINK" = tautan luar.
+  source   MediaSource @default(UPLOAD)
+
+  /// Jenis MIME ("image/png"). Null untuk tautan luar yang belum diperiksa.
+  mimeType String?
+  /// Ukuran byte. Null untuk tautan luar (kita tidak mengunduhnya).
+  size     Int?
+  width    Int?
+  height   Int?
+
+  /// Catatan bebas operator, mis. "banner SPMB 2026".
+  altText String?
+
+  uploadedById String?
+  uploadedBy   User?   @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([schoolId])
+  @@index([schoolId, source])
+  @@map("media")
+}
+
+enum MediaSource {
+  UPLOAD
+  LINK
+}
+
+/// Pengaturan AI untuk bantuan tulis berita.
+///
+/// ============================================================
+/// KENAPA DISIMPAN PER SEKOLAH, BUKAN DI .env
+/// ============================================================
+/// Operator sekolah mengisi kunci API-nya sendiri; staf IT tidak selalu bisa
+/// mengubah berkas `.env` di server. Menyimpannya di database membuat fitur
+/// ini bisa dinyalakan dari dasbor, dan setiap sekolah memakai kuotanya
+/// masing-masing — biaya satu sekolah tidak menumpuk ke sekolah lain.
+///
+/// Kunci disimpan TERENKRIPSI (AES-256-GCM, lihat lib/crypto-secret.ts),
+/// memakai kunci yang sama dengan kredensial payment gateway. Kolom `*Last4`
+/// menyimpan 4 karakter terakhir supaya UI bisa menampilkan "••••a1b2" tanpa
+/// perlu mendekripsi.
+model AiSetting {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id])
+
+  isActive Boolean @default(false)
+
+  /// Penyedia yang dipakai. Setiap penyedia punya bentuk permintaan berbeda;
+  /// daftarnya dijaga di lib/ai-providers.ts agar mudah ditambah.
+  provider String @default("groq")
+
+  /// Nama model, mis. "llama-3.3-70b-versatile".
+  model String @default("llama-3.3-70b-versatile")
+
+  /// Base URL. Kosong = pakai bawaan penyedia. Diisi bila sekolah memakai
+  /// penyedia kompatibel-OpenAI lain (mis. server Ollama sendiri).
+  baseUrl String?
+
+  /// Kunci API terenkripsi (ciphertext base64) + 4 karakter terakhir.
+  apiKeyEnc   String?
+  apiKeyLast4 String?
+
+  /// Bahasa keluaran. Operator Indonesia menulis dalam bahasa Indonesia.
+  language String @default("id")
+
+  /// Nada tulisan — memengaruhi gaya, bukan isi.
+  tone String @default("formal")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ai_settings")
+}
+
 enum PostType {
   NEWS
   ANNOUNCEMENT
@@ -1320,6 +1513,110 @@ enum ClassProgression {
   TINGGAL // tinggal kelas
   LULUS // lulus
   MUTASI // pindah sekolah
+}
+
+// ============================================================
+// PKL / PRAKERIN (SMK/MAK)
+// ============================================================
+
+enum InternshipStatus {
+  PLANNED // sudah dapat tempat, belum mulai
+  ONGOING // sedang berjalan
+  COMPLETED // selesai
+  CANCELLED // dibatalkan
+}
+
+/// Praktik Kerja Lapangan — wajib bagi SMK/MAK.
+///
+/// Satu baris = satu penempatan satu siswa di satu industri. Penempatan
+/// dikelompokkan per tahun ajaran supaya rekap "siapa belum dapat tempat"
+/// bisa dijawab per periode, bukan dari seluruh riwayat sekolah.
+model Internship {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  /// Pembimbing dari sekolah (guru).
+  teacherId String?
+  teacher   Teacher? @relation(fields: [teacherId], references: [id])
+
+  // Tempat PKL
+  industryName    String
+  industryAddress String?
+  industryPhone   String? // E.164 tanpa '+'
+
+  // Pembimbing lapangan dari industri
+  supervisorName  String?
+  supervisorPhone String?
+
+  startDate DateTime         @db.Date
+  endDate   DateTime         @db.Date
+  status    InternshipStatus @default(PLANNED)
+
+  /// Nilai akhir PKL (0-100). Kosong bila belum dinilai.
+  score         Int?
+  certificateNo String?
+  note          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, academicYearId])
+  @@index([studentId])
+  @@map("internships")
+}
+
+// ============================================================
+// UKK — UJI KOMPETENSI KEAHLIAN (SMK/MAK)
+// ============================================================
+
+enum CompetencyResult {
+  COMPETENT // Kompeten
+  NOT_COMPETENT // Belum kompeten
+}
+
+/// Uji Kompetensi Keahlian — penutup masa studi SMK/MAK.
+///
+/// Menyimpan hasil, penguji, dan nomor sertifikat. Sertifikat UKK adalah
+/// dokumen yang dibawa lulusan SMK saat melamar kerja, jadi nomornya harus
+/// tersimpan rapi — bukan hanya nilai di rapor.
+model CompetencyTest {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  majorId String
+  major   Major  @relation(fields: [majorId], references: [id])
+
+  /// Penguji (internal sekolah atau asesor eksternal/DUDI).
+  examinerName String
+  examinerOrg  String? // mis. "PT Telkom Indonesia" / "SMK Negeri 1"
+
+  testDate DateTime         @db.Date
+  result   CompetencyResult
+  score    Int? // 0-100, opsional
+
+  certificateNo String?
+  note          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, academicYearId])
+  @@index([studentId])
+  @@map("competency_tests")
 }
 
 // ============================================================

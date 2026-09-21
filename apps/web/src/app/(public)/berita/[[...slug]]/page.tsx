@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveSchoolFromRequest } from "@/lib/site-server";
 import { listPublishedPosts, getPostBySlug } from "@/lib/data/site";
-import { Section, SectionHeading, SiteCard, SiteImage, BlockEmpty, Prose, formatSiteDate } from "@/components/site/site-ui";
+import { Section, SectionHeading, SiteCard, SiteImage, BlockEmpty, RichContent, formatSiteDate } from "@/components/site/site-ui";
 
 /**
  * Halaman berita publik.
@@ -116,7 +116,7 @@ async function Article({ schoolId, slug }: { schoolId: string; slug: string }) {
         )}
 
         <div className="mt-6">
-          <Prose text={post.content} />
+          <RichContent html={post.content} />
         </div>
 
       </article>

@@ -4,6 +4,12 @@ import {
   classCreateSchema,
   subjectCreateSchema,
   bulkProgressionSchema,
+  majorCreateSchema,
+  internshipCreateSchema,
+  competencyTestCreateSchema,
+  SUBJECT_GROUPS,
+  INTERNSHIP_STATUSES,
+  COMPETENCY_RESULTS,
 } from "@/lib/validations/academic";
 
 describe("academicYearCreateSchema", () => {
@@ -127,6 +133,149 @@ describe("bulkProgressionSchema", () => {
       targetAcademicYearId: "ay_2024",
       items: [],
     });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("majorCreateSchema", () => {
+  const base = { code: "RPL", name: "Rekayasa Perangkat Lunak" };
+
+  it("menerima jurusan valid", () => {
+    const r = majorCreateSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.code).toBe("RPL");
+  });
+
+  it("menormalkan kode menjadi huruf besar", () => {
+    const r = majorCreateSchema.safeParse({ ...base, code: "tkj" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.code).toBe("TKJ");
+  });
+
+  it("menolak nama terlalu pendek", () => {
+    expect(majorCreateSchema.safeParse({ ...base, name: "A" }).success).toBe(false);
+  });
+
+  it("mengubah ketua program kosong menjadi undefined", () => {
+    const r = majorCreateSchema.safeParse({ ...base, headTeacherId: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.headTeacherId).toBeUndefined();
+  });
+});
+
+describe("subjectCreateSchema — kelompok mapel", () => {
+  it("memakai UMUM sebagai kelompok bawaan", () => {
+    const r = subjectCreateSchema.safeParse({ code: "MAT", name: "Matematika" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.group).toBe("UMUM");
+  });
+
+  it("menerima semua kelompok yang dikenal", () => {
+    for (const g of SUBJECT_GROUPS) {
+      const r = subjectCreateSchema.safeParse({ code: "X", name: "Mapel", group: g });
+      expect(r.success, `kelompok ${g} seharusnya valid`).toBe(true);
+    }
+  });
+
+  it("menolak kelompok tak dikenal", () => {
+    const r = subjectCreateSchema.safeParse({
+      code: "X",
+      name: "Mapel",
+      group: "KARANGAN",
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("classCreateSchema — nama kelas panjang", () => {
+  it("menerima nama kelas SMK yang panjang", () => {
+    // "XII Teknik Komputer dan Jaringan 1" = 33 karakter. Batas lama (20)
+    // menolaknya, sehingga sekolah SMK tidak bisa menulis nama kelas wajar.
+    const r = classCreateSchema.safeParse({
+      name: "XII Teknik Komputer dan Jaringan 1",
+      level: "12",
+      academicYearId: "ay1",
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("internshipCreateSchema", () => {
+  const base = {
+    studentId: "std1",
+    academicYearId: "ay1",
+    industryName: "PT Telkom Indonesia",
+    startDate: "2026-01-05",
+    endDate: "2026-04-05",
+  };
+
+  it("menerima data PKL minimal", () => {
+    const r = internshipCreateSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.status).toBe("PLANNED");
+  });
+
+  it("menolak tanggal selesai sebelum tanggal mulai", () => {
+    const r = internshipCreateSchema.safeParse({
+      ...base,
+      endDate: "2026-01-01",
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it("menerima semua status PKL", () => {
+    for (const s of INTERNSHIP_STATUSES) {
+      const r = internshipCreateSchema.safeParse({ ...base, status: s });
+      expect(r.success, `status ${s} seharusnya valid`).toBe(true);
+    }
+  });
+
+  it("menolak nilai di luar 0..100", () => {
+    const r = internshipCreateSchema.safeParse({ ...base, score: 120 });
+    expect(r.success).toBe(false);
+  });
+
+  it("mengubah nilai kosong menjadi undefined", () => {
+    const r = internshipCreateSchema.safeParse({ ...base, score: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.score).toBeUndefined();
+  });
+});
+
+describe("competencyTestCreateSchema", () => {
+  const base = {
+    studentId: "std1",
+    academicYearId: "ay1",
+    majorId: "maj1",
+    examinerName: "Budi Santoso",
+    testDate: "2026-05-10",
+    result: "COMPETENT",
+  };
+
+  it("menerima hasil UKK valid", () => {
+    const r = competencyTestCreateSchema.safeParse(base);
+    expect(r.success).toBe(true);
+  });
+
+  it("menerima semua hasil yang dikenal", () => {
+    for (const res of COMPETENCY_RESULTS) {
+      const r = competencyTestCreateSchema.safeParse({ ...base, result: res });
+      expect(r.success, `hasil ${res} seharusnya valid`).toBe(true);
+    }
+  });
+
+  it("mewajibkan jurusan", () => {
+    const r = competencyTestCreateSchema.safeParse({ ...base, majorId: "" });
+    expect(r.success).toBe(false);
+  });
+
+  it("mewajibkan nama penguji", () => {
+    const r = competencyTestCreateSchema.safeParse({ ...base, examinerName: "" });
+    expect(r.success).toBe(false);
+  });
+
+  it("menolak hasil tak dikenal", () => {
+    const r = competencyTestCreateSchema.safeParse({ ...base, result: "MUNGKIN" });
     expect(r.success).toBe(false);
   });
 });

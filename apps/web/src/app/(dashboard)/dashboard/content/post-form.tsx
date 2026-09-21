@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Field, Input } from "@/components/ui";
 import { Select, Textarea, FormError } from "@/components/form-fields";
+import { RichTextEditor } from "@/components/rich-text-editor";
+import { MediaPicker, type PickerMedia } from "@/components/media-picker";
+import { AiWriter } from "./ai-writer";
 import { POST_TYPES, POST_TYPE_LABEL } from "@/lib/validations/site";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -50,10 +53,16 @@ export function PostForm({
   mode,
   action,
   initial,
+  media,
+  aiEnabled,
 }: {
   mode: "create" | "edit";
   action: (formData: FormData) => Promise<ActionResult>;
   initial?: PostFormValues;
+  /** Isi pustaka media untuk pemilih gambar sampul. */
+  media: PickerMedia[];
+  /** Apakah bantuan AI sudah disiapkan sekolah (penyedia + kunci terisi). */
+  aiEnabled: boolean;
 }) {
   const router = useRouter();
   const [values, setValues] = useState<PostFormValues>(initial ?? EMPTY);
@@ -109,6 +118,25 @@ export function PostForm({
     <form onSubmit={onSubmit} className="space-y-6" noValidate>
       <FormError message={error} />
 
+      {/* Bantuan AI diletakkan PALING ATAS: operator membukanya justru saat
+          masih bingung mau menulis apa. Menaruhnya di bawah berarti ia harus
+          menggulir melewati form kosong lebih dulu. */}
+      {aiEnabled ? (
+        <AiWriter
+          kind={values.type}
+          currentTitle={values.title}
+          onApply={(r) => {
+            setValues((prev) => ({
+              ...prev,
+              ...(r.title ? { title: r.title, slug: toSlug(r.title) } : {}),
+              ...(r.excerpt ? { excerpt: r.excerpt } : {}),
+              content: r.content,
+            }));
+            setSlugTouched(false);
+          }}
+        />
+      ) : null}
+
       <section className="card space-y-4">
         <h2 className="card-title">Isi tulisan</h2>
 
@@ -145,18 +173,27 @@ export function PostForm({
           htmlFor="slug"
           error={fe("slug")}
         >
-          <div className="flex items-center gap-1">
-            <span className="font-mono text-sm text-slate">/berita/</span>
-            <Input
-              id="slug"
-              value={values.slug}
-              onChange={(e) => {
-                set("slug", e.target.value);
-                setSlugTouched(true);
-              }}
-              placeholder="upacara-hari-kemerdekaan"
-              className="font-mono"
-            />
+          {/* Terlihat seperti teks biasa ("/berita/upacara-hari-kemerdekaan") tetapi tetap bisa diketik: lebar input mengikuti panjang teks, dan garis bawah halus muncul saat disentuh sebagai penanda bisa diubah. */}
+          <div className="flex flex-wrap items-baseline font-mono text-sm">
+            <span className="text-slate">/berita/</span>
+            <span className="relative inline-block">
+              {/* Pengukur lebar tak terlihat — membuat input persis selebar teksnya. Placeholder ikut mengukur saat masih kosong. */}
+              <span aria-hidden className="invisible whitespace-pre">
+                {values.slug || "upacara-hari-kemerdekaan"}
+              </span>
+              <input
+                id="slug"
+                value={values.slug}
+                onChange={(e) => {
+                  set("slug", e.target.value);
+                  setSlugTouched(true);
+                }}
+                placeholder="upacara-hari-kemerdekaan"
+                spellCheck={false}
+                autoComplete="off"
+                className="absolute inset-0 w-full border-b border-transparent bg-transparent p-0 text-ink outline-none transition-colors placeholder:text-slate-light hover:border-chalk focus:border-board"
+              />
+            </span>
           </div>
         </Field>
 
@@ -174,41 +211,30 @@ export function PostForm({
           />
         </Field>
 
-        <Field
-          label="Isi lengkap"
-          htmlFor="content"
-          error={fe("content")}
-        >
-          <Textarea
-            id="content"
-            rows={12}
+        <div>
+          <span className="mb-1.5 block text-sm font-medium text-ink">
+            Isi lengkap
+          </span>
+          <RichTextEditor
             value={values.content}
-            onChange={(e) => set("content", e.target.value)}
-            placeholder="Tulis isi berita atau pengumuman di sini. Gunakan baris kosong antar paragraf."
+            onChange={(html) => set("content", html)}
+            placeholder="Tulis isi berita atau pengumuman di sini…"
           />
-        </Field>
+          {fe("content") ? (
+            <span className="mt-1 block text-sm text-marker">{fe("content")}</span>
+          ) : null}
+        </div>
 
-        <Field
-          label="Gambar sampul (opsional)"
-          htmlFor="coverUrl"
-          error={fe("coverUrl")}
-        >
-          <Input
-            id="coverUrl"
+        <div>
+          <MediaPicker
             value={values.coverUrl}
-            onChange={(e) => set("coverUrl", e.target.value)}
-            placeholder="/images/kegiatan.jpg atau https://…"
+            onChange={(url) => set("coverUrl", url)}
+            media={media}
           />
-          {/*
-            Jujur soal keterbatasan: proyek ini BELUM punya penyimpanan berkas.
-            Lebih baik operator tahu harus menempel tautan, daripada mencari
-            tombol unggah yang tidak ada.
-          */}
-          <p className="mt-1 text-xs text-[var(--slate)]">
-            Untuk sementara, tempel tautan gambar (mis. dari Google Drive yang dibagikan
-            publik). Unggah langsung akan tersedia setelah penyimpanan berkas dikonfigurasi.
-          </p>
-        </Field>
+          {fe("coverUrl") ? (
+            <span className="mt-1 block text-sm text-marker">{fe("coverUrl")}</span>
+          ) : null}
+        </div>
       </section>
 
       {/* Bagian khusus agenda — hanya muncul untuk jenis AGENDA. */}

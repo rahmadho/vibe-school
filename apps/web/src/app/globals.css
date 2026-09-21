@@ -123,4 +123,59 @@
   .card-title {
     @apply font-display text-xl text-ink;
   }
+
+  /* ============================================================
+   * TEKS KAYA (editor WYSIWYG & isi tulisan publik)
+   *
+   * Satu aturan dipakai dua tempat: di dalam editor saat menulis, dan di
+   * halaman publik saat dibaca. Kalau keduanya punya gaya sendiri-sendiri,
+   * penulis melihat satu hal dan pengunjung melihat hal lain — dan itu
+   * membuat penulis kehilangan kepercayaan pada editor.
+   * ============================================================ */
+  .rich-content,
+  .prose-editor {
+    @apply text-base leading-relaxed;
+  }
+  .rich-content > * + *,
+  .prose-editor > * + * {
+    @apply mt-4;
+  }
+  .rich-content h2,
+  .prose-editor h2 {
+    @apply font-display text-2xl font-semibold leading-snug;
+  }
+  .rich-content h3,
+  .prose-editor h3 {
+    @apply font-display text-xl font-semibold leading-snug;
+  }
+  .rich-content ul,
+  .prose-editor ul {
+    @apply list-disc space-y-1 pl-6;
+  }
+  .rich-content ol,
+  .prose-editor ol {
+    @apply list-decimal space-y-1 pl-6;
+  }
+  .rich-content blockquote,
+  .prose-editor blockquote {
+    @apply border-l-2 border-chalk pl-4 italic opacity-90;
+  }
+  .rich-content hr,
+  .prose-editor hr {
+    @apply my-6 border-t border-chalk;
+  }
+  .rich-content a,
+  .prose-editor a {
+    @apply underline underline-offset-2;
+  }
+  .rich-content strong,
+  .prose-editor strong {
+    @apply font-semibold;
+  }
+
+  /* Placeholder editor — hanya tampil saat dokumen masih kosong. */
+  .prose-editor p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-slate-light;
+  }
 }

@@ -76,12 +76,17 @@ export const studentCreateSchema = z.object({
     .min(1990, "Tahun terlalu lampau")
     .max(2100, "Tahun terlalu jauh"),
   classId: optionalId,
+  /** Jurusan/peminatan siswa. Kosong = belum ditentukan. */
+  majorId: optionalId,
   status: z.enum(STUDENT_STATUSES).default("ACTIVE"),
   // Wali (opsional saat daftar; bisa dilengkapi di detail)
   parentName: optionalText(120),
+  // Kosong harus menjadi `undefined`, bukan string "" — form selalu mengirim
+  // field ini, dan `z.enum` menolak "" sehingga seluruh form siswa gagal simpan.
   parentRelation: z
-    .enum(["FATHER", "MOTHER", "GUARDIAN"])
-    .optional(),
+    .union([z.literal(""), z.enum(["FATHER", "MOTHER", "GUARDIAN"])])
+    .optional()
+    .transform((v) => (v === "" ? undefined : v)),
   parentPhone: phoneField,
 });
 
@@ -96,6 +101,7 @@ export type StudentUpdateInput = z.infer<typeof studentUpdateSchema>;
 export const studentFilterSchema = z.object({
   q: z.string().trim().optional(),
   classId: z.string().trim().optional(),
+  majorId: z.string().trim().optional(),
   status: z.enum(STUDENT_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(5).max(100).default(20),

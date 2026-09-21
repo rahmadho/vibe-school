@@ -30,10 +30,13 @@ Sumber kebenaran: `prisma/schema.prisma`. Dokumen ini menjelaskan kelompok tabel
 |-------|--------|
 | `academic_years` | Tahun ajaran ("2025/2026"). |
 | `semesters` | Ganjil/Genap dalam tahun ajaran. |
-| `classes` | Kelas (7A, 7B...) + wali kelas + kapasitas. |
-| `subjects` | Mata pelajaran + KKM. |
+| `classes` | Kelas (7A, 7B, "X RPL 1") + wali kelas + kapasitas + jurusan. |
+| `majors` | Jurusan / peminatan / kompetensi keahlian. Satu tabel melayani SMA ("Peminatan") dan SMK ("Kompetensi Keahlian"); label menyesuaikan jenjang di UI. |
+| `subjects` | Mata pelajaran + KKM + kelompok (UMUM/PEMINATAN/KEJURUAN/MUATAN_LOKAL) + jurusan pemilik (mapel produktif). |
 | `schedules` | Jadwal: kelas + mapel + guru + hari + jam. |
 | `teacher_subjects` | Relasi guru ↔ mapel yang diampu. |
+| `internships` | PKL / Prakerin: siswa + industri + pembimbing + periode + nilai + sertifikat. Hanya jenjang SMK/MAK. |
+| `competency_tests` | UKK: siswa + jurusan + penguji + hasil + nomor sertifikat. Hanya jenjang SMK/MAK. |
 
 ### D. Guru & Staf
 | Tabel | Fungsi |

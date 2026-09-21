@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { sanitizeRichText } from "@/lib/rich-text";
 
 /**
  * Komponen bersama untuk SEMUA blok web sekolah.
@@ -257,6 +258,35 @@ export function Prose({ text, onPrimary = false }: { text: string; onPrimary?: b
         </p>
       ))}
     </div>
+  );
+}
+
+/**
+ * Isi tulisan dari editor teks kaya (HTML) — disanitasi sebelum ditampilkan.
+ *
+ * Menerima DUA bentuk isi sekaligus:
+ *   - tulisan baru → HTML dari editor;
+ *   - tulisan lama → teks polos yang dipisah baris kosong.
+ *
+ * Kompatibilitas ini bukan kemalasan: database sudah berisi tulisan sekolah
+ * yang ditulis sebelum editor ada. Memaksa semuanya menjadi HTML berarti
+ * tulisan lama tampil sebagai satu blok panjang tanpa paragraf.
+ */
+export function RichContent({ html }: { html: string }) {
+  const clean = sanitizeRichText(html);
+  if (!clean) return null;
+
+  // Tanpa tag blok apa pun, isi ini teks polos — pakai pemisahan paragraf.
+  const isPlain = !/<(p|h[1-6]|ul|ol|li|blockquote|hr|br)\b/i.test(clean);
+  if (isPlain) return <Prose text={clean} />;
+
+  return (
+    <div
+      className="rich-content text-base leading-relaxed text-[var(--site-text)]"
+      // Aman: `clean` sudah melewati daftar-putih tag & atribut (lihat
+      // lib/rich-text.ts) — script, iframe, dan atribut on* tidak lolos.
+      dangerouslySetInnerHTML={{ __html: clean }}
+    />
   );
 }
 

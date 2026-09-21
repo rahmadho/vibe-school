@@ -11,12 +11,18 @@ export function ClassForm({
   mode,
   years,
   teachers,
+  majors,
+  terminology,
   initial,
   action,
 }: {
   mode: "create" | "edit";
   years: Array<{ id: string; name: string }>;
   teachers: Array<{ id: string; fullName: string }>;
+  /** Opsi jurusan. Kosong = sekolah belum memakai jurusan → field disembunyikan. */
+  majors: Array<{ id: string; code: string; name: string }>;
+  /** Istilah jurusan sesuai jenjang ("Peminatan" / "Kompetensi Keahlian"). */
+  terminology: string;
   initial?: {
     id?: string;
     name?: string;
@@ -24,6 +30,7 @@ export function ClassForm({
     capacity?: number;
     academicYearId?: string;
     homeroomTeacherId?: string;
+    majorId?: string;
   };
   action: (formData: FormData) => Promise<ActionResult>;
 }) {
@@ -112,6 +119,27 @@ export function ClassForm({
               </Select>
             </Field>
           </div>
+
+          {/* Field jurusan hanya muncul bila sekolah sudah mengisi data jurusan.
+              Sekolah SD/SMP yang tidak memakainya tidak melihat field kosong. */}
+          {majors.length > 0 ? (
+            <div className="sm:col-span-3">
+              <Field label={`${terminology} (opsional)`} htmlFor="majorId" error={fe("majorId")}>
+                <Select
+                  id="majorId"
+                  name="majorId"
+                  defaultValue={initial?.majorId ?? ""}
+                >
+                  <option value="">Umum / belum ditentukan</option>
+                  {majors.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.code} — {m.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          ) : null}
         </div>
       </section>
 

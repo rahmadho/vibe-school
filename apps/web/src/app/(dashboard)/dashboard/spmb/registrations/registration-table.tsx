@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import type { ActionResult } from "@/lib/action-result";
-import { reviewRegistration } from "@/app/(dashboard)/dashboard/spmb/admission-actions";
+import {
+  reviewRegistration,
+  convertRegistrationToStudent,
+} from "@/app/(dashboard)/dashboard/spmb/admission-actions";
 
 /**
  * Tabel pendaftar + tindakan seleksi.
@@ -34,6 +37,9 @@ type Row = {
   statusLabel: string;
   batchName: string;
   pathName: string | null;
+  majorName: string | null;
+  /** Sudah pernah dikonversi menjadi siswa? Menandai penanda idempotensi. */
+  isConverted: boolean;
   resultNote: string | null;
   submittedAt: string;
 };
@@ -41,9 +47,13 @@ type Row = {
 export function RegistrationTable({
   rows,
   canManage,
+  classes,
+  majors,
 }: {
   rows: Row[];
   canManage: boolean;
+  classes: Array<{ id: string; name: string }>;
+  majors: Array<{ id: string; name: string }>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -56,6 +66,16 @@ export function RegistrationTable({
       if (r.ok) setOpenId(null);
     });
   }
+
+  function convert(fd: FormData) {
+    startTransition(async () => {
+      const r = await convertRegistrationToStudent(fd);
+      setResult(r);
+      if (r.ok) setOpenId(null);
+    });
+  }
+
+  const activeRow = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
 
   if (rows.length === 0) {
     return (
@@ -214,6 +234,96 @@ export function RegistrationTable({
             Bila status diubah menjadi Diterima atau Ditolak, pesan WhatsApp ke nomor wali
             masuk antrean dan dikirim otomatis sesuai jam wajar.
           </p>
+        </form>
+      )}
+
+      {/* Konversi ke siswa — hanya untuk pendaftar yang sudah DITERIMA.
+          Dipisah dari form keputusan karena ini tindakan berbeda: menilai
+          pendaftaran vs. memasukkan anak ke data induk sekolah. */}
+      {openId && canManage && activeRow?.status === "ACCEPTED" && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            convert(new FormData(e.currentTarget));
+          }}
+          className="border-2 border-[var(--board)] bg-white p-4"
+        >
+          <input type="hidden" name="registrationId" value={openId} />
+          <h3 className="font-display text-base font-semibold text-[var(--ink)]">
+            Jadikan siswa
+          </h3>
+
+          {activeRow.isConverted ? (
+            <p className="mt-2 border-l-4 border-[var(--board)] bg-[var(--board)]/5 px-3 py-2 text-sm text-[var(--ink)]">
+              Pendaftar ini sudah terdaftar sebagai siswa.
+            </p>
+          ) : (
+            <>
+              <p className="mt-0.5 text-xs text-[var(--slate)]">
+                Data pendaftar disalin otomatis (nama, jenis kelamin, tempat/tanggal
+                lahir, agama, alamat, wali
+                {activeRow.majorName ? `, jurusan ${activeRow.majorName}` : ""}).
+                Isi hanya yang belum ada.
+              </p>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs">
+                  <span className="font-medium text-[var(--ink)]">NIS</span>
+                  <input
+                    name="nis"
+                    required
+                    className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 font-mono text-sm"
+                    placeholder="Nomor induk siswa"
+                  />
+                </label>
+
+                <label className="block text-xs">
+                  <span className="font-medium text-[var(--ink)]">
+                    Tahun masuk
+                  </span>
+                  <input
+                    name="entryYear"
+                    type="number"
+                    defaultValue={new Date().getFullYear()}
+                    className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 tabular-nums text-sm"
+                  />
+                </label>
+
+                <label className="block text-xs sm:col-span-2">
+                  <span className="font-medium text-[var(--ink)]">
+                    Kelas (opsional)
+                  </span>
+                  <select
+                    name="classId"
+                    defaultValue=""
+                    className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
+                  >
+                    <option value="">Belum ditempatkan</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  {majors.length > 0 ? (
+                    <span className="mt-1 block text-[11px] text-[var(--slate)]">
+                      Memilih kelas berjurusan akan menyesuaikan jurusan siswa.
+                    </span>
+                  ) : null}
+                </label>
+              </div>
+
+              <div className="mt-3">
+                <button
+                  type="submit"
+                  disabled={pending}
+                  className="border-2 border-[var(--ink)] bg-[var(--board)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {pending ? "Memproses…" : "Jadikan siswa"}
+                </button>
+              </div>
+            </>
+          )}
         </form>
       )}
     </div>

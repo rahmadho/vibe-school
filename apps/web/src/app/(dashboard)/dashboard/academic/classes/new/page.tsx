@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { getAcademicYearOptions } from "@/lib/data/academic";
+import { prisma } from "@/lib/prisma";
+import { getAcademicYearOptions, getMajorOptions } from "@/lib/data/academic";
 import { getTeacherOptions } from "@/lib/data/personnel";
+import { majorTerminology } from "@/lib/major-labels";
 import { PageHeader } from "@/components/data-table";
 import { createClass } from "../../actions";
 import { ClassForm } from "../class-form";
@@ -18,9 +20,11 @@ export default async function NewClassPage() {
   }
 
   const schoolId = session.user.schoolId;
-  const [years, teachers] = await Promise.all([
+  const [years, teachers, majors, school] = await Promise.all([
     getAcademicYearOptions(schoolId),
     getTeacherOptions(schoolId),
+    getMajorOptions(schoolId),
+    prisma.school.findUnique({ where: { id: schoolId }, select: { level: true } }),
   ]);
 
   if (years.length === 0) {
@@ -31,10 +35,19 @@ export default async function NewClassPage() {
     );
   }
 
+  const term = majorTerminology(school?.level);
+
   return (
     <div className="space-y-6">
       <PageHeader title="Tambah kelas" />
-      <ClassForm mode="create" years={years} teachers={teachers} action={createClass} />
+      <ClassForm
+        mode="create"
+        years={years}
+        teachers={teachers}
+        majors={majors}
+        terminology={term.singular}
+        action={createClass}
+      />
     </div>
   );
 }

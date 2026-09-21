@@ -137,6 +137,33 @@ async function seedSchool(input: {
     },
   });
 
+  // Semester Ganjil & Genap — WAJIB ada, bukan pelengkap.
+  //
+  // Penilaian, komponen nilai, dan rapor semuanya terikat semester; tanpa
+  // baris ini halaman Penilaian dan Rapor tampil kosong walaupun sekolah,
+  // kelas, dan mapelnya sudah lengkap.
+  await prisma.semester.createMany({
+    data: [
+      {
+        academicYearId: year.id,
+        name: "Ganjil",
+        type: "GANJIL" as const,
+        startDate: new Date("2025-07-01"),
+        endDate: new Date("2025-12-31"),
+        isActive: true,
+      },
+      {
+        academicYearId: year.id,
+        name: "Genap",
+        type: "GENAP" as const,
+        startDate: new Date("2026-01-01"),
+        endDate: new Date("2026-06-30"),
+        isActive: false,
+      },
+    ],
+    skipDuplicates: true,
+  });
+
   // Admin sekolah
   await prisma.user.upsert({
     where: { email: input.adminEmail },
@@ -234,6 +261,175 @@ async function seedSchool(input: {
   return school;
 }
 
+/**
+ * Data contoh khusus SMK: jurusan, mapel produktif, kelas per jurusan, dan
+ * satu contoh PKL + UKK.
+ *
+ * Dipisah dari `seedSchool` karena hanya berlaku untuk jenjang kejuruan —
+ * menaruhnya di jalur umum berarti SD/SMP ikut mendapat tabel jurusan kosong
+ * yang tidak pernah dipakai.
+ */
+async function seedVocational(schoolId: string) {
+  const majors = [
+    { code: "RPL", name: "Rekayasa Perangkat Lunak" },
+    { code: "TKJ", name: "Teknik Komputer dan Jaringan" },
+    { code: "AKL", name: "Akuntansi dan Keuangan Lembaga" },
+  ];
+
+  const created: { id: string; code: string }[] = [];
+  for (const m of majors) {
+    const row = await prisma.major.upsert({
+      where: { schoolId_code: { schoolId, code: m.code } },
+      update: {},
+      create: { schoolId, code: m.code, name: m.name, isActive: true },
+      select: { id: true, code: true },
+    });
+    created.push(row);
+  }
+
+  // Mapel produktif per jurusan — inilah yang membedakan SMK dari SMA.
+  const productive: Record<string, { code: string; name: string }[]> = {
+    RPL: [
+      { code: "PWEB", name: "Pemrograman Web" },
+      { code: "PBO", name: "Pemrograman Berorientasi Objek" },
+      { code: "BASDAT", name: "Basis Data" },
+    ],
+    TKJ: [
+      { code: "JARDAS", name: "Jaringan Dasar" },
+      { code: "ADMJAR", name: "Administrasi Jaringan" },
+      { code: "KOMJAR", name: "Komunikasi Jaringan" },
+    ],
+    AKL: [
+      { code: "AKDAS", name: "Akuntansi Dasar" },
+      { code: "AKKEU", name: "Akuntansi Keuangan" },
+      { code: "PERPAJAKAN", name: "Perpajakan" },
+    ],
+  };
+
+  for (const major of created) {
+    for (const s of productive[major.code] ?? []) {
+      await prisma.subject.upsert({
+        where: { schoolId_code: { schoolId, code: s.code } },
+        update: {},
+        create: {
+          schoolId,
+          code: s.code,
+          name: s.name,
+          kkm: 75,
+          group: "KEJURUAN",
+          majorId: major.id,
+        },
+      });
+    }
+  }
+
+  // Kelas tingkat X per jurusan, plus satu kelas umum tanpa jurusan sebagai
+  // contoh bahwa jurusan bersifat opsional.
+  const year = await prisma.academicYear.findFirst({
+    where: { schoolId, isActive: true },
+    select: { id: true, startDate: true },
+  });
+  if (!year) return;
+
+  for (const major of created) {
+    await prisma.class.upsert({
+      where: {
+        schoolId_academicYearId_name: {
+          schoolId,
+          academicYearId: year.id,
+          name: `X ${major.code} 1`,
+        },
+      },
+      update: {},
+      create: {
+        schoolId,
+        academicYearId: year.id,
+        name: `X ${major.code} 1`,
+        level: 10,
+        capacity: 32,
+        majorId: major.id,
+      },
+    });
+  }
+
+  // Siswa contoh + komponen nilai + nilai.
+  //
+  // Tanpa ini, halaman Rapor per siswa tampil kosong dan pengelompokan mapel
+  // (Umum vs Kejuruan) tidak bisa dinilai sama sekali. Satu siswa cukup untuk
+  // memperlihatkan bentuk rapornya.
+  const teacher = await prisma.teacher.findFirst({
+    where: { schoolId, deletedAt: null },
+    select: { id: true },
+  });
+  const rplClass = await prisma.class.findFirst({
+    where: { schoolId, academicYearId: year.id, name: "X RPL 1" },
+    select: { id: true },
+  });
+  const rplMajor = created.find((m) => m.code === "RPL");
+
+  if (teacher && rplClass) {
+    const student = await prisma.student.upsert({
+      where: { schoolId_nis: { schoolId, nis: "RPL-001" } },
+      update: {},
+      create: {
+        schoolId,
+        nis: "RPL-001",
+        fullName: "Siti Rahmawati",
+        gender: "FEMALE",
+        entryYear: year.startDate.getFullYear(),
+        classId: rplClass.id,
+        majorId: rplMajor?.id ?? null,
+        status: "ACTIVE",
+      },
+      select: { id: true },
+    });
+
+    // Satu mapel umum + dua mapel produktif → dua kelompok terlihat di rapor.
+    const subjects = await prisma.subject.findMany({
+      where: { schoolId, code: { in: ["MAT", "PWEB", "BASDAT"] } },
+      select: { id: true, code: true },
+    });
+
+    const componentDefs = [
+      { name: "Tugas", type: "ASSIGNMENT" as const, weight: 20 },
+      { name: "UTS", type: "MIDTERM" as const, weight: 30 },
+      { name: "UAS", type: "FINAL" as const, weight: 50 },
+    ];
+
+    for (const subject of subjects) {
+      for (const def of componentDefs) {
+        const item = await prisma.gradeItem.create({
+          data: {
+            schoolId,
+            subjectId: subject.id,
+            academicYearId: year.id,
+            teacherId: teacher.id,
+            name: `${def.name} — ${subject.code}`,
+            type: def.type,
+            weight: def.weight,
+            maxScore: 100,
+          },
+          select: { id: true },
+        });
+        await prisma.grade.create({
+          data: {
+            schoolId,
+            gradeItemId: item.id,
+            studentId: student.id,
+            subjectId: subject.id,
+            classId: rplClass.id,
+            score: 80 + Math.floor(Math.random() * 15),
+          },
+        });
+      }
+    }
+  }
+
+  console.log(
+    `  ✓ ${created.length} jurusan SMK + mapel produktif + kelas X + contoh nilai`,
+  );
+}
+
 async function main() {
   console.log("Seeding database…");
 
@@ -265,6 +461,23 @@ async function main() {
     teacherName: "Sari Guru",
   });
 
+  // SMK contoh: satu-satunya sekolah di seed yang memakai jurusan, PKL, dan
+  // UKK. Tanpa contoh ini, fitur kejuruan tidak bisa dicoba sama sekali.
+  const smk = await seedSchool({
+    name: "SMK Negeri 2 Nusantara",
+    slug: "smkn2-nusantara",
+    npsn: "11223344",
+    level: "SMK",
+    themeColor: "#7C2D12",
+    planCode: "pro",
+    adminEmail: "admin@smkn2.sch.id",
+    adminName: "Bayu Admin",
+    teacherEmail: "guru@smkn2.sch.id",
+    teacherName: "Joko Guru",
+  });
+
+  await seedVocational(smk.id);
+
   // Super-admin (lintas sekolah)
   const superEmail =
     process.env.SEED_SUPERADMIN_EMAIL ?? "admin@schoolapp.local";
@@ -287,6 +500,7 @@ async function main() {
   console.log(`  ✓ super-admin: ${superEmail}`);
   console.log(`  ✓ admin SMP   : admin@smpn1.sch.id (${smp.slug})`);
   console.log(`  ✓ admin SD    : admin@tunasharapan.sch.id (${sd.slug})`);
+  console.log(`  ✓ admin SMK   : admin@smkn2.sch.id (${smk.slug})`);
 
   // ------------------------------------------------------------------
   // AKTIVITAS DEMO — hanya untuk SATU sekolah.

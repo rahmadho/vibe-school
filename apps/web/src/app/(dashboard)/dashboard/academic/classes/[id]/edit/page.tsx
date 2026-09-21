@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { getClass, getAcademicYearOptions } from "@/lib/data/academic";
+import { prisma } from "@/lib/prisma";
+import { getClass, getAcademicYearOptions, getMajorOptions } from "@/lib/data/academic";
 import { getTeacherOptions } from "@/lib/data/personnel";
+import { majorTerminology } from "@/lib/major-labels";
 import { PageHeader } from "@/components/data-table";
 import { updateClass } from "../../../actions";
 import { ClassForm } from "../../class-form";
@@ -23,12 +25,16 @@ export default async function EditClassPage({
 
   const schoolId = session.user.schoolId;
   const { id } = await params;
-  const [klass, years, teachers] = await Promise.all([
+  const [klass, years, teachers, majors, school] = await Promise.all([
     getClass(schoolId, id),
     getAcademicYearOptions(schoolId),
     getTeacherOptions(schoolId),
+    getMajorOptions(schoolId),
+    prisma.school.findUnique({ where: { id: schoolId }, select: { level: true } }),
   ]);
   if (!klass) notFound();
+
+  const term = majorTerminology(school?.level);
 
   return (
     <div className="space-y-6">
@@ -37,6 +43,8 @@ export default async function EditClassPage({
         mode="edit"
         years={years}
         teachers={teachers}
+        majors={majors}
+        terminology={term.singular}
         action={updateClass}
         initial={{
           id: klass.id,
@@ -45,6 +53,7 @@ export default async function EditClassPage({
           capacity: klass.capacity,
           academicYearId: klass.academicYear.id,
           homeroomTeacherId: klass.homeroomTeacher?.id ?? "",
+          majorId: klass.major?.id ?? "",
         }}
       />
     </div>
