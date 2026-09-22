@@ -47,6 +47,13 @@ const credentialsSchema = z.object({
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Wajib di produksi DI BALIK reverse proxy (Nginx/Cloudflare). NextAuth v5
+  // hanya otomatis mempercayai host lokal; tanpa ini, host publik
+  // (smpn1.sekolah.id) ditolak dan login gagal dengan
+  // "There is a problem with the server configuration". Aman di sini karena
+  // host sudah diverifikasi Nginx (proxy_set_header Host $host) dan hanya
+  // host itulah yang dipakai untuk menentukan tenant.
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [

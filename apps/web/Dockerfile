@@ -15,7 +15,7 @@
 # dibuat di tempat (npm workspaces kadang menyimpankan paket tertentu ke
 # apps/web/node_modules, bukan hoisted ke root). Menyalin node_modules antar
 # stage berisiko kehilangan paket itu.
-FROM node:20-slim AS builder
+FROM node:24-slim AS builder
 WORKDIR /app
 
 # openssl dibutuhkan Prisma engine di Debian slim.
@@ -48,7 +48,7 @@ RUN cd apps/web && npx prisma generate && npx next build
 
 # ---------- Stage 2: runner ----------
 # Image akhir ramping: hanya artefak standalone + static + public.
-FROM node:20-slim AS runner
+FROM node:24-slim AS runner
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
