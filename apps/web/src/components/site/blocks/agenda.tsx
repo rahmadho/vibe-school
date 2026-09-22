@@ -1,10 +1,5 @@
 import Link from "next/link";
-import {
-  BlockEmpty,
-  Section,
-  SectionHeading,
-  formatSiteDateTime,
-} from "@/components/site/site-ui";
+import { BlockEmpty, Section, SectionHeading, formatSiteDateTime } from "@/components/site/site-ui";
 import type { PostItem } from "@/components/site/blocks/news";
 
 /**
@@ -56,7 +51,7 @@ export function AgendaBlock({
     return (
       <Section>
         <SectionHeading title={heading} />
-        <ol className="space-y-6">
+        <ol className="site-stagger space-y-6">
           {items.map((post) => {
             const d = eventDate(post);
             const day = d.toLocaleDateString("id-ID", { day: "numeric" });

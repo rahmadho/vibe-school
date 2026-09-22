@@ -183,6 +183,27 @@ Langkah selanjutnya: {{langkah_selanjutnya}}
 
 — {{nama_sekolah}}`,
   },
+  {
+    key: "admission.rejected",
+    name: "Pengumuman tidak diterima",
+    category: "ADMISSION",
+    description: "Hasil seleksi: calon murid belum dapat diterima.",
+    // Nada pesan ini disengaja: tidak memakai kata "gagal" terhadap ANAK, dan
+    // selalu menyebut langkah berikutnya. Orang tua menerima kabar buruk lewat
+    // pesan otomatis — kalimatnya harus tetap menghormati.
+    body: `Assalamualaikum, Bapak/Ibu {{nama_pendaftar}}.
+
+Terima kasih atas kepercayaan Bapak/Ibu mendaftarkan {{nama_calon}} ke {{nama_sekolah}}.
+
+Setelah menimbang daya tampung dan hasil seleksi, dengan berat hati kami sampaikan bahwa {{nama_calon}} belum dapat kami terima pada gelombang ini.
+
+Nomor pendaftaran: {{nomor_pendaftaran}}
+Catatan: {{langkah_selanjutnya}}
+
+Kami mendoakan yang terbaik untuk {{nama_calon}}.
+
+— {{nama_sekolah}}`,
+  },
 
   /* ================= UMUM ================= */
   {

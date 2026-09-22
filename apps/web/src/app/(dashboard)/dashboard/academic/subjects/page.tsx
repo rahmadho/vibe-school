@@ -24,7 +24,7 @@ export default async function SubjectsPage() {
     prisma.school.findUnique({ where: { id: schoolId }, select: { level: true } }),
   ]);
 
-  const canManage = can(session.user.role, "academic", "manage");
+  const canManage = can(session.user.role, "academic", "manage", session.user.permissions);
   const term = majorTerminology(school?.level);
 
   return (

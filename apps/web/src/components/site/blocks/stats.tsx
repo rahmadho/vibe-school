@@ -46,10 +46,21 @@ export function StatsBlock({
     return (
       <Section>
         <SectionHeading title={heading || undefined} />
-        <div className="grid gap-6 sm:grid-cols-3">
+        <div className="site-stagger grid gap-6 sm:grid-cols-3">
           {items.map((item, index) => (
             <SiteCard key={index} className="px-6 py-8 text-center">
-              <div className="font-[family-name:var(--site-heading-font)] text-4xl font-bold leading-none text-[var(--site-primary)]">
+              {/*
+                Angka memakai `tabular-nums`: digit berlebar sama, sehingga
+                angka tidak "bergeser" saat nilainya berubah, dan beberapa
+                angka yang ditumpuk ke bawah bisa dibandingkan lurus.
+              */}
+              <div
+                className="font-[family-name:var(--site-heading-font)] font-bold leading-none text-[var(--site-primary)]"
+                style={{
+                  fontSize: "clamp(2rem, 1.5rem + 2vw, 3rem)",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
                 {item.value}
               </div>
               <div className="mt-3 text-sm font-medium text-[var(--site-muted)]">
@@ -71,10 +82,16 @@ export function StatsBlock({
           <div
             key={index}
             className={`min-w-[9rem] flex-1 px-6 py-4 text-center ${
-              index > 0 ? "border-l border-[var(--site-border)]" : ""
+              index > 0 ? "border-l border-white/20" : ""
             }`}
           >
-            <div className="font-[family-name:var(--site-heading-font)] text-3xl font-bold leading-none sm:text-4xl">
+            <div
+              className="font-[family-name:var(--site-heading-font)] font-bold leading-none"
+              style={{
+                fontSize: "clamp(1.75rem, 1.4rem + 1.6vw, 2.5rem)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
               {item.value}
             </div>
             <div className="mt-2 text-sm font-medium opacity-90">{item.label}</div>

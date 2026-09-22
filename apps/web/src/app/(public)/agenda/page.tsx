@@ -63,7 +63,7 @@ export default async function AgendaPage() {
           <h2 className="font-[family-name:var(--site-heading-font)] text-lg font-semibold text-[var(--site-text)]">
             Akan datang
           </h2>
-          <ul className="space-y-3">
+          <ul className="site-stagger space-y-3">
             {upcoming.map((a) => (
               <AgendaRow key={a.id} item={a} />
             ))}
@@ -76,7 +76,7 @@ export default async function AgendaPage() {
           <h2 className="font-[family-name:var(--site-heading-font)] text-lg font-semibold text-[var(--site-muted)]">
             Sudah berlangsung
           </h2>
-          <ul className="space-y-3">
+          <ul className="site-stagger space-y-3">
             {past.map((a) => (
               <AgendaRow key={a.id} item={a} past />
             ))}

@@ -44,18 +44,35 @@ export function FaqBlock({
     return (
       <Section>
         <SectionHeading title={heading || undefined} />
-        <div className="space-y-3">
+        <div className="site-stagger space-y-3">
           {items.map((item, index) => (
             <SiteCard key={index} className="overflow-hidden">
               <details className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold text-[var(--site-text)]">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold text-[var(--site-text)] transition-colors hover:text-[var(--site-primary)]">
                   <span>{item.question}</span>
-                  {/* Penanda buka/tutup murni CSS, tanpa state React. */}
-                  <span className="text-[var(--site-muted)] transition-transform group-open:rotate-45">
+                  {/*
+                    Penanda buka/tutup murni CSS, tanpa state React.
+                    Berputar 45° sehingga "+" menjadi "×" — gerakan kecil yang
+                    memberi tahu keadaan akordeon tanpa perlu teks tambahan.
+                  */}
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 text-lg leading-none text-[var(--site-muted)] transition-transform duration-300 ease-out group-open:rotate-45 group-open:text-[var(--site-primary)] motion-reduce:transition-none"
+                  >
                     +
                   </span>
                 </summary>
-                <div className="border-t border-[var(--site-border)] px-5 py-4 text-sm leading-relaxed text-[var(--site-muted)]">
+                {/*
+                  Jawaban muncul dengan gerakan halus saat dibuka.
+                  `details[open]` baru ada setelah diklik, jadi animasinya
+                  berjalan sekali di setiap pembukaan — tanpa JavaScript.
+                */}
+                <div
+                  className="border-t border-[var(--site-border)] px-5 py-4 text-sm leading-relaxed text-[var(--site-muted)]"
+                  style={{
+                    animation: "site-fade 340ms cubic-bezier(0.16, 1, 0.3, 1) both",
+                  }}
+                >
                   {item.answer}
                 </div>
               </details>
@@ -70,7 +87,7 @@ export function FaqBlock({
   return (
     <Section tone="surface">
       <SectionHeading title={heading || undefined} />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="site-stagger grid gap-6 lg:grid-cols-2">
         {items.map((item, index) => (
           <SiteCard key={index} className="px-5 py-5">
             <h3 className="font-[family-name:var(--site-heading-font)] text-base font-semibold text-[var(--site-text)]">

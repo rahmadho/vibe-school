@@ -43,7 +43,7 @@ export async function commitImport(
   if (!session.user.schoolId) {
     return { ok: false, imported: 0, skipped: 0, errors: [], message: "Akun tidak terhubung ke sekolah." };
   }
-  if (!can(session.user.role, "students", "create")) {
+  if (!can(session.user.role, "students", "create", session.user.permissions)) {
     return { ok: false, imported: 0, skipped: 0, errors: [], message: "Tidak punya izin." };
   }
 

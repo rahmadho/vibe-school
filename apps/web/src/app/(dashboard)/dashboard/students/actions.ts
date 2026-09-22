@@ -40,8 +40,8 @@ async function requireStudentManager() {
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
   if (!session.user.schoolId) throw new Error("NO_SCHOOL_SCOPE");
-  if (!can(session.user.role, "students", "manage") &&
-      !can(session.user.role, "students", "create")) {
+  if (!can(session.user.role, "students", "manage", session.user.permissions) &&
+      !can(session.user.role, "students", "create", session.user.permissions)) {
     throw new Error("FORBIDDEN");
   }
   return {

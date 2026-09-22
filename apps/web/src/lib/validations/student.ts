@@ -97,11 +97,28 @@ export const studentUpdateSchema = studentCreateSchema.extend({
 export type StudentCreateInput = z.infer<typeof studentCreateSchema>;
 export type StudentUpdateInput = z.infer<typeof studentUpdateSchema>;
 
-/** Filter daftar siswa (query string). */
+/**
+ * Nilai khusus untuk filter kelas: "none" = siswa yang BELUM ditempatkan.
+ *
+ * KENAPA PERLU: siswa baru hasil konversi SPMB sering belum dimasukkan ke
+ * kelas, dan justru merekalah yang perlu dicari panitia. Tanpa nilai ini,
+ * siswa tanpa kelas tidak bisa muncul di daftar mana pun — ia tidak punya
+ * `classId` yang bisa dipilih.
+ *
+ * "none" tidak mungkin bertabrakan dengan id kelas asli: id Prisma berawalan
+ * "c" diikuti karakter acak, tidak pernah berupa kata "none".
+ */
+export const CLASS_FILTER_NONE = "none";
+
 export const studentFilterSchema = z.object({
   q: z.string().trim().optional(),
   classId: z.string().trim().optional(),
   majorId: z.string().trim().optional(),
+  /**
+   * Tahun ajaran kelas. Menyaring lewat `class.academicYearId`, bukan kolom
+   * siswa — siswa tidak menyimpan tahun ajaran sendiri.
+   */
+  academicYearId: z.string().trim().optional(),
   status: z.enum(STUDENT_STATUSES).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(5).max(100).default(20),

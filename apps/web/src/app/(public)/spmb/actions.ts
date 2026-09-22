@@ -6,6 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { queueNotification } from "@/lib/notification-queue";
 import { resolveSchoolFromRequest } from "@/lib/site-server";
 import { getPublicBatches } from "@/lib/data/site";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   buildRegistrationNo,
   maskPhone,
@@ -94,6 +95,15 @@ export async function submitPublicRegistration(
   }
   const schoolId = ctx.school.id;
 
+  // Pembatasan laju: 10 pendaftaran per 10 menit per alamat IP.
+  //
+  // Batasnya sengaja longgar — satu keluarga bisa mendaftarkan beberapa anak
+  // dari satu jaringan sekolah/warnet, dan menolak mereka akan jauh lebih
+  // merugikan daripada membiarkan satu orang mengirim sepuluh pendaftaran.
+  // Yang dicegah adalah pengiriman massal oleh skrip, bukan pemakaian wajar.
+  const limited = await checkRateLimit("spmb-submit", 10, 10 * 60 * 1000);
+  if (limited) return { ok: false, error: limited };
+
   // 2. Bentuk isian.
   const parsed = publicRegistrationSchema.safeParse({
     batchId: formData.get("batchId"),
@@ -160,7 +170,32 @@ export async function submitPublicRegistration(
     majorId = major.id;
   }
 
-  // 4. Jalur yang penuh tidak boleh menerima pendaftar baru — mencegah orang tua
+  // 4. Kuota GELOMBANG — ditegakkan, bukan hanya kuota jalur.
+  //
+  // Sebelumnya hanya kuota jalur yang diperiksa. Akibatnya gelombang berkuota
+  // 100 dengan tiga jalur berkuota 50 masing-masing bisa menerima 150
+  // pendaftar, dan kelebihannya baru ketahuan saat ruang kelas kurang.
+  // Dihitung dari status yang sudah mengikat (bukan PENDING yang masih bisa
+  // gugur), supaya kuota tidak terpakai oleh pendaftar yang tidak serius.
+  if (batch.quota > 0) {
+    const acceptedInBatch = await prisma.registration.count({
+      where: {
+        schoolId,
+        batchId: batch.id,
+        status: { in: ["VERIFIED", "TESTED", "ACCEPTED"] },
+      },
+    });
+    if (acceptedInBatch >= batch.quota) {
+      return {
+        ok: false,
+        error:
+          `Kuota gelombang "${batch.name}" sudah penuh (${acceptedInBatch}/${batch.quota}). ` +
+          "Silakan hubungi sekolah untuk informasi gelombang berikutnya.",
+      };
+    }
+  }
+
+  // 4b. Jalur yang penuh tidak boleh menerima pendaftar baru — mencegah orang tua
   if (path.quota > 0) {
     const filled = await prisma.registration.count({
       where: {
@@ -180,7 +215,39 @@ export async function submitPublicRegistration(
     }
   }
 
-  // 5. Simpan. Nomor pendaftaran dibuat di server; ulangi bila kebetulan bentrok
+  // 5. Cegah pendaftaran ganda pada gelombang yang sama.
+  //
+  // Kunci yang dipakai: nama calon + tanggal lahir + nomor WA orang tua.
+  // Ketiganya bersama-sama cukup unik untuk satu anak, tetapi tidak terlalu
+  // ketat — dua anak kembar dengan orang tua sama tetap bisa mendaftar
+  // (tanggal lahirnya berbeda), dan orang tua yang mendaftarkan dua anaknya
+  // juga tidak terhalang.
+  //
+  // Yang dicegah: orang yang sama menekan "Kirim" dua kali karena jaringan
+  // lambat, atau sengaja mendaftar berkali-kali untuk mendapat beberapa nomor.
+  const duplicate = await prisma.registration.findFirst({
+    where: {
+      schoolId,
+      batchId: batch.id,
+      fullName: { equals: d.fullName.trim(), mode: "insensitive" },
+      parentPhone: d.parentPhone,
+      ...(d.birthDate ? { birthDate: new Date(d.birthDate) } : {}),
+      status: { notIn: ["WITHDRAWN", "REJECTED"] },
+    },
+    select: { registrationNo: true },
+  });
+  if (duplicate) {
+    return {
+      ok: false,
+      error:
+        `Pendaftaran dengan data yang sama sudah tercatat pada gelombang ini ` +
+        `(nomor ${duplicate.registrationNo}). ` +
+        "Gunakan halaman Cek Status untuk melihat hasilnya, atau hubungi sekolah " +
+        "bila Anda merasa ini keliru.",
+    };
+  }
+
+  // 6. Simpan. Nomor pendaftaran dibuat di server; ulangi bila kebetulan bentrok
   //    (peluangnya kecil, tetapi nomor ini unik global dan tidak boleh gagal).
   const meta = await requestMeta();
 
@@ -232,16 +299,26 @@ export async function submitPublicRegistration(
 
       // Notifikasi WA berisi nomor pendaftaran — masuk antrean, bukan dikirim
       // langsung (aturan proyek #9). Nomor WA orang tua menjadi kuncinya.
+      //
+      // NAMA TEMPLATE: `admission.*`, bukan `spmb.*`. Sebelumnya kode memanggil
+      // "spmb.received" yang TIDAK PERNAH ADA di database, sehingga notifikasi
+      // konfirmasi gagal terkirim secara diam-diam — `queueNotification`
+      // memang sengaja tidak melempar galat. Pendaftar tidak pernah tahu
+      // nomornya, dan panitia tidak pernah tahu ada yang gagal.
+      //
+      // NAMA VARIABEL juga harus sama dengan isi template: `{{nama_pendaftar}}`,
+      // `{{nama_calon}}`, `{{nomor_pendaftaran}}`. Variabel yang tidak dikenal
+      // diisi "-", jadi kesalahan di sini membuat pesannya berbunyi
+      // "Bapak/Ibu -, nomor -".
       await queueNotification({
         schoolId,
         to: d.parentPhone,
         recipientName: d.parentName,
-        templateKey: "spmb.received",
+        templateKey: "admission.received",
         vars: {
-          nama: d.fullName,
-          nomor: created.registrationNo,
-          gelombang: batch.name,
-          jalur: path.name,
+          nama_pendaftar: d.parentName,
+          nama_calon: d.fullName,
+          nomor_pendaftaran: created.registrationNo,
         },
         refType: "Registration",
         refId: created.id,
@@ -319,6 +396,14 @@ export async function checkRegistrationStatus(
     return { ok: false, error: "Alamat sekolah tidak dikenali." };
   }
   const schoolId = ctx.school.id;
+
+  // Cek status dibatasi lebih ketat: 20 percobaan per 10 menit.
+  //
+  // Lebih ketat karena halaman ini menerima nomor pendaftaran + nomor HP, dan
+  // tanpa batas seseorang bisa mencoba-coba kombinasi untuk menebak nomor
+  // pendaftaran orang lain. Batas ini juga mempersempit upaya tersebut.
+  const limited = await checkRateLimit("spmb-status", 20, 10 * 60 * 1000);
+  if (limited) return { ok: false, error: limited };
 
   const parsed = statusCheckSchema.safeParse({
     registrationNo: formData.get("registrationNo"),

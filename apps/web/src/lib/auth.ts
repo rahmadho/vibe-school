@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "./prisma";
 import { verifyPassword } from "./password";
+import { getOverridesForRole } from "./data/permissions";
 
 /**
  * ============================================================
@@ -21,6 +22,16 @@ declare module "next-auth" {
       id: string;
       role: UserRole;
       schoolId: string | null;
+      /**
+       * Penimpaan izin milik sekolah pengguna ini: `{ [module]: actions[] }`.
+       *
+       * Diambil dari database saat menyusun sesi, bukan disimpan di dalam
+       * token JWT. Alasannya: token ikut dikirim di setiap permintaan dan
+       * disimpan di cookie, sedangkan matriks izin bisa berubah kapan saja —
+       * izin yang basi di token berarti operator masih bisa melakukan hal yang
+       * baru saja dicabut. Objek ini juga bisa berisi puluhan modul.
+       */
+      permissions: Record<string, string[]>;
     } & DefaultSession["user"];
   }
   interface User {
@@ -107,6 +118,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.uid as string;
         session.user.role = token.role as UserRole;
         session.user.schoolId = (token.schoolId as string | null) ?? null;
+
+        // Izin diambil dari DATABASE pada setiap penyusunan sesi, bukan dari
+        // token. Kalau disimpan di token, izin yang baru dicabut tetap berlaku
+        // sampai pengguna login ulang — dan pencabutan izin biasanya justru
+        // dilakukan karena ada masalah yang perlu segera berhenti.
+        const role = token.role as UserRole;
+        const schoolId = (token.schoolId as string | null) ?? null;
+        session.user.permissions =
+          schoolId && role !== "SUPER_ADMIN"
+            ? await getOverridesForRole(schoolId, role)
+            : {};
       }
       return session;
     },

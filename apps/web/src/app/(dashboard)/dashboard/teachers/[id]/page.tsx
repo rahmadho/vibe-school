@@ -24,7 +24,7 @@ export default async function TeacherDetailPage({
   const teacher = await getTeacher(session.user.schoolId, id);
   if (!teacher) notFound();
 
-  const canManage = can(session.user.role, "teachers", "manage");
+  const canManage = can(session.user.role, "teachers", "manage", session.user.permissions);
 
   return (
     <div className="space-y-6">

@@ -13,6 +13,8 @@ import {
   SCHOOL_MANAGEABLE_ROLES,
 } from "@/lib/validations/user";
 import { emailExists } from "@/lib/data/users";
+import { can } from "@/lib/rbac";
+import { getOverridesForRole } from "@/lib/data/permissions";
 
 /**
  * Server Actions Pengguna.
@@ -124,6 +126,38 @@ export async function updateUser(formData: FormData): Promise<ActionResult> {
     };
   }
 
+  // ---- Pencegahan mengunci diri sendiri ----
+  //
+  // Dua perubahan di bawah membuat admin kehilangan jalan masuknya sendiri,
+  // dan pemulihannya harus lewat Super Admin:
+  //   1. menurunkan role sendiri ke role yang tidak boleh mengelola pengguna;
+  //   2. menonaktifkan akun sendiri (langsung tidak bisa login).
+  // Keduanya ditolak dengan penjelasan, bukan sekadar diperingatkan — setelah
+  // terjadi, tidak ada lagi yang bisa memperbaikinya dari dalam sekolah.
+  if (id === userId && actorRole !== "SUPER_ADMIN") {
+    if (!d.isActive) {
+      return {
+        ok: false,
+        error:
+          "Anda tidak dapat menonaktifkan akun Anda sendiri. Minta admin lain melakukannya, atau ubah peran Anda lebih dulu.",
+        fieldErrors: { isActive: ["Tidak dapat menonaktifkan akun sendiri"] },
+      };
+    }
+    if (d.role !== actorRole) {
+      // Diperiksa dengan penimpaan sekolah, bukan bawaan kode: role itu
+      // mungkin sudah dicabut aksesnya lewat halaman Hak Akses.
+      const targetOverrides = await getOverridesForRole(schoolId, d.role);
+      if (!can(d.role, "users", "manage", targetOverrides)) {
+        return {
+          ok: false,
+          error:
+            "Peran itu tidak dapat mengelola pengguna, sehingga Anda akan terkunci dari halaman ini. Sisakan peran Anda saat ini, atau minta admin lain mengubahnya.",
+          fieldErrors: { role: ["Akan mengunci akses Anda sendiri"] },
+        };
+      }
+    }
+  }
+
   const meta = await requestMeta();
   await prisma.user.update({
     where: { id },
@@ -216,6 +250,35 @@ export async function softDeleteUser(id: string): Promise<ActionResult> {
   }
   if (existing.role === "SUPER_ADMIN" && actorRole !== "SUPER_ADMIN") {
     return { ok: false, error: "Anda tidak boleh menonaktifkan super-admin." };
+  }
+
+  // ---- Pencegahan kehilangan admin terakhir ----
+  //
+  // Bila akun ini salah satu dari sedikit yang bisa mengelola pengguna,
+  // menonaktifkannya bisa membuat sekolah tidak punya siapa pun yang bisa
+  // mengelola akun — termasuk membuat akun baru. Diperiksa terhadap role
+  // EFEKTIF (bawaan + penimpaan), bukan role mentah, karena sekolah bisa
+  // mencabut akses sebuah role lewat halaman Hak Akses.
+  if (existing.isActive) {
+    const candidates = await prisma.user.findMany({
+      where: { schoolId, deletedAt: null, isActive: true },
+      select: { id: true, role: true },
+    });
+
+    let activeManagers = 0;
+    for (const u of candidates) {
+      if (u.id === id) continue; // akun ini sedang dinonaktifkan
+      const overrides = await getOverridesForRole(schoolId, u.role);
+      if (can(u.role, "users", "manage", overrides)) activeManagers += 1;
+    }
+
+    if (activeManagers === 0) {
+      return {
+        ok: false,
+        error:
+          "Ini satu-satunya akun aktif yang dapat mengelola pengguna. Menonaktifkannya akan membuat sekolah tidak bisa mengelola akun sama sekali. Angkat atau aktifkan admin lain lebih dulu.",
+      };
+    }
   }
 
   const meta = await requestMeta();

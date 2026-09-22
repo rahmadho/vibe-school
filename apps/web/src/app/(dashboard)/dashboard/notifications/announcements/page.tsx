@@ -17,7 +17,7 @@ export default async function AnnouncementsPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "notifications", "manage")) redirect("/dashboard");
+  if (!can(session.user.role, "notifications", "manage", session.user.permissions)) redirect("/dashboard");
 
   const sp = await searchParams;
   const schoolId = session.user.schoolId as string;

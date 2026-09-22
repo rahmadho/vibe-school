@@ -27,7 +27,7 @@ export default async function StaffPage({
   });
 
   const result = await listStaffs(session.user.schoolId, filter);
-  const canManage = can(session.user.role, "teachers", "manage");
+  const canManage = can(session.user.role, "teachers", "manage", session.user.permissions);
 
   return (
     <div className="space-y-6">

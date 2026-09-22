@@ -250,9 +250,11 @@ Beranda sekolah kosong | Belum ada blok tersusun | Susun blok di dasbor → Web 
 
 ## 9. Yang belum ada
 
-- **Penyimpanan berkas** (mis. S3/MinIO) belum ada. `coverUrl` masih string URL,
-  jadi unggah gambar langsung belum bisa — operator menempel tautan.
-- **Layanan `web` belum ada di `docker-compose.yml`.** Aplikasi Next.js masih
-  dijalankan terpisah (atau ditambahkan sendiri ke compose).
+- **Penyimpanan berkas** berbasis object storage (mis. S3/MinIO) belum ada; saat
+  ini driver `local` (volume Docker) yang dipakai — lihat
+  [penyimpanan-berkas.md](penyimpanan-berkas.md).
 - **Penyegaran sertifikat** untuk custom domain perlu entri `renew` tersendiri;
   wildcard tidak mencakupnya.
+
+> Konfigurasi Nginx lengkap (portal + wildcard + health) tersedia di
+> [../deploy/nginx/](../deploy/nginx/).

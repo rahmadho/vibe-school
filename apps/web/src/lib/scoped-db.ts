@@ -77,6 +77,8 @@ export const TENANT_MODELS = [
   "media",
   // Pengaturan AI menyimpan kunci API terenkripsi per sekolah.
   "aiSetting",
+  // Penimpaan izin per sekolah.
+  "rolePermission",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

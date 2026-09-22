@@ -74,7 +74,7 @@ export function ProfileBlock({
             {body ? <Prose text={body} /> : null}
           </div>
           <div className={imageFirst ? "lg:order-1" : "lg:order-2"}>
-            <SiteImage src={image} alt={heading || "Profil sekolah"} ratio="4/3" />
+            <SiteImage src={image} alt={heading || "Profil sekolah"} ratio="4/3" zoomOnHover />
           </div>
         </div>
       </Section>

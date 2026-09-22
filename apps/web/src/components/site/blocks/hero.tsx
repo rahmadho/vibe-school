@@ -9,6 +9,24 @@ import { Section, SiteButton, SiteImage } from "@/components/site/site-ui";
  *  3. Warna HANYA dari CSS variable (--site-*), tidak pernah warna Tailwind tetap.
  *  4. Bila data kurang, tampilkan `BlockEmpty` — jangan render kosong.
  *  5. Return satu elemen pembungkus; jangan mengembalikan null diam-diam.
+ *
+ * ============================================================
+ * KENAPA PEMBUKA INI DIGARAP LEBIH SERIUS DARI BLOK LAIN
+ * ============================================================
+ * Ini satu-satunya blok yang dilihat SETIAP pengunjung, dan yang menentukan
+ * apakah orang tua percaya pada sekolah ini dalam tiga detik pertama. Karena
+ * itu ia mendapat dua hal yang tidak diberikan ke blok lain:
+ *
+ *   1. GERAK BERTAHAP — logo, judul, kalimat pengantar, lalu tombol, masing
+ *      masing muncul berurutan. Satu momen pembuka yang teratur terbaca
+ *      sebagai "ditujukan", bukan sebagai animasi.
+ *
+ *   2. UKURAN FLUID — judul memakai `clamp()` sehingga tumbuh mengikuti lebar
+ *      layar. Ukuran tetap (mis. text-4xl) membuat judul panjang pecah
+ *      berantakan di ponsel dan terlihat kecil di desktop lebar.
+ *
+ * Gerak hanya memakai opacity dan transform: keduanya dijalankan kartu grafis,
+ * jadi halaman tetap mulus di ponsel kelas bawah yang dipakai banyak orang tua.
  */
 
 export type HeroProps = {
@@ -57,33 +75,63 @@ export function HeroBlock({
   /* ---------- Varian: besar tengah ---------- */
   if (variantKey === "hero.besar-tengah") {
     return (
-      <Section tone={image ? "default" : "primary"} className="relative overflow-hidden">
+      <Section
+        tone={image ? "default" : "primary"}
+        className="relative overflow-hidden"
+      >
         {image ? (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0" aria-hidden="true">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={image}
-              alt=""
-              className="h-full w-full object-cover opacity-15"
-              aria-hidden="true"
-            />
+            <img src={image} alt="" className="h-full w-full object-cover opacity-15" />
+            {/*
+              Lapisan pemudar di bawah: tanpa ini, gambar yang terang membuat
+              teks judul kehilangan kontras di bagian bawah blok. Gradiennya
+              memakai warna latar sekolah, bukan hitam, supaya menyatu dengan
+              tema — bukan noda gelap yang terlihat asing.
+            */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[var(--site-bg)]" />
           </div>
         ) : null}
+
         <div className="relative mx-auto max-w-3xl text-center">
           {logoUrl ? (
-            <div className="mb-6 flex justify-center">
+            <div className="site-rise mb-[clamp(1.25rem,3vw,2rem)] flex justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logoUrl} alt={schoolName} className="h-20 w-20 object-contain" />
+              <img
+                src={logoUrl}
+                alt={schoolName}
+                className="h-[clamp(4rem,8vw,5.5rem)] w-[clamp(4rem,8vw,5.5rem)] object-contain"
+              />
             </div>
           ) : null}
-          <h1 className="font-[family-name:var(--site-heading-font)] text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+
+          <h1
+            className="site-rise font-[family-name:var(--site-heading-font)] font-bold tracking-tight"
+            style={{
+              fontSize: "clamp(1.9rem, 1.1rem + 3.4vw, 3.5rem)",
+              lineHeight: 1.08,
+              animationDelay: "90ms",
+            }}
+          >
             {title}
           </h1>
+
           {subtitle ? (
-            <p className="mt-4 text-lg leading-relaxed opacity-90">{subtitle}</p>
+            <p
+              className="site-rise mx-auto mt-[clamp(1rem,2.5vw,1.5rem)] max-w-2xl text-[clamp(1rem,0.95rem+0.4vw,1.25rem)] leading-relaxed opacity-90"
+              style={{ animationDelay: "180ms" }}
+            >
+              {subtitle}
+            </p>
           ) : null}
+
           {hasCta || hasCta2 ? (
-            <div className="mt-8 flex flex-wrap justify-center gap-3">{actions}</div>
+            <div
+              className="site-rise mt-[clamp(1.75rem,4vw,2.5rem)] flex flex-wrap justify-center gap-3"
+              style={{ animationDelay: "280ms" }}
+            >
+              {actions}
+            </div>
           ) : null}
         </div>
       </Section>
@@ -94,23 +142,50 @@ export function HeroBlock({
   if (variantKey === "hero.belah-dua") {
     return (
       <Section>
-        <div className="grid items-center gap-10 lg:grid-cols-2">
+        <div className="grid items-center gap-[clamp(2rem,5vw,3.5rem)] lg:grid-cols-2">
           <div>
             {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={schoolName} className="mb-5 h-14 w-14 object-contain" />
+              <div className="site-rise mb-5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt={schoolName} className="h-14 w-14 object-contain" />
+              </div>
             ) : null}
-            <h1 className="font-[family-name:var(--site-heading-font)] text-3xl font-bold tracking-tight text-[var(--site-text)] sm:text-4xl">
+
+            <h1
+              className="site-rise font-[family-name:var(--site-heading-font)] font-bold tracking-tight text-[var(--site-text)]"
+              style={{
+                fontSize: "clamp(1.75rem, 1.1rem + 2.6vw, 3rem)",
+                lineHeight: 1.1,
+                animationDelay: "90ms",
+              }}
+            >
               {title}
             </h1>
+
             {subtitle ? (
-              <p className="mt-4 text-lg leading-relaxed text-[var(--site-muted)]">{subtitle}</p>
+              <p
+                className="site-rise mt-5 text-[clamp(1rem,0.95rem+0.4vw,1.125rem)] leading-relaxed text-[var(--site-muted)]"
+                style={{ animationDelay: "180ms" }}
+              >
+                {subtitle}
+              </p>
             ) : null}
+
             {hasCta || hasCta2 ? (
-              <div className="mt-8 flex flex-wrap gap-3">{actions}</div>
+              <div
+                className="site-rise mt-8 flex flex-wrap gap-3"
+                style={{ animationDelay: "260ms" }}
+              >
+                {actions}
+              </div>
             ) : null}
           </div>
-          <SiteImage src={image} alt={title} ratio="4/3" />
+
+          {image ? (
+            <div className="site-fade" style={{ animationDelay: "160ms" }}>
+              <SiteImage src={image} alt={title} ratio="4/3" />
+            </div>
+          ) : null}
         </div>
       </Section>
     );
@@ -126,7 +201,10 @@ export function HeroBlock({
             <img src={logoUrl} alt={schoolName} className="h-12 w-12 shrink-0 object-contain" />
           ) : null}
           <div>
-            <h1 className="font-[family-name:var(--site-heading-font)] text-2xl font-bold tracking-tight text-[var(--site-text)] sm:text-3xl">
+            <h1
+              className="font-[family-name:var(--site-heading-font)] font-bold tracking-tight text-[var(--site-text)]"
+              style={{ fontSize: "clamp(1.35rem, 1.1rem + 1.2vw, 1.875rem)", lineHeight: 1.15 }}
+            >
               {title}
             </h1>
             {subtitle ? (

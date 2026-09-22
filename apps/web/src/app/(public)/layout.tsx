@@ -72,8 +72,28 @@ export default async function PublicSiteLayout({
     const info = publicErrorPage(ctx);
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-        <div className="max-w-md text-center">
-          <div className="mb-4 text-5xl">🏫</div>
+        <div className="site-fade max-w-md text-center">
+          {/*
+            SVG sebaris, bukan emoji: emoji tampil berbeda di setiap sistem
+            operasi dan tidak bisa diwarnai. Halaman ini justru halaman pertama
+            yang dilihat pengunjung saat sekolah belum ditemukan — kesan
+            pertamanya harus rapi.
+          */}
+          <div className="mb-5 flex justify-center">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-12 w-12 text-slate-400"
+              aria-hidden="true"
+            >
+              <path d="M3 20.5h18M5 20.5V9l7-4.5 7 4.5v11.5" />
+              <path d="M9.5 20.5v-5h5v5" />
+            </svg>
+          </div>
           <h1 className="text-xl font-bold text-slate-900">{info.title}</h1>
           <p className="mt-3 text-sm text-slate-600">{info.message}</p>
           <p className="mt-2 text-xs text-slate-500">{info.hint}</p>

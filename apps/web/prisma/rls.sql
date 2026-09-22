@@ -66,6 +66,9 @@ DECLARE
     -- Pustaka media web sekolah. Berkas sekolah lain tidak boleh terlihat
     -- (nama berkas & URL-nya bisa menyingkap kegiatan internal sekolah).
     'media',
+    -- Penimpaan izin per sekolah. Bocor berarti sekolah lain bisa melihat
+    -- (atau menebak) pengaturan akses internal sekolah ini.
+    'role_permissions',
     -- Pengaturan AI menyimpan KUNCI API terenkripsi per sekolah. Kebocoran di
     -- sini berarti sekolah lain bisa memakai kuota AI sekolah ini.
     'ai_settings'

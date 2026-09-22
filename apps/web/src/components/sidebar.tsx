@@ -122,6 +122,8 @@ const ICON_PATHS: Record<string, string> = {
   // Percikan: menandai bantuan AI tanpa memakai ikon robot yang ramai.
   sparkle:
     "M12 3.6l1.6 4.4 4.4 1.6-4.4 1.6L12 15.6l-1.6-4.4L6 9.6l4.4-1.6zM18.4 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z",
+  permissions:
+    "M12 3.5 4.5 6.5v5c0 4.4 3.1 8.2 7.5 9.5 4.4-1.3 7.5-5.1 7.5-9.5v-5zM9.2 11.8l2 2 3.6-3.8",
 };
 
 /** Ukuran ikon: 15px — cukup dikenali, tidak sampai bersaing dengan label. */
@@ -257,6 +259,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/audit", label: "Log Aktivitas", icon: "audit", module: "audit" },
       { href: "/dashboard/billing", label: "Langganan", icon: "billing", module: "billing" },
       { href: "/dashboard/settings/ai", label: "Pengaturan AI", icon: "sparkle", module: "content" },
+      { href: "/dashboard/settings/permissions", label: "Hak Akses", icon: "permissions", module: "users" },
     ],
   },
 ];

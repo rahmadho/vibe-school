@@ -54,10 +54,10 @@ export function TeachersBlock({
     return (
       <Section>
         <SectionHeading title={heading} />
-        <ul className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="site-stagger grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
           {list.map((person) => (
-            <li key={person.id} className="text-center">
-              <SiteImage src={person.photoUrl} alt={person.name} ratio="3/4" />
+            <li key={person.id} className="group text-center">
+              <SiteImage src={person.photoUrl} alt={person.name} ratio="3/4" zoomOnHover />
               <p className="mt-3 font-semibold text-[var(--site-text)]">{person.name}</p>
               {showPosition && person.position ? (
                 <p className="mt-0.5 text-sm text-[var(--site-muted)]">{person.position}</p>

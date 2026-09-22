@@ -27,7 +27,7 @@ export default async function GradeItemsPage({
   if (!session.user.schoolId) redirect("/dashboard");
   const schoolId = session.user.schoolId;
 
-  if (!can(session.user.role, "grades", "manage")) {
+  if (!can(session.user.role, "grades", "manage", session.user.permissions)) {
     return <p className="text-slate">Halaman ini untuk guru dan admin.</p>;
   }
 

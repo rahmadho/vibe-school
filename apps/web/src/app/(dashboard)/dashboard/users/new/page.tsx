@@ -11,7 +11,7 @@ export default async function NewUserPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!session.user.schoolId) redirect("/dashboard");
-  if (!can(session.user.role, "users", "manage")) {
+  if (!can(session.user.role, "users", "manage", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya izin membuat akun.</p>;
   }
 

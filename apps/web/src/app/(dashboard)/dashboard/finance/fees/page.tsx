@@ -17,7 +17,7 @@ export default async function FeeTypesPage() {
   if (!session.user.schoolId) redirect("/dashboard");
   const schoolId = session.user.schoolId;
 
-  if (!can(session.user.role, "finance", "manage")) {
+  if (!can(session.user.role, "finance", "manage", session.user.permissions)) {
     return <p className="text-slate">Hanya admin dan bendahara yang dapat mengubah jenis biaya.</p>;
   }
 

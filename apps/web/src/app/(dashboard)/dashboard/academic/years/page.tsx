@@ -19,7 +19,7 @@ export default async function AcademicYearsPage() {
   if (!session.user.schoolId) redirect("/dashboard");
 
   const years = await listAcademicYears(session.user.schoolId);
-  const canManage = can(session.user.role, "academic", "manage");
+  const canManage = can(session.user.role, "academic", "manage", session.user.permissions);
 
   return (
     <div className="space-y-6">

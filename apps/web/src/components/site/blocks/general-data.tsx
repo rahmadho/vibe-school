@@ -163,7 +163,7 @@ export function StepsBlock({
         {heading ? (
           <h2 className="font-display text-[var(--site-text)] text-2xl">{heading}</h2>
         ) : null}
-        <ol className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="site-stagger mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {items.slice(0, 4).map((item, i) => (
             <li key={i}>
               <span
@@ -324,7 +324,7 @@ export function AchievementsBlock({
         {heading ? (
           <h2 className="font-display text-[var(--site-text)] text-2xl">{heading}</h2>
         ) : null}
-        <ul className="mt-6 grid gap-6 sm:grid-cols-3">
+        <ul className="site-stagger mt-6 grid gap-6 sm:grid-cols-3">
           {items.slice(0, 3).map((item, i) => (
             <li key={i} className="border-t-2 border-[var(--site-accent)] pt-3">
               <span className="tabular-display block text-sm uppercase tracking-[0.16em] text-[var(--site-muted)]">
@@ -348,7 +348,7 @@ export function AchievementsBlock({
       {heading ? (
         <h2 className="font-display text-[var(--site-text)] text-2xl">{heading}</h2>
       ) : null}
-      <ul className="mt-4 divide-y divide-[var(--site-border)]">
+      <ul className="site-stagger mt-4 divide-y divide-[var(--site-border)]">
         {items.map((item, i) => (
           <li key={i} className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-3">
             <span className="tabular-nums w-14 shrink-0 text-sm text-[var(--site-muted)]">
@@ -416,7 +416,7 @@ export function DownloadsBlock({
 
       <ul
         className={
-          asCards ? "mt-6 grid gap-4 sm:grid-cols-2" : "mt-4 divide-y divide-[var(--site-border)]"
+          asCards ? "site-stagger mt-6 grid gap-4 sm:grid-cols-2" : "site-stagger mt-4 divide-y divide-[var(--site-border)]"
         }
       >
         {items.map((item, i) => (
@@ -490,7 +490,7 @@ export function CardsBlock({
         {heading ? (
           <h2 className="font-display text-[var(--site-text)] text-2xl">{heading}</h2>
         ) : null}
-        <ul className="mt-6 space-y-4">
+        <ul className="site-stagger mt-6 space-y-4">
           {items.map((item, i) => (
             <li
               key={i}
@@ -515,7 +515,7 @@ export function CardsBlock({
         {heading ? (
           <h2 className="font-display text-[var(--site-text)] text-2xl">{heading}</h2>
         ) : null}
-        <ul className="mt-6 grid gap-8 sm:grid-cols-3">
+        <ul className="site-stagger mt-6 grid gap-8 sm:grid-cols-3">
           {items.slice(0, 6).map((item, i) => (
             <li key={i}>
               <span
@@ -539,11 +539,11 @@ export function CardsBlock({
       {heading ? (
         <h2 className="font-display text-[var(--site-text)] text-2xl">{heading}</h2>
       ) : null}
-      <ul className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="site-stagger mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item, i) => (
           <li key={i} className="border border-[var(--site-border)]">
             {item.imageUrl ? (
-              <SiteImage src={item.imageUrl} alt={item.title || "Gambar"} ratio="4/3" />
+              <SiteImage src={item.imageUrl} alt={item.title || "Gambar"} ratio="4/3" zoomOnHover />
             ) : null}
             <div className="p-4">
               <h3 className="font-semibold text-[var(--site-text)]">{item.title}</h3>

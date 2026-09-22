@@ -1,56 +1,98 @@
-# CATATAN PENTING (Fase 8 — multi-tenant subdomain)
+# Docker Compose — aplikasi (web) + WA gateway.
 #
-# Berkas ini BELUM lengkap untuk multi-tenant subdomain:
-#   1. Layanan `web` (aplikasi Next.js) belum ada di sini.
-#   2. Nginx belum menangani wildcard subdomain (*.sekolah.id), padahal itu
-#      WAJIB: subdomain adalah satu-satunya jalan masuk web sekolah di produksi.
+# Nama project Compose dipatok `school-app` agar tidak mengikuti nama folder
+# (mis. `vibe-school`). Efeknya: prefix resource jadi `school-app_*` dan
+# volume/network bernama konsisten di mesin mana pun. Override bila perlu:
+#     docker compose -p nama-lain ...
+name: school-app
 #
-# Lihat docs/panduan-deploy-subdomain.md untuk konfigurasi yang benar.
-# Jangan pakai berkas ini apa adanya untuk produksi multi-sekolah.
+# PostgreSQL dan Nginx TIDAK dikelola di sini:
+#   * PostgreSQL sudah berjalan di container/stack lain pada jaringan eksternal
+#     `db-network` (nama container/host-nya lihat DATABASE_URL di .env).
+#   * Nginx reverse proxy sudah berjalan pada jaringan eksternal `app-network`.
+#
+# Karena itu berkas ini hanya mendefinisikan dua layanan:
+#   * web        — aplikasi Next.js (dibangun dari root monorepo)
+#   * wa-gateway — worker antrean WA + HTTP API sesi (Baileys)
+#
+# Kedua jaringan di bawah WAJIB sudah ada lebih dulu (dibuat oleh stack DB /
+# reverse proxy). Bila belum ada, buat manual:
+#     docker network create db-network
+#     docker network create app-network
+#
+# Menjalankan:  docker compose up -d --build
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: school-postgres
+  # ------------------------------------------------------------------
+  # Aplikasi web (Next.js standalone)
+  # ------------------------------------------------------------------
+  web:
+    build:
+      # Konteks = root monorepo, karena npm workspaces + prisma/schema.prisma
+      # ada di apps/web dan lockfile di root.
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: school-app-web:latest
+    container_name: school-web
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: school
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diatur di .env}
-      POSTGRES_DB: schoolapp
-    # JANGAN buka ke publik. Aplikasi web dan worker mengakses postgres lewat
-    # jaringan internal Docker (nama host: postgres). Port hanya dipetakan ke
-    # localhost agar masih bisa diakses dari VPS sendiri (psql, pg_dump).
-    ports:
-      - "127.0.0.1:5432:5432"
+      NODE_ENV: "production"
+      PORT: "3000"
+      # Alamat wa-gateway dari sudut pandang web (nama service Docker).
+      WA_GATEWAY_URL: "http://wa-gateway:3001"
+      # Berkas unggahan runtime disimpan di volume agar bertahan saat redeploy.
+      STORAGE_DRIVER: "local"
+      UPLOAD_DIR: "/data/uploads"
     volumes:
-      - school_pgdata:/var/lib/postgresql/data
+      - school_uploads:/data/uploads
+    ports:
+      # Hanya localhost; Nginx (di app-network) yang meneruskan ke 3000.
+      # Hapus baris ini bila Nginx mengakses web langsung lewat app-network.
+      - "127.0.0.1:3000:3000"
+    networks:
+      - db-network   # akses PostgreSQL
+      - app-network  # dijangkau Nginx reverse proxy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U school -d schoolapp"]
-      interval: 10s
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
+      start_period: 30s
 
+  # ------------------------------------------------------------------
+  # WA gateway (Baileys): worker antrean + HTTP API sesi
+  # ------------------------------------------------------------------
   wa-gateway:
     build:
-      context: ./apps/wa-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/wa-gateway/Dockerfile
+    image: school-wa-gateway:latest
     container_name: school-wa-gateway
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: "postgresql://school:***@postgres:5432/schoolapp?schema=public"
-      WA_GATEWAY_TOKEN: "${WA_GATEWAY_TOKEN}"
-      WA_SESSION_DIR: "/data/sessions"
       PORT: "3001"
       LOG_LEVEL: "info"
-    ports:
-      # Hanya mendengarkan di localhost VPS; Nginx yang meneruskan.
-      # Jangan diubah ke 0.0.0.0 kecuali Anda tahu konsekuensinya.
-      - "127.0.0.1:3001:3001"
+      WA_SESSION_DIR: "/data/sessions"
     volumes:
+      # Kredensial sesi WhatsApp — sangat sensitif, jangan hilang saat redeploy.
       - school_wa_sessions:/data/sessions
+    ports:
+      # Hanya localhost VPS. Web mengaksesnya lewat nama service di app-network,
+      # jadi baris ini opsional (berguna untuk debug dari host).
+      - "127.0.0.1:3001:3001"
+    networks:
+      - db-network   # worker membaca notification_queue
+      - app-network  # web memanggil HTTP API (/sessions/*, /health)
     healthcheck:
       test:
         [
@@ -64,6 +106,17 @@ services:
       retries: 3
       start_period: 20s
 
+networks:
+  # Jaringan ke PostgreSQL (container DB sudah ada di sini).
+  db-network:
+    external: true
+  # Jaringan ke Nginx reverse proxy.
+  app-network:
+    external: true
+
 volumes:
-  school_pgdata:
+  # Berkas unggahan runtime (logo sekolah, sampul). WAJIB ikut rutin backup —
+  # tidak tercakup pg_dump.
+  school_uploads:
+  # Kredensial sesi WhatsApp, agar tidak perlu pindai QR tiap restart.
   school_wa_sessions:

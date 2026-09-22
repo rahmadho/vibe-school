@@ -61,7 +61,7 @@ export default async function RegistrationsPage({
     prisma.admissionBatch.findMany({
       where: { schoolId },
       orderBy: { openDate: "desc" },
-      select: { id: true, name: true, paths: { select: { id: true, name: true } } },
+      select: { id: true, name: true, paths: { select: { id: true, name: true, code: true } } },
     }),
     prisma.registration.findMany({
       where: regWhere,
@@ -182,6 +182,11 @@ export default async function RegistrationsPage({
         canManage={canManage}
         classes={classes}
         majors={majors}
+        batches={batches.map((b) => ({
+          id: b.id,
+          name: b.name,
+          paths: b.paths.map((p) => ({ id: p.id, name: p.name, code: p.code })),
+        }))}
         rows={registrations.map((r) => ({
           id: r.id,
           registrationNo: r.registrationNo,
@@ -194,6 +199,13 @@ export default async function RegistrationsPage({
           batchName: r.batch.name,
           pathName: r.path?.name ?? null,
           majorName: r.major?.name ?? null,
+          source: r.source,
+          docs: {
+            docBirthCert: r.docBirthCert,
+            docFamilyCard: r.docFamilyCard,
+            docPhoto: r.docPhoto,
+            docDiploma: r.docDiploma,
+          },
           isConverted: Boolean(r.studentId),
           resultNote: r.resultNote,
           submittedAt: r.submittedAt.toISOString(),

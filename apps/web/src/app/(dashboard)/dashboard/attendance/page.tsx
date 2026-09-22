@@ -28,10 +28,10 @@ export default async function AttendancePage({
   if (!session.user.schoolId) redirect("/dashboard");
 
   const schoolId = session.user.schoolId;
-  if (!can(session.user.role, "attendance", "read")) {
+  if (!can(session.user.role, "attendance", "read", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya akses ke modul absensi.</p>;
   }
-  const canMark = can(session.user.role, "attendance", "create");
+  const canMark = can(session.user.role, "attendance", "create", session.user.permissions);
 
   const sp = await searchParams;
   const years = await prisma.academicYear.findMany({

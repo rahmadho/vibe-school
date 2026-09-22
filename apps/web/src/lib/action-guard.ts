@@ -24,7 +24,11 @@ export async function requirePermission(
   const session = await auth();
   if (!session?.user) throw new Error("UNAUTHENTICATED");
   if (!session.user.schoolId) throw new Error("NO_SCHOOL_SCOPE");
-  if (!can(session.user.role, module, action)) throw new Error("FORBIDDEN");
+  // Izin penimpaan milik sekolah ikut diperiksa — tanpa ini, pengaturan izin
+  // di dasbor hanya akan mengubah tampilan menu, sementara aksinya tetap lolos.
+  if (!can(session.user.role, module, action, session.user.permissions)) {
+    throw new Error("FORBIDDEN");
+  }
   return {
     userId: session.user.id,
     role: session.user.role,

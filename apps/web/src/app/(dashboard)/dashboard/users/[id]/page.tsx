@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can, ALL_MODULES, ROLE_DESCRIPTION } from "@/lib/rbac";
 import { getUser } from "@/lib/data/users";
+import { getOverridesForRole } from "@/lib/data/permissions";
 import { USER_ROLE_LABEL } from "@/lib/validations/user";
 import { formatDateLong } from "@/lib/format";
 import { Button } from "@/components/ui";
@@ -26,11 +27,15 @@ export default async function UserDetailPage({
   const user = await getUser(session.user.schoolId, id);
   if (!user) notFound();
 
-  const canManage = can(session.user.role, "users", "manage");
+  const canManage = can(session.user.role, "users", "manage", session.user.permissions);
   const isSelf = user.id === session.user.id;
 
-  // Modul yang bisa diakses role ini.
-  const allowed = ALL_MODULES.filter((m) => can(user.role, m, "read"));
+  // Modul yang bisa diakses ROLE PENGGUNA INI — bukan role orang yang sedang
+  // melihat halaman. Dua hal berbeda: admin melihat halaman ini justru untuk
+  // memeriksa apa yang bisa dilakukan staf yang sedang dibukanya. Karena itu
+  // izin diambil untuk role pengguna tersebut, bukan dari sesi pengunjung.
+  const targetOverrides = await getOverridesForRole(session.user.schoolId, user.role);
+  const allowed = ALL_MODULES.filter((m) => can(user.role, m, "read", targetOverrides));
 
   return (
     <div className="space-y-6">

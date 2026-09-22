@@ -1,7 +1,10 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { StudentFilter } from "@/lib/validations/student";
+import {
+  CLASS_FILTER_NONE,
+  type StudentFilter,
+} from "@/lib/validations/student";
 
 /**
  * Query layer Siswa.
@@ -30,24 +33,66 @@ export type StudentListItem = Prisma.StudentGetPayload<{
   select: typeof studentListSelect;
 }>;
 
-export async function listStudents(schoolId: string, filter: StudentFilter) {
-  const { q, classId, majorId, status, page, perPage } = filter;
+export async function listStudents(
+  schoolId: string,
+  filter: StudentFilter,
+  /**
+   * Sertakan siswa yang belum ditempatkan saat menyaring per tahun ajaran.
+   *
+   * Dipakai untuk tahun ajaran AKTIF saja: siswa tanpa kelas adalah siswa baru
+   * yang sedang menunggu ditempatkan. Untuk tahun lain, mereka tidak relevan
+   * dan justru menyesatkan.
+   */
+  opts: { includeUnassigned?: boolean } = {},
+) {
+  const { q, classId, majorId, academicYearId, status, page, perPage } = filter;
+  const includeUnassigned = opts.includeUnassigned ?? false;
+
+  // Kelas kosong ("none") punya arti sendiri: siswa yang BELUM ditempatkan.
+  // Tidak bisa ditulis sebagai `{ classId: "none" }` — tidak akan ada hasilnya.
+  const wantsUnassigned = classId === CLASS_FILTER_NONE;
+
+  // `OR` dipakai oleh dua hal sekaligus (tahun ajaran dan pencarian), dan
+  // menaruh keduanya di tingkat atas membuat yang satu menimpa yang lain —
+  // filter tahun akan hilang begitu pengguna mengetik kata kunci. Karena itu
+  // keduanya digabung lewat AND.
+  const and: Prisma.StudentWhereInput[] = [];
+
+  if (academicYearId) {
+    // Siswa tanpa kelas ikut ditampilkan HANYA pada tahun aktif.
+    //
+    // Mereka memang belum punya tahun, tetapi merekalah yang sedang menunggu
+    // ditempatkan — siswa baru hasil konversi SPMB. Menyembunyikannya membuat
+    // panitia tidak bisa menemukannya di tampilan bawaan.
+    //
+    // Pada tahun LAIN, mereka tidak disertakan: memilih "2024/2025" lalu
+    // melihat siswa yang sama sekali tidak terkait dengan tahun itu justru
+    // menyesatkan. Untuk mencari yang belum ditempatkan, tersedia pilihan
+    // khusus "Belum ada kelas" — jalan yang jelas dan disengaja.
+    and.push(
+      includeUnassigned
+        ? { OR: [{ class: { academicYearId } }, { classId: null }] }
+        : { class: { academicYearId } },
+    );
+  }
+
+  if (q) {
+    and.push({
+      OR: [
+        { fullName: { contains: q, mode: "insensitive" } },
+        { nis: { contains: q, mode: "insensitive" } },
+        { nisn: { contains: q, mode: "insensitive" } },
+      ],
+    });
+  }
 
   const where: Prisma.StudentWhereInput = {
     schoolId, // ← isolasi tenant (WAJIB)
     deletedAt: null,
     ...(status ? { status } : {}),
-    ...(classId ? { classId } : {}),
+    ...(wantsUnassigned ? { classId: null } : classId ? { classId } : {}),
     ...(majorId ? { majorId } : {}),
-    ...(q
-      ? {
-          OR: [
-            { fullName: { contains: q, mode: "insensitive" } },
-            { nis: { contains: q, mode: "insensitive" } },
-            { nisn: { contains: q, mode: "insensitive" } },
-          ],
-        }
-      : {}),
+    ...(and.length > 0 ? { AND: and } : {}),
   };
 
   const [items, total] = await Promise.all([
@@ -92,7 +137,14 @@ export async function getStudentStats(schoolId: string) {
   return { total, active, male, female };
 }
 
-/** Opsi kelas untuk dropdown filter/form (bisa difilter tahun ajaran). */
+/**
+ * Opsi kelas untuk dropdown filter/form.
+ *
+ * Mengembalikan `studentCount` agar operator tahu kelas mana yang sudah penuh
+ * tanpa harus membukanya. Juga menyertakan nama tahun ajaran — saat filter
+ * tahun diset "Semua tahun", dua kelas bernama sama dari tahun berbeda muncul
+ * bersamaan, dan tanpa tahunnya keduanya tampak identik.
+ */
 export async function getClassOptions(schoolId: string, academicYearId?: string) {
   return prisma.class.findMany({
     where: {
@@ -100,8 +152,26 @@ export async function getClassOptions(schoolId: string, academicYearId?: string)
       deletedAt: null,
       ...(academicYearId ? { academicYearId } : {}),
     },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      level: true,
+      capacity: true,
+      academicYearId: true,
+      majorId: true,
+      academicYear: { select: { name: true, isActive: true } },
+      _count: { select: { students: { where: { deletedAt: null } } } },
+    },
+    // Urut per tingkat lalu nama: "7A, 7B, 8A" — bukan urutan abjad yang
+    // menaruh "10A" sebelum "7A".
+    orderBy: [{ level: "asc" }, { name: "asc" }],
+  });
+}
+
+/** Jumlah siswa yang belum ditempatkan di kelas mana pun. */
+export async function countUnassignedStudents(schoolId: string): Promise<number> {
+  return prisma.student.count({
+    where: { schoolId, deletedAt: null, classId: null, status: "ACTIVE" },
   });
 }
 

@@ -23,7 +23,7 @@ export default async function SchoolDetailPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "schools", "manage")) {
+  if (!can(session.user.role, "schools", "manage", session.user.permissions)) {
     return <p className="text-slate">Halaman ini khusus untuk super-admin.</p>;
   }
 

@@ -22,8 +22,8 @@ export default async function TimeSlotsPage() {
   if (!session?.user) redirect("/login");
   if (!session.user.schoolId) redirect("/dashboard");
 
-  const canManage = can(session.user.role, "academic", "manage");
-  if (!can(session.user.role, "academic", "read")) {
+  const canManage = can(session.user.role, "academic", "manage", session.user.permissions);
+  if (!can(session.user.role, "academic", "read", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya akses ke modul akademik.</p>;
   }
 

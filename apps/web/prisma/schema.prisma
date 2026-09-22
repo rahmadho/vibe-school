@@ -7,6 +7,11 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Engine disertakan untuk Linux (Docker/produksi) DAN Windows (dev lokal),
+  // supaya `prisma generate` di satu OS tetap menghasilkan client yang jalan
+  // di kedua tempat. Tanpa ini, image Docker bisa gagal: "Query engine ...
+  // not found" karena hanya engine Windows yang ter-bundle.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -80,6 +85,7 @@ model School {
   posts           Post[]
   media           Media[]
   aiSetting       AiSetting?
+  rolePermissions RolePermission[]
 
   // Jurusan / peminatan (Fase SMK-SMA)
   majors          Major[]
@@ -137,6 +143,7 @@ model User {
   attendancesMarked Attendance[]           @relation("AttendanceMarkedBy")
   campaignsCreated  AnnouncementCampaign[] @relation("CampaignCreatedBy")
   mediaUploaded     Media[]                @relation("MediaUploadedBy")
+  rolePermissionsUpdated RolePermission[] @relation("RolePermissionUpdatedBy")
 
   @@index([schoolId])
   @@index([role])
@@ -605,6 +612,24 @@ model Registration {
   registrationNo String             @unique // nomor pendaftaran
   status         RegistrationStatus @default(PENDING)
 
+  /// Dari mana pendaftaran ini masuk.
+  ///
+  /// Publik = orang tua mengisi sendiri lewat web. Walk-in = datang ke sekolah.
+  /// Telepon/WA = panitia memasukkan atas permintaan orang tua.
+  ///
+  /// Dipisahkan karena keduanya punya akibat berbeda: pendaftar walk-in
+  /// berkasnya sudah dilihat langsung (boleh langsung VERIFIED), dan
+  /// laporan penerimaan murid perlu bisa memisahkan mana yang online.
+  source RegistrationSource @default(PUBLIC)
+
+  /// Nominal daftar ulang yang ditetapkan panitia saat menerima pendaftar.
+  ///
+  /// Disimpan DI SINI karena Invoice wajib terhubung ke Student, sedangkan
+  /// pendaftar baru menjadi siswa setelah panitia membuatkan akunnya. Tanpa
+  /// kolom ini, angka yang diisi panitia hilang dan tidak bisa dipakai saat
+  /// tagihan daftar ulang dibuat.
+  reRegistrationFee Int?
+
   // Data calon siswa
   fullName   String
   gender     Gender
@@ -656,6 +681,14 @@ enum RegistrationStatus {
   REJECTED // ditolak
   WAITLIST // cadangan
   WITHDRAWN // mengundurkan diri
+}
+
+/// Dari mana pendaftaran masuk. Dipakai untuk memisahkan laporan online vs
+/// datang langsung, dan untuk menentukan status awal.
+enum RegistrationSource {
+  PUBLIC // orang tua mengisi sendiri lewat web sekolah
+  WALK_IN // datang langsung ke sekolah
+  PHONE // panitia memasukkan atas permintaan lewat telepon/WA
 }
 
 // ============================================================
@@ -1215,6 +1248,54 @@ model AiSetting {
   updatedAt DateTime @updatedAt
 
   @@map("ai_settings")
+}
+
+/// Penimpaan izin per sekolah.
+///
+/// ============================================================
+/// KENAPA ADA, PADAHAL IZIN SUDAH ADA DI KODE
+/// ============================================================
+/// Matriks izin bawaan (`lib/rbac.ts`) mewakili sekolah pada umumnya. Kenyataan
+/// di lapangan tidak begitu: ada sekolah yang ingin bendahara hanya MELIHAT
+/// tagihan tanpa boleh mengubahnya; ada yang ingin staf bisa mengisi absensi;
+/// ada yang kepala sekolahnya merangkap pengelola web. Sebelum ini, satu-satunya
+/// jalan adalah mengubah kode dan deploy ulang untuk satu sekolah.
+///
+/// ============================================================
+/// CARA KERJANYA: BARIS ADA = MENIMPA
+/// ============================================================
+/// Baris di sini berarti "untuk sekolah ini, role ini, modul ini, izinnya
+/// adalah ini" — menggantikan bawaan sepenuhnya, bukan menambah.
+/// Bila TIDAK ada baris, bawaan kode yang dipakai.
+///
+/// Konsekuensinya penting dan disengaja: sekolah yang tidak pernah membuka
+/// halaman izin tidak punya satu baris pun di sini, sehingga perilakunya
+/// PERSIS seperti sebelum fitur ini ada. Tidak ada migrasi perilaku.
+///
+/// Untuk mengembalikan ke bawaan, barisnya dihapus — bukan diisi ulang dengan
+/// nilai bawaan. Dengan begitu, perbaikan matriks bawaan di versi berikutnya
+/// ikut terpakai oleh sekolah yang belum pernah menimpanya.
+model RolePermission {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  role   UserRole
+  /// Nama modul dari `lib/rbac.ts` (mis. "finance").
+  module String
+  /// Aksi yang diizinkan: "read" | "create" | "update" | "delete" | "manage".
+  /// Array kosong berarti role ini TIDAK punya akses ke modul tersebut.
+  actions String[]
+
+  updatedById String?
+  updatedBy   User?   @relation("RolePermissionUpdatedBy", fields: [updatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, role, module])
+  @@index([schoolId, role])
+  @@map("role_permissions")
 }
 
 enum PostType {

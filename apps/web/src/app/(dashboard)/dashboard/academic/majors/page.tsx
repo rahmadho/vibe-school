@@ -38,7 +38,7 @@ export default async function MajorsPage() {
     }),
   ]);
 
-  const canManage = can(session.user.role, "academic", "manage");
+  const canManage = can(session.user.role, "academic", "manage", session.user.permissions);
   const term = majorTerminology(school?.level);
 
   return (

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function WhatsappPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "notifications", "manage")) redirect("/dashboard");
+  if (!can(session.user.role, "notifications", "manage", session.user.permissions)) redirect("/dashboard");
 
   const schoolId = session.user.schoolId as string;
   const saved = await getWaSession(schoolId);

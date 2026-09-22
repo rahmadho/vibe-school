@@ -41,7 +41,7 @@ export default async function AuditPage({
   if (!session.user.schoolId) redirect("/dashboard");
 
   // `read` sudah cukup — log bersifat catatan, bukan alat kerja harian.
-  if (!can(session.user.role, "audit", "read")) {
+  if (!can(session.user.role, "audit", "read", session.user.permissions)) {
     return (
       <p className="text-slate">Halaman ini hanya untuk pengelola sekolah.</p>
     );

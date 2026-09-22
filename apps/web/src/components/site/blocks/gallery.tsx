@@ -51,14 +51,14 @@ export function GalleryBlock({
     return (
       <Section>
         <SectionHeading title={heading} />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="site-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {items.map((post) => (
             <Link
               key={post.id}
               href={`/galeri/${post.slug}`}
-              className="block transition-opacity hover:opacity-90"
+              className="group block"
             >
-              <SiteImage src={post.coverUrl} alt={post.title} ratio="1/1" />
+              <SiteImage zoomOnHover src={post.coverUrl} alt={post.title} ratio="1/1" />
             </Link>
           ))}
         </div>
@@ -78,7 +78,7 @@ export function GalleryBlock({
           <Link
             key={post.id}
             href={`/galeri/${post.slug}`}
-            className={`block transition-opacity hover:opacity-90 ${
+            className={`group block ${
               index === 0 ? "col-span-2 row-span-2" : ""
             }`}
           >

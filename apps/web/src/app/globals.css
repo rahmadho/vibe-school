@@ -71,6 +71,133 @@
     font-feature-settings: "kern", "liga";
   }
 
+  /* ============================================================
+   * GERAK UNTUK WEB PUBLIK
+   *
+   * Prinsipnya: satu momen pembuka yang teratur, bukan puluhan
+   * mikro-interaksi. Yang bergerak hanya `opacity` dan `transform` — keduanya
+   * bisa dijalankan kartu grafis, sehingga tidak memaksa peramban menghitung
+   * ulang tata letak setiap bingkai. Di ponsel kelas bawah, animasi properti
+   * tata letak (tinggi, lebar, margin) adalah penyebab tersering halaman
+   * terasa tersendat.
+   *
+   * Hanya dipakai di halaman publik (kelas `.site-*`), TIDAK di dasbor:
+   * operator sekolah bekerja berulang setiap hari, dan gerakan yang menyenangkan
+   * di kunjungan pertama menjadi lambat di kunjungan keseratus.
+   * ============================================================ */
+  @keyframes site-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes site-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes site-wipe {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  .site-rise {
+    /* `both` supaya elemen tetap tak terlihat sebelum animasinya mulai —
+       tanpa itu, isi berkedip muncul lalu melompat. */
+    animation: site-rise 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .site-fade {
+    animation: site-fade 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /*
+   * Garis yang "tergores" dari kiri — mengingatkan gerakan kapur di papan.
+   * Dipakai hemat: hanya pada judul bagian, bukan setiap elemen.
+   */
+  .site-rule {
+    transform-origin: left center;
+    animation: site-wipe 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /*
+   * Jeda berurutan untuk daftar anak.
+   *
+   * Memakai `:nth-child` alih-alih variabel `--i` yang harus diisi di JSX:
+   * dengan cara ini, SETIAP daftar berulang di semua blok mendapat jeda yang
+   * benar tanpa satu baris pun kode tambahan di komponennya. Menyunting
+   * belasan berkas blok hanya untuk menambah nomor urut adalah pekerjaan yang
+   * mudah terlupa saat blok baru ditambahkan.
+   *
+   * Dibatasi 8 langkah: sesudah itu jeda kumulatif terasa seperti halaman yang
+   * lambat, bukan gerakan yang disengaja.
+   */
+  .site-stagger > * {
+    animation: site-rise 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .site-stagger > *:nth-child(2) {
+    animation-delay: 70ms;
+  }
+  .site-stagger > *:nth-child(3) {
+    animation-delay: 140ms;
+  }
+  .site-stagger > *:nth-child(4) {
+    animation-delay: 210ms;
+  }
+  .site-stagger > *:nth-child(5) {
+    animation-delay: 280ms;
+  }
+  .site-stagger > *:nth-child(6) {
+    animation-delay: 350ms;
+  }
+  .site-stagger > *:nth-child(7) {
+    animation-delay: 420ms;
+  }
+  .site-stagger > *:nth-child(n + 8) {
+    animation-delay: 490ms;
+  }
+
+  /*
+   * Muncul saat masuk layar.
+   *
+   * Tanpa JavaScript: `animation-timeline: view()` di peramban yang
+   * mendukungnya, dan tanpa itu blok langsung tampil (bukan tersembunyi) —
+   * halaman tidak boleh bergantung pada animasi untuk bisa dibaca.
+   */
+  @supports (animation-timeline: view()) {
+    .site-inview {
+      animation: site-rise 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+
+  /* Kenaikan halus saat kartu disorot. */
+  .site-lift {
+    transition:
+      transform 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 200ms ease,
+      background-color 200ms ease;
+  }
+  @media (hover: hover) {
+    .site-lift:hover {
+      transform: translate3d(0, -3px, 0);
+    }
+  }
+
   /* Angka penting pakai Fraunces (display serif) */
   .tabular-display {
     @apply font-display;

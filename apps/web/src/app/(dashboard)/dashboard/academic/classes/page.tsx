@@ -34,7 +34,7 @@ export default async function ClassesPage({
   }
 
   const classes = await listClasses(schoolId, { academicYearId });
-  const canManage = can(session.user.role, "academic", "manage");
+  const canManage = can(session.user.role, "academic", "manage", session.user.permissions);
   const selectedYear = years.find((y) => y.id === academicYearId);
 
   return (

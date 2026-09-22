@@ -35,10 +35,10 @@ export default async function GalleryPage() {
         />
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="site-stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {withPhoto.map((g) => (
           <Link key={g.id} href={`/berita/${g.slug}`} className="group block">
-            <SiteImage src={g.coverUrl} alt={g.title} ratio="1/1" />
+            <SiteImage zoomOnHover src={g.coverUrl} alt={g.title} ratio="1/1" />
             <p className="mt-1.5 line-clamp-2 text-xs text-[var(--site-muted)] group-hover:text-[var(--site-text)]">
               {g.title}
             </p>

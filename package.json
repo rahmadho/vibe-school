@@ -19,7 +19,6 @@
     "db:seed": "npm run db:seed --workspace=web",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
     "wa": "npm run dev --workspace=wa-gateway",
-    "db:up": "docker compose up -d postgres",
     "services:up": "docker compose up -d"
   },
   "engines": {

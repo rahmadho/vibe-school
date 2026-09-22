@@ -36,10 +36,10 @@ export default async function ReportPage({
   if (!session.user.schoolId) redirect("/dashboard");
   const schoolId = session.user.schoolId;
 
-  if (!can(session.user.role, "grades", "read")) {
+  if (!can(session.user.role, "grades", "read", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya akses ke modul penilaian.</p>;
   }
-  const canManage = can(session.user.role, "grades", "manage");
+  const canManage = can(session.user.role, "grades", "manage", session.user.permissions);
 
   const sp = await searchParams;
   const years = await prisma.academicYear.findMany({

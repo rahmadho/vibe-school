@@ -26,8 +26,8 @@ export default async function StudentDetailPage({
   const student = await getStudent(session.user.schoolId, id);
   if (!student) notFound();
 
-  const canEdit = can(session.user.role, "students", "update");
-  const canDelete = can(session.user.role, "students", "delete");
+  const canEdit = can(session.user.role, "students", "update", session.user.permissions);
+  const canDelete = can(session.user.role, "students", "delete", session.user.permissions);
 
   const parent = student.parents[0];
 

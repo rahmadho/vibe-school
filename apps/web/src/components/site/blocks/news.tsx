@@ -1,12 +1,5 @@
 import Link from "next/link";
-import {
-  BlockEmpty,
-  Section,
-  SectionHeading,
-  SiteCard,
-  SiteImage,
-  formatSiteDate,
-} from "@/components/site/site-ui";
+import { BlockEmpty, Section, SectionHeading, SiteCard, SiteImage, formatSiteDate } from "@/components/site/site-ui";
 
 /**
  * Blok "news" (Berita & Kegiatan) — 4 varian gaya.
@@ -88,11 +81,11 @@ export function NewsBlock({
     return (
       <Section>
         <SectionHeading title={heading} subtitle={subtitle} />
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="site-stagger grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((post) => (
             <Link key={post.id} href={`/berita/${post.slug}`} className="group block">
-              <SiteCard className="h-full overflow-hidden transition-opacity group-hover:opacity-90">
-                <SiteImage src={post.coverUrl} alt={post.title} ratio="16/9" />
+              <SiteCard className="h-full overflow-hidden">
+                <SiteImage src={post.coverUrl} alt={post.title} ratio="16/9" zoomOnHover />
                 <div className="p-5">
                   <h3 className="font-[family-name:var(--site-heading-font)] text-lg font-bold leading-snug text-[var(--site-text)]">
                     {post.title}
@@ -161,8 +154,8 @@ export function NewsBlock({
               href={`/berita/${post.slug}`}
               className="group block w-80 shrink-0 min-w-[280px]"
             >
-              <SiteCard className="h-full overflow-hidden transition-opacity group-hover:opacity-90">
-                <SiteImage src={post.coverUrl} alt={post.title} ratio="16/9" />
+              <SiteCard className="h-full overflow-hidden">
+                <SiteImage src={post.coverUrl} alt={post.title} ratio="16/9" zoomOnHover />
                 <div className="p-5">
                   <h3 className="font-[family-name:var(--site-heading-font)] text-base font-bold leading-snug text-[var(--site-text)]">
                     {post.title}
@@ -192,7 +185,7 @@ export function NewsBlock({
       <div className="grid gap-8 lg:grid-cols-2">
         <Link href={`/berita/${lead.slug}`} className="group block">
           <SiteImage src={lead.coverUrl} alt={lead.title} ratio="16/9" />
-          <h3 className="mt-4 font-[family-name:var(--site-heading-font)] text-2xl font-bold leading-snug text-[var(--site-text)] transition-opacity group-hover:opacity-90">
+          <h3 className="mt-4 font-[family-name:var(--site-heading-font)] text-2xl font-bold leading-snug text-[var(--site-text)]">
             {lead.title}
           </h3>
           <p className="mt-1 text-xs text-[var(--site-muted)]">

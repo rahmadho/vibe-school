@@ -107,6 +107,7 @@ export default async function SpmbPage() {
           openDate: b.openDate.toISOString(),
           closeDate: b.closeDate.toISOString(),
           resultDate: b.resultDate?.toISOString() ?? null,
+          resultAnnouncement: b.resultAnnouncement ?? null,
           description: b.description,
           requirements: b.requirements,
           quota: b.quota,

@@ -205,10 +205,44 @@ export const ROLE_DESCRIPTION: Record<UserRole, string> = {
 };
 
 /**
+ * Penimpaan izin satu sekolah: `{ [module]: actions[] }`.
+ *
+ * Hanya berisi modul yang SENGAJA diubah sekolah. Modul yang tidak ada di sini
+ * memakai matriks bawaan di atas — itulah sebabnya sekolah yang belum pernah
+ * membuka halaman Izin berperilaku persis seperti sebelumnya.
+ */
+export type PermissionOverride = Partial<Record<Module, Action[]>>;
+
+/** Semua aksi yang dikenal, dipakai UI matriks. */
+export const ALL_ACTIONS: Action[] = ["read", "create", "update", "delete", "manage"];
+
+/**
  * Apakah role boleh melakukan aksi pada modul.
  * `manage` mencakup semua aksi lain.
+ *
+ * `override` (opsional) adalah penimpaan milik sekolah. Bila modul itu ada di
+ * dalamnya, penimpaan MENGGANTIKAN bawaan sepenuhnya — bukan menambah.
+ * Dua alasan:
+ *   1. "Mencabut izin" harus mungkin. Kalau penimpaan hanya menambah, tidak
+ *      ada cara membuat bendahara berhenti boleh mengubah tagihan.
+ *   2. Perilakunya mudah ditebak: yang terlihat di layar itulah yang berlaku.
+ *      Menambah-diam-diam membuat operator tidak pernah yakin apakah sebuah
+ *      centang benar-benar mencabut atau tidak.
  */
-export function can(role: UserRole, module: Module, action: Action): boolean {
+export function can(
+  role: UserRole,
+  module: Module,
+  action: Action,
+  override?: PermissionOverride | null,
+): boolean {
+  // SUPER_ADMIN sengaja TIDAK bisa ditimpa: ia pengelola lintas sekolah, dan
+  // sekolah tidak boleh mengunci dirinya sendiri dari pemulihan.
+  if (role !== "SUPER_ADMIN" && override && Object.hasOwn(override, module)) {
+    const allowed = override[module] ?? [];
+    if (allowed.includes("manage")) return true;
+    return allowed.includes(action);
+  }
+
   const allowed = PERMISSIONS[role]?.[module];
   if (!allowed) return false;
   if (allowed.includes("manage")) return true;
@@ -216,18 +250,95 @@ export function can(role: UserRole, module: Module, action: Action): boolean {
 }
 
 /** Apakah role boleh mengakses modul (aksi apa pun). */
-export function canAccessModule(role: UserRole, module: Module): boolean {
+export function canAccessModule(
+  role: UserRole,
+  module: Module,
+  override?: PermissionOverride | null,
+): boolean {
+  if (role !== "SUPER_ADMIN" && override && Object.hasOwn(override, module)) {
+    return (override[module] ?? []).length > 0;
+  }
   return Boolean(PERMISSIONS[role]?.[module]?.length);
 }
 
-/** Modul yang boleh diakses role (untuk membangun menu sidebar). */
-export function modulesFor(role: UserRole): Module[] {
-  return (Object.keys(PERMISSIONS[role] ?? {}) as Module[]).filter((m) =>
-    canAccessModule(role, m),
-  );
+/**
+ * Modul yang boleh diakses role (untuk membangun menu sidebar).
+ *
+ * Penimpaan bisa MENCABUT modul maupun MEMBERI modul yang tidak ada di bawaan,
+ * jadi hasilnya adalah gabungan kunci bawaan dan kunci penimpaan.
+ */
+export function modulesFor(
+  role: UserRole,
+  override?: PermissionOverride | null,
+): Module[] {
+  const keys = new Set<Module>(Object.keys(PERMISSIONS[role] ?? {}) as Module[]);
+  if (role !== "SUPER_ADMIN" && override) {
+    for (const m of Object.keys(override) as Module[]) keys.add(m);
+  }
+  return Array.from(keys).filter((m) => canAccessModule(role, m, override));
 }
 
 /** Apakah role lintas-sekolah (boleh schoolId null). */
 export function isCrossTenant(role: UserRole): boolean {
   return role === "SUPER_ADMIN";
+}
+
+/**
+ * Matriks izin EFEKTIF untuk satu role di satu sekolah — dipakai halaman
+ * pengaturan izin untuk menampilkan keadaan sebenarnya, bukan bawaan saja.
+ *
+ * Modul yang ditimpa ditampilkan dengan nilainya; sisanya memakai bawaan.
+ */
+export function effectivePermissions(
+  role: UserRole,
+  override?: PermissionOverride | null,
+): Record<Module, Action[]> {
+  const out = {} as Record<Module, Action[]>;
+  for (const m of ALL_MODULES) {
+    if (role !== "SUPER_ADMIN" && override && Object.hasOwn(override, m)) {
+      out[m] = [...(override[m] ?? [])];
+    } else {
+      out[m] = [...(PERMISSIONS[role]?.[m] ?? [])];
+    }
+  }
+  return out;
+}
+
+/** Apakah modul ini sedang ditimpa (berbeda dari bawaan)? */
+export function isOverridden(
+  role: UserRole,
+  module: Module,
+  override?: PermissionOverride | null,
+): boolean {
+  return Boolean(role !== "SUPER_ADMIN" && override && Object.hasOwn(override, module));
+}
+
+/**
+ * Apakah masih ADA role yang boleh mengelola pengguna?
+ *
+ * ============================================================
+ * KENAPA PEMERIKSAAN INI ADA
+ * ============================================================
+ * Halaman Hak Akses sendiri dibuka dengan izin `users: manage`. Kalau operator
+ * mencabut izin itu dari SEMUA role yang bisa ia atur, tidak ada seorang pun di
+ * sekolah yang bisa membukanya lagi — termasuk orang yang baru saja
+ * melakukannya. Pemulihannya harus lewat Super Admin, yaitu jalur luar yang
+ * tidak seharusnya dibutuhkan hanya karena salah mencentang.
+ *
+ * Karena itu perubahan yang menghasilkan keadaan itu DITOLAK, bukan
+ * diperingatkan. Peringatan mudah dilewati; penguncian permanen tidak.
+ *
+ * `SUPER_ADMIN` tidak ikut dihitung: ia pengelola platform, bukan pengguna
+ * sekolah, dan tidak bisa dipakai sekolah untuk membuka dirinya sendiri.
+ */
+export function anyRoleCanManageUsers(
+  roles: readonly UserRole[],
+  overrides: Record<string, PermissionOverride | null | undefined>,
+): boolean {
+  return roles.some((role) => can(role, "users", "manage", overrides[role]));
+}
+
+/** Izin bawaan satu role pada satu modul — untuk menampilkan "semula". */
+export function defaultActionsFor(role: UserRole, module: Module): Action[] {
+  return [...(PERMISSIONS[role]?.[module] ?? [])];
 }

@@ -7,6 +7,7 @@ import {
   createAdmissionBatch,
   createAdmissionPath,
   deleteAdmissionPath,
+  saveAdmissionResult,
   updateAdmissionBatch,
   updateAdmissionPath,
 } from "@/app/(dashboard)/dashboard/spmb/admission-actions";
@@ -40,6 +41,7 @@ type BatchRow = {
   openDate: string;
   closeDate: string;
   resultDate: string | null;
+  resultAnnouncement: string | null;
   description: string | null;
   requirements: string | null;
   quota: number;
@@ -58,6 +60,8 @@ export function BatchList({
   canManage: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  /** Gelombang yang panel pengumuman hasilnya sedang terbuka. */
+  const [resultOpen, setResultOpen] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -69,6 +73,8 @@ export function BatchList({
       if (r.ok) onOk?.();
     });
   }
+
+  console.log(batches)
 
   return (
     <div className="space-y-4">
@@ -136,6 +142,18 @@ export function BatchList({
                   placeholder="Informasi umum yang tampil di halaman pendaftaran publik."
                 />
               </label>
+
+              {/* Kotak centang ini WAJIB ada. Tanpa ini `isActive` tidak pernah
+                  terkirim, dan sebelum skema diperbaiki itu membuat setiap
+                  gelombang baru lahir nonaktif — pendaftaran tidak pernah
+                  terbuka walau tanggalnya sudah benar. */}
+              <label className="flex items-center gap-2 text-xs sm:col-span-2">
+                <input type="checkbox" name="isActive" defaultChecked />
+                <span className="text-[var(--ink)]">
+                  Aktifkan sekarang (pendaftaran dibuka)
+                </span>
+              </label>
+
               <p className="text-[11px] text-[var(--slate)] sm:col-span-2">
                 Satu jalur bernama <strong>Reguler</strong> dibuat otomatis. Tambahkan jalur
                 lain setelah gelombang tersimpan.
@@ -201,12 +219,108 @@ export function BatchList({
 
                 <button
                   type="button"
-                  onClick={() => setOpenId(isOpen ? null : b.id)}
+                  onClick={() => {
+                    setOpenId(isOpen ? null : b.id);
+                    setResultOpen(null);
+                  }}
                   className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
                 >
                   {isOpen ? "Tutup" : `Jalur (${b.paths.length})`}
                 </button>
+
+                {/* Pengumuman hasil seleksi. Tanpa tombol ini, kolom
+                    `resultAnnouncement` tidak punya cara diisi sama sekali —
+                    padahal halaman Cek Status publik sudah membacanya, dan
+                    orang tua tidak pernah melihat pengumuman apa pun. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResultOpen(resultOpen === b.id ? null : b.id);
+                    setOpenId(null);
+                  }}
+                  className="border-2 border-[var(--chalk)] bg-white px-3 py-1.5 text-sm hover:border-[var(--ink)]"
+                >
+                  {resultOpen === b.id
+                    ? "Tutup"
+                    : b.resultAnnouncement
+                      ? "Pengumuman ✓"
+                      : "Pengumuman"}
+                </button>
               </div>
+
+              {resultOpen === b.id ? (
+                <div className="border-t border-dashed border-[var(--chalk)] bg-[var(--paper)] p-4">
+                  <h4 className="text-sm font-semibold text-[var(--ink)]">
+                    Pengumuman hasil seleksi
+                  </h4>
+                  <p className="mt-1 text-[11px] text-[var(--slate)]">
+                    Tampil di halaman Cek Status publik. Isi kapan dan bagaimana
+                    hasil diumumkan — berbeda dari catatan per pendaftar.
+                  </p>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      submit(saveAdmissionResult, new FormData(e.currentTarget));
+                    }}
+                    className="mt-3 space-y-3"
+                  >
+                    <input type="hidden" name="batchId" value={b.id} />
+
+                    <label className="block text-xs">
+                      <span className="font-medium text-[var(--ink)]">
+                        Isi pengumuman
+                      </span>
+                      <textarea
+                        name="resultAnnouncement"
+                        rows={4}
+                        defaultValue={b.resultAnnouncement ?? ""}
+                        placeholder="Contoh: Hasil seleksi diumumkan 1 Juli 2026. Daftar ulang 1–10 Juli 2026 dengan membawa fotokopi akta kelahiran dan kartu keluarga."
+                        className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
+                      />
+                    </label>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-xs">
+                        <span className="font-medium text-[var(--ink)]">
+                          Tanggal pengumuman
+                        </span>
+                        <input
+                          type="date"
+                          name="resultDate"
+                          defaultValue={b.resultDate ?? ""}
+                          className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 text-sm"
+                        />
+                      </label>
+
+                      <label className="flex items-start gap-2 self-end text-xs">
+                        <input
+                          type="checkbox"
+                          name="notify"
+                          className="mt-0.5 h-4 w-4 accent-[var(--board)]"
+                        />
+                        <span>
+                          <span className="block font-medium text-[var(--ink)]">
+                            Kirim WA ke pendaftar yang sudah diputus
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-[var(--slate)]">
+                            Hanya yang berstatus diterima, ditolak, atau
+                            cadangan.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={pending}
+                      className="border-2 border-[var(--ink)] bg-[var(--marker)] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {pending ? "Menyimpan…" : "Simpan pengumuman"}
+                    </button>
+                  </form>
+                </div>
+              ) : null}
 
               {isOpen && (
                 <div className="border-t border-dashed border-[var(--chalk)] p-4">
@@ -367,6 +481,22 @@ export function BatchList({
                         <input type="hidden" name="academicYearId" value={b.academicYearId} />
                         <SmallField label="Nama" name="name" defaultValue={b.name} />
                         <SmallField label="Kuota" name="quota" type="number" defaultValue={String(b.quota)} />
+                        {/* Tanggal ikut ditampilkan: skema kini menerima
+                            suntingan sebagian, tetapi operator tetap perlu
+                            bisa memperpanjang atau memajukan periode tanpa
+                            membongkar gelombangnya. */}
+                        <SmallField
+                          label="Dibuka"
+                          name="openDate"
+                          type="date"
+                          defaultValue={toDateInput(b.openDate)}
+                        />
+                        <SmallField
+                          label="Ditutup"
+                          name="closeDate"
+                          type="date"
+                          defaultValue={toDateInput(b.closeDate)}
+                        />
                         <label className="flex items-center gap-2 text-xs">
                           <input type="checkbox" name="isActive" defaultChecked={b.isActive} />
                           <span>Aktif (pendaftaran dibuka)</span>
@@ -456,4 +586,19 @@ function fmtDate(iso: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+/**
+ * Ubah tanggal ISO menjadi nilai untuk `<input type="date">` (YYYY-MM-DD).
+ *
+ * Tidak bisa memakai `toISOString().slice(0,10)` langsung: tanggal disimpan
+ * sebagai tengah malam UTC, dan di zona waktu Indonesia (UTC+7) itu masih
+ * tanggal yang sama — tetapi di zona barat (UTC-5) akan tergeser sehari ke
+ * belakang. Karena itu komponen tanggal LOKAL yang diambil.
+ */
+function toDateInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }

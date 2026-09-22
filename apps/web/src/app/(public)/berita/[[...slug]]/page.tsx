@@ -62,10 +62,10 @@ export default async function NewsPage({
         />
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="site-stagger grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {posts.map((p) => (
           <SiteCard key={p.id}>
-            <Link href={`/berita/${p.slug}`} className="block">
+            <Link href={`/berita/${p.slug}`} className="group block">
               <SiteImage src={p.coverUrl} alt={p.title} ratio="16/9" />
               <div className="p-4">
                 <p className="text-xs text-[var(--site-muted)]">
@@ -111,7 +111,7 @@ async function Article({ schoolId, slug }: { schoolId: string; slug: string }) {
 
         {post.coverUrl && (
           <div className="mt-5">
-            <SiteImage src={post.coverUrl} alt={post.title} ratio="16/9" />
+            <SiteImage src={post.coverUrl} alt={post.title} ratio="16/9" zoomOnHover />
           </div>
         )}
 

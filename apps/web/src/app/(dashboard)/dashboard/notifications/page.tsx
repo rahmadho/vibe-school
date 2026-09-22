@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function NotificationsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "notifications", "read")) redirect("/dashboard");
+  if (!can(session.user.role, "notifications", "read", session.user.permissions)) redirect("/dashboard");
 
   const schoolId = session.user.schoolId as string;
   const [stats, queue, templates] = await Promise.all([
@@ -23,7 +23,7 @@ export default async function NotificationsPage() {
     listTemplates(schoolId),
   ]);
 
-  const canManage = can(session.user.role, "notifications", "manage");
+  const canManage = can(session.user.role, "notifications", "manage", session.user.permissions);
   const configured = gatewayConfigured();
   const activeTemplates = templates.filter((t) => t.isActive).length;
 

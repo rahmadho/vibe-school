@@ -49,10 +49,10 @@ export default async function CompetencyTestsPage({
   if (!session.user.schoolId) redirect("/dashboard");
   const schoolId = session.user.schoolId;
 
-  if (!can(session.user.role, "academic", "read")) {
+  if (!can(session.user.role, "academic", "read", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya akses ke modul akademik.</p>;
   }
-  const canManage = can(session.user.role, "academic", "manage");
+  const canManage = can(session.user.role, "academic", "manage", session.user.permissions);
 
   const sp = await searchParams;
   const years = await getAcademicYearOptions(schoolId);

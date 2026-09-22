@@ -33,7 +33,7 @@ export default async function UsersPage({
     getUserStats(session.user.schoolId),
   ]);
 
-  const canManage = can(session.user.role, "users", "manage");
+  const canManage = can(session.user.role, "users", "manage", session.user.permissions);
 
   return (
     <div className="space-y-6">

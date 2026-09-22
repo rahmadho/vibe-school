@@ -49,8 +49,9 @@ npm install
 cp apps/web/.env.example apps/web/.env
 #    edit DATABASE_URL & NEXTAUTH_SECRET (min. 32 karakter)
 
-# 3. Nyalakan PostgreSQL (atau pakai DB yang sudah ada)
-docker compose up -d postgres
+# 3. Siapkan PostgreSQL (sudah berjalan di container/stack terpisah)
+#    Arahkan DATABASE_URL di apps/web/.env ke DB tersebut, mis.:
+#    postgresql://school:pass@localhost:5432/schoolapp?schema=public
 
 # 4. Terapkan skema + seed data demo
 npm run prisma:migrate        # buat & jalankan migrasi
@@ -105,7 +106,8 @@ school-app/
 ├─ AGENTS.md                 # instruksi kerja agent/developer
 ├─ SOUL.md                   # kepribadian & nilai agent
 ├─ .impeccable.md            # konteks desain (dibaca skill desain)
-├─ docker-compose.yml        # postgres (+ wa-gateway)
+├─ docker-compose.yml        # produksi: web + wa-gateway (DB & Nginx eksternal)
+├─ deploy/nginx/             # nginx.conf siap pindah ke container Nginx
 ├─ scripts/verify.sh         # typecheck + lint + test + build
 ├─ docs/                     # PRD, arsitektur, skema, roadmap, deploy
 └─ apps/
@@ -187,6 +189,32 @@ psql "postgresql://OWNER:PASSWORD@HOST:5432/DBNAME" \
    MinIO disiapkan sebagai sambungan. Lihat [docs/penyimpanan-berkas.md](docs/penyimpanan-berkas.md).
 8. **Subdomain wajib di produksi** — `?school=` hanya aktif di luar produksi.
    Lihat [docs/panduan-deploy-subdomain.md](docs/panduan-deploy-subdomain.md).
+
+---
+
+## Deploy dengan Docker (produksi)
+
+`docker-compose.yml` menjalankan **dua** layanan: `web` (Next.js standalone)
+dan `wa-gateway`. PostgreSQL dan Nginx **tidak** dikelola di sini — keduanya
+dianggap sudah berjalan di stack terpisah pada network eksternal
+`db-network` (DB) dan `app-network` (reverse proxy).
+
+```bash
+# 1. Siapkan .env di root repo
+cp .env.docker.example .env
+#    isi DATABASE_URL (host = nama container DB), NEXTAUTH_SECRET, ROOT_DOMAIN,
+#    WA_GATEWAY_TOKEN, PAYMENT_ENCRYPTION_KEY, dst.
+
+# 2. Pastikan kedua network eksternal sudah ada (dibuat oleh stack DB/Nginx)
+docker network create db-network   # bila belum ada
+docker network create app-network  # bila belum ada
+
+# 3. Build & jalankan
+docker compose up -d --build
+```
+
+Panduan lengkap (backup, migrasi, TLS, troubleshooting):
+[docs/panduan-deploy-docker.md](docs/panduan-deploy-docker.md).
 
 ---
 

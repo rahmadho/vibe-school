@@ -15,7 +15,7 @@ export default async function NewStudentPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (!session.user.schoolId) redirect("/dashboard");
-  if (!can(session.user.role, "students", "create")) {
+  if (!can(session.user.role, "students", "create", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya izin menambah siswa.</p>;
   }
 

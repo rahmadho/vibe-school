@@ -3,6 +3,7 @@ import {
   studentCreateSchema,
   studentFilterSchema,
   normalizePhone,
+  CLASS_FILTER_NONE,
 } from "@/lib/validations/student";
 
 /**
@@ -124,5 +125,26 @@ describe("studentFilterSchema", () => {
   it("menolak status tak dikenal", () => {
     const r = studentFilterSchema.safeParse({ status: "NGAWUR" });
     expect(r.success).toBe(false);
+  });
+
+  it("menerima filter tahun ajaran", () => {
+    const r = studentFilterSchema.safeParse({ academicYearId: "ay_2025" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.academicYearId).toBe("ay_2025");
+  });
+
+  it("menerima nilai khusus 'none' untuk kelas", () => {
+    // "none" = siswa yang belum ditempatkan. Nilainya harus lolos validasi,
+    // sebab tanpa itu siswa baru hasil konversi SPMB tidak bisa dicari.
+    const r = studentFilterSchema.safeParse({ classId: CLASS_FILTER_NONE });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.classId).toBe("none");
+  });
+
+  it("CLASS_FILTER_NONE bukan bentuk id Prisma", () => {
+    // Id Prisma berupa cuid (berawalan "c" + karakter acak), jadi "none"
+    // tidak mungkin bertabrakan dengan id kelas sungguhan.
+    expect(CLASS_FILTER_NONE).toBe("none");
+    expect(CLASS_FILTER_NONE).not.toMatch(/^c[a-z0-9]{20,}$/);
   });
 });

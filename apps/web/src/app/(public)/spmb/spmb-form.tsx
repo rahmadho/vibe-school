@@ -147,7 +147,7 @@ export function SpmbForm({
         <input type="hidden" name="majorId" value={majorId} />
 
         {step === 1 && (
-          <SiteCard className="space-y-4 p-5">
+          <SiteCard className="site-fade space-y-4 p-5">
             <h3 className="font-[family-name:var(--site-heading-font)] text-lg font-semibold text-[var(--site-text)]">
               Pilih jalur pendaftaran
             </h3>
@@ -275,7 +275,7 @@ export function SpmbForm({
         )}
 
         {step === 2 && (
-          <SiteCard className="space-y-4 p-5">
+          <SiteCard className="site-fade space-y-4 p-5">
             <h3 className="font-[family-name:var(--site-heading-font)] text-lg font-semibold text-[var(--site-text)]">
               Data calon murid
             </h3>
@@ -308,7 +308,7 @@ export function SpmbForm({
         )}
 
         {step === 3 && (
-          <SiteCard className="space-y-4 p-5">
+          <SiteCard className="site-fade space-y-4 p-5">
             <h3 className="font-[family-name:var(--site-heading-font)] text-lg font-semibold text-[var(--site-text)]">
               Data orang tua / wali
             </h3>
@@ -350,27 +350,70 @@ export function SpmbForm({
 
 function StepBar({ step }: { step: number }) {
   const labels = ["Jalur", "Calon murid", "Orang tua"];
+  const total = labels.length;
+
   return (
-    <ol className="flex items-center gap-2 text-xs">
-      {labels.map((l, i) => (
-        <li key={l} className="flex items-center gap-2">
-          <span
-            className="flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-semibold"
-            style={{
-              borderColor: step > i ? "var(--site-primary)" : "var(--site-border)",
-              backgroundColor: step > i ? "var(--site-primary)" : "transparent",
-              color: step > i ? "var(--site-primary-text)" : "var(--site-muted)",
-            }}
-          >
-            {i + 1}
-          </span>
-          <span className={step > i ? "text-[var(--site-text)]" : "text-[var(--site-muted)]"}>
-            {l}
-          </span>
-          {i < labels.length - 1 && <span className="text-[var(--site-muted)]">—</span>}
-        </li>
-      ))}
-    </ol>
+    <div className="space-y-2">
+      <ol className="flex items-center gap-2 text-xs">
+        {labels.map((l, i) => {
+          const done = step > i + 1;
+          const current = step === i + 1;
+          return (
+            <li key={l} className="flex items-center gap-2">
+              <span
+                aria-current={current ? "step" : undefined}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors duration-300"
+                style={{
+                  borderColor: done || current ? "var(--site-primary)" : "var(--site-border)",
+                  backgroundColor: done ? "var(--site-primary)" : "transparent",
+                  color: done
+                    ? "var(--site-primary-text)"
+                    : current
+                      ? "var(--site-primary)"
+                      : "var(--site-muted)",
+                }}
+              >
+                {/* Langkah selesai ditandai centang, bukan angka — supaya
+                    terlihat mana yang sudah lewat tanpa menghitung. */}
+                {done ? "✓" : i + 1}
+              </span>
+
+              {/* Label hanya pada langkah aktif dan sesudahnya di layar sempit;
+                  tiga label sekaligus membuat barisnya berdesakan di ponsel. */}
+              <span
+                className={`${
+                  current ? "" : "hidden sm:inline"
+                } ${done || current ? "text-[var(--site-text)]" : "text-[var(--site-muted)]"}`}
+              >
+                {l}
+              </span>
+
+              {i < total - 1 && (
+                <span aria-hidden="true" className="text-[var(--site-border)]">
+                  —
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      {/*
+        Bilah kemajuan: memberi tahu "tinggal berapa langkah" dalam sekali
+        lihat, tanpa harus membaca ketiga label. Lebarnya beranimasi karena
+        hanya `transform` yang berubah — bukan lebar, yang memaksa peramban
+        menghitung ulang tata letak.
+      */}
+      <div className="h-1 w-full overflow-hidden bg-[var(--site-border)]/40">
+        <div
+          className="h-full origin-left bg-[var(--site-primary)] transition-transform duration-500 ease-out"
+          style={{
+            transform: `scaleX(${step / total})`,
+            width: "100%",
+          }}
+        />
+      </div>
+    </div>
   );
 }
 

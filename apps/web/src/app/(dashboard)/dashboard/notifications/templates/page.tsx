@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function TemplatesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "notifications", "manage")) redirect("/dashboard");
+  if (!can(session.user.role, "notifications", "manage", session.user.permissions)) redirect("/dashboard");
 
   const schoolId = session.user.schoolId as string;
   const [templates, missing] = await Promise.all([

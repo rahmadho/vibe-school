@@ -19,7 +19,7 @@ export default async function OverduePage({
   if (!session.user.schoolId) redirect("/dashboard");
   const schoolId = session.user.schoolId;
 
-  if (!can(session.user.role, "finance", "read")) {
+  if (!can(session.user.role, "finance", "read", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya akses ke modul keuangan.</p>;
   }
 

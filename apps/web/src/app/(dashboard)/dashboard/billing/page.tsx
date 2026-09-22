@@ -59,7 +59,7 @@ export default async function BillingPage() {
     );
   }
 
-  if (!can(role, "billing", "read")) {
+  if (!can(role, "billing", "read", session.user.permissions)) {
     return (
       <p className="text-slate">
         Halaman ini hanya untuk pengelola sekolah.

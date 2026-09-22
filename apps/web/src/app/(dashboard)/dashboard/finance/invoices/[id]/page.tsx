@@ -29,10 +29,10 @@ export default async function InvoiceDetailPage({
   if (!session.user.schoolId) redirect("/dashboard");
   const schoolId = session.user.schoolId;
 
-  if (!can(session.user.role, "finance", "read")) {
+  if (!can(session.user.role, "finance", "read", session.user.permissions)) {
     return <p className="text-slate">Anda tidak punya akses ke modul keuangan.</p>;
   }
-  const canManage = can(session.user.role, "finance", "manage");
+  const canManage = can(session.user.role, "finance", "manage", session.user.permissions);
 
   const { id } = await params;
   const inv = await getInvoice(schoolId, id);

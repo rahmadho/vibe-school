@@ -40,7 +40,13 @@ export function Section({
 
   return (
     <section id={id} className={`${bg} ${className}`}>
-      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+      {/*
+        Spasi memakai clamp(): rapat di ponsel, lapang di layar besar.
+        Padding tetap (mis. py-16 di semua ukuran) membuat halaman terasa
+        sesak di ponsel dan kaku di desktop — dua keluhan sekaligus dari satu
+        angka yang salah.
+      */}
+      <div className="mx-auto w-full max-w-6xl px-[clamp(1rem,4vw,1.5rem)] py-[clamp(3rem,7vw,5.5rem)]">
         {children}
       </div>
     </section>
@@ -62,24 +68,45 @@ export function SectionHeading({
   onPrimary?: boolean;
 }) {
   if (!title && !subtitle) return null;
+
+  // Judul di tengah memakai goresan kapur di bawahnya: satu penanda visual
+  // yang mengingatkan papan tulis, dipakai hemat agar tidak jadi hiasan.
+  const centered = align === "center";
+
   return (
-    <div className={`mb-8 ${align === "center" ? "text-center" : ""}`}>
+    <div
+      className={`mb-[clamp(1.75rem,4vw,2.75rem)] ${
+        centered ? "text-center" : ""
+      }`}
+    >
       {title ? (
         <h2
-          className={`font-[family-name:var(--site-heading-font)] text-2xl font-bold tracking-tight sm:text-3xl ${
+          className={`font-[family-name:var(--site-heading-font)] font-bold tracking-tight ${
             onPrimary ? "" : "text-[var(--site-text)]"
           }`}
+          style={{
+            fontSize: "clamp(1.5rem, 1.15rem + 1.6vw, 2.25rem)",
+            lineHeight: 1.15,
+          }}
         >
           {title}
         </h2>
       ) : null}
+
+      {title ? (
+        <span
+          aria-hidden
+          className={`site-rule mt-3 block h-[3px] w-14 ${
+            onPrimary ? "bg-[var(--site-accent)]" : "bg-[var(--site-primary)]"
+          } ${centered ? "mx-auto" : ""}`}
+        />
+      ) : null}
+
       {subtitle ? (
         <p
-          className={`mt-2 text-base leading-relaxed ${
-            onPrimary
-              ? "opacity-90"
-              : "text-[var(--site-muted)]"
-          }`}
+          className={`mt-4 text-base leading-relaxed sm:text-[1.0625rem] ${
+            onPrimary ? "opacity-90" : "text-[var(--site-muted)]"
+          } ${centered ? "mx-auto max-w-2xl" : "max-w-2xl"}`}
         >
           {subtitle}
         </p>
@@ -107,16 +134,21 @@ export function SiteButton({
   variant?: "solid" | "outline" | "accent";
   external?: boolean;
 }) {
+  /*
+   * Gerak: hanya `transform` dan warna. Tombol yang membesar karena padding
+   * akan menggeser tata letak di sekitarnya — dan pada baris tombol, tombol
+   * lain ikut bergerak, yang terbaca sebagai halaman bergetar.
+   */
   const base =
-    "inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
+    "group/btn inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold transition-[transform,background-color,border-color,color] duration-200 ease-out will-change-transform hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:hover:translate-y-0";
   const style = { borderRadius: "var(--site-radius-button)" };
 
   const look =
     variant === "solid"
-      ? "bg-[var(--site-primary)] text-[var(--site-primary-text)]"
+      ? "bg-[var(--site-primary)] text-[var(--site-primary-text)] hover:shadow-[0_6px_18px_-8px_var(--site-primary)]"
       : variant === "accent"
-        ? "bg-[var(--site-accent)] text-[var(--site-accent-text)]"
-        : "border-2 border-[var(--site-primary)] text-[var(--site-primary)]";
+        ? "bg-[var(--site-accent)] text-[var(--site-accent-text)] hover:shadow-[0_6px_18px_-8px_var(--site-accent)]"
+        : "border-2 border-[var(--site-primary)] text-[var(--site-primary)] hover:bg-[var(--site-primary)] hover:text-[var(--site-primary-text)]";
 
   const cls = `${base} ${look}`;
 
@@ -145,19 +177,24 @@ export function SiteCard({
   className = "",
   /** Kartu di atas latar berwarna perlu gaya berbeda. */
   onPrimary = false,
+  style,
 }: {
   children: ReactNode;
   className?: string;
   onPrimary?: boolean;
+  /** Gaya sebaris, mis. variabel `--i` untuk jeda animasi berurutan. */
+  style?: React.CSSProperties;
 }) {
   return (
     <div
-      className={`${className} ${
+      className={`site-lift ${className} ${
         onPrimary
           ? "border border-white/25 bg-white/10"
-          : "border border-[var(--site-border)] bg-[var(--site-surface)]"
+          : // Bingkai menguat saat disorot — pengganti bayangan yang lebih
+            // tenang, dan mengingatkan garis tepi buku arsip.
+            "border border-[var(--site-border)] bg-[var(--site-surface)] hover:border-[var(--site-primary)]"
       }`}
-      style={{ borderRadius: "var(--site-radius-card)" }}
+      style={{ borderRadius: "var(--site-radius-card)", ...style }}
     >
       {children}
     </div>
@@ -208,11 +245,14 @@ export function SiteImage({
   alt,
   ratio = "16/9",
   className = "",
+  /** Gambar membesar halus saat induknya disorot (induk perlu kelas `group`). */
+  zoomOnHover = false,
 }: {
   src?: string | null;
   alt: string;
   ratio?: "16/9" | "4/3" | "1/1" | "3/4";
   className?: string;
+  zoomOnHover?: boolean;
 }) {
   if (!src) {
     return (
@@ -221,7 +261,25 @@ export function SiteImage({
         style={{ aspectRatio: ratio, borderRadius: "var(--site-radius-card)" }}
         aria-hidden="true"
       >
-        <span className="text-2xl opacity-40">🏫</span>
+        {/*
+          SVG sebaris, BUKAN emoji. Emoji tampil berbeda di setiap sistem
+          operasi (Apple, Windows, Android masing-masing punya gambarnya), tidak
+          bisa diwarnai mengikuti tema sekolah, dan ukurannya tidak bisa
+          disetel. SVG mewarisi `currentColor` sehingga ikut tema.
+        */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-8 w-8 text-[var(--site-muted)] opacity-50"
+        >
+          <path d="M4 5.5h16v13H4z" />
+          <path d="M4 15l4.5-4.5 3.5 3.5 3-3 5 5" />
+          <circle cx="15.5" cy="9.5" r="1" />
+        </svg>
       </div>
     );
   }
@@ -232,7 +290,19 @@ export function SiteImage({
       style={{ aspectRatio: ratio, borderRadius: "var(--site-radius-card)" }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt={alt} className="h-full w-full object-cover" loading="lazy" />
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        className={`h-full w-full object-cover ${
+          zoomOnHover
+            ? // Membesar perlahan saat kartu disorot. Skala kecil saja (1.04):
+              // lebih dari itu membuat gambar terlihat "melompat", dan pada
+              // foto wajah justru mengganggu.
+              "transition-transform duration-[600ms] ease-out group-hover:scale-[1.04] motion-reduce:group-hover:scale-100"
+            : ""
+        }`}
+      />
     </div>
   );
 }

@@ -21,7 +21,7 @@ export default async function QueuePage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (!can(session.user.role, "notifications", "read")) redirect("/dashboard");
+  if (!can(session.user.role, "notifications", "read", session.user.permissions)) redirect("/dashboard");
 
   const sp = await searchParams;
   const schoolId = session.user.schoolId as string;
@@ -39,7 +39,7 @@ export default async function QueuePage({
     getQueueStats(schoolId),
   ]);
 
-  const canManage = can(session.user.role, "notifications", "manage");
+  const canManage = can(session.user.role, "notifications", "manage", session.user.permissions);
 
   const tabs: { key: string; label: string; count: number }[] = [
     { key: "ALL", label: "Semua", count: stats.total },

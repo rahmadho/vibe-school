@@ -1,0 +1,46 @@
+# Konteks build Docker = root monorepo. Kecualikan yang tak perlu agar image
+# kecil & build cepat, dan JANGAN pernah kirim rahasia ke image.
+
+# Dependensi & artefak build (di-reinstall/di-build ulang di dalam image).
+node_modules
+**/node_modules
+.next
+**/.next
+out
+dist
+build
+*.tsbuildinfo
+
+# Version control & metadata editor.
+.git
+.gitignore
+.hermes
+.vscode
+.idea
+
+# Environment — JANGAN bake rahasia ke image. Nilai asli via env_file/secret.
+.env
+.env.*
+!.env.example
+!.env.docker.example
+
+# Data runtime yang tidak boleh ikut build (volume terpisah di compose).
+var
+apps/web/var
+apps/wa-gateway/data
+apps/wa-gateway/sessions
+uploads
+apps/web/uploads
+
+# Berkas dev/tooling & dokumen (tidak perlu di image produksi).
+docs
+deploy
+scripts
+*.log
+npm-debug.log*
+coverage
+.nyc_output
+
+# OS.
+.DS_Store
+Thumbs.db

@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import type { ActionResult } from "@/lib/action-result";
-import {
-  reviewRegistration,
-  convertRegistrationToStudent,
-} from "@/app/(dashboard)/dashboard/spmb/admission-actions";
+import { reviewRegistration, convertRegistrationToStudent } from "@/app/(dashboard)/dashboard/spmb/admission-actions";
+import { Button } from "@/components/ui";
+import { ManualRegistrationForm } from "./manual-form";
+import { DocumentPanel } from "./document-panel";
 
 /**
  * Tabel pendaftar + tindakan seleksi.
@@ -38,6 +38,15 @@ type Row = {
   batchName: string;
   pathName: string | null;
   majorName: string | null;
+  /** Dari mana pendaftaran masuk: PUBLIC | WALK_IN | PHONE. */
+  source: string;
+  /** URL dokumen yang sudah diunggah. Null = belum ada. */
+  docs: {
+    docBirthCert: string | null;
+    docFamilyCard: string | null;
+    docPhoto: string | null;
+    docDiploma: string | null;
+  };
   /** Sudah pernah dikonversi menjadi siswa? Menandai penanda idempotensi. */
   isConverted: boolean;
   resultNote: string | null;
@@ -49,12 +58,19 @@ export function RegistrationTable({
   canManage,
   classes,
   majors,
+  batches,
 }: {
   rows: Row[];
   canManage: boolean;
   classes: Array<{ id: string; name: string }>;
   majors: Array<{ id: string; name: string }>;
+  batches: Array<{
+    id: string;
+    name: string;
+    paths: Array<{ id: string; name: string; code: string }>;
+  }>;
 }) {
+  const [manualOpen, setManualOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, startTransition] = useTransition();
@@ -77,19 +93,67 @@ export function RegistrationTable({
 
   const activeRow = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
 
+  /**
+   * Panel pendaftaran manual — dipakai di DUA keadaan: saat tabel kosong dan
+   * saat tabel berisi.
+   *
+   * Sebelumnya panel ini hanya ada di cabang "ada pendaftar", sehingga sekolah
+   * yang belum punya satu pun pendaftar TIDAK BISA mencatat pendaftar pertama
+   * — justru keadaan yang paling membutuhkannya. Sekolah baru akan melihat
+   * "Belum ada pendaftar" tanpa cara mengisi.
+   */
+  const manualPanel = canManage ? (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--chalk)] bg-white px-4 py-3">
+        <p className="text-sm text-[var(--slate)]">
+          Pendaftar datang langsung atau lewat telepon? Catat di sini agar
+          tidak perlu menunggu mereka mengisi formulir online.
+        </p>
+        <Button
+          type="button"
+          variant={manualOpen ? "ghost" : "secondary"}
+          onClick={() => {
+            setManualOpen((v) => !v);
+            setOpenId(null);
+          }}
+        >
+          {manualOpen ? "Tutup form" : "Catat pendaftaran manual"}
+        </Button>
+      </div>
+
+      {manualOpen ? (
+        <section className="border-2 border-[var(--ink)] bg-white p-4">
+          <h2 className="mb-4 font-display text-lg text-[var(--ink)]">
+            Pendaftaran manual
+          </h2>
+          <ManualRegistrationForm
+            batches={batches}
+            onDone={() => setManualOpen(false)}
+          />
+        </section>
+      ) : null}
+    </>
+  ) : null;
+
   if (rows.length === 0) {
     return (
-      <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-10 text-center">
-        <p className="font-medium text-[var(--ink)]">Belum ada pendaftar</p>
-        <p className="mt-1 text-sm text-[var(--slate)]">
-          Pendaftar yang masuk lewat web sekolah akan muncul di sini.
-        </p>
+      <div className="space-y-3">
+        {manualPanel}
+        <div className="border-2 border-dashed border-[var(--chalk)] px-4 py-10 text-center">
+          <p className="font-medium text-[var(--ink)]">Belum ada pendaftar</p>
+          <p className="mt-1 text-sm text-[var(--slate)]">
+            Pendaftar yang mengisi formulir di web sekolah akan muncul di sini
+            secara otomatis. Untuk yang datang langsung, gunakan tombol di atas.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3">
+      {manualPanel}
+
       {result && !result.ok && (
         <p className="border-l-4 border-red-700 bg-red-50 px-3 py-2 text-sm text-red-900">
           {result.error}
@@ -137,6 +201,14 @@ export function RegistrationTable({
                 </td>
                 <td className="p-2">
                   <StatusPill status={r.status} label={r.statusLabel} />
+                  {/* Sumber ditampilkan hanya bila BUKAN online — "Online" pada
+                      setiap baris akan menjadi kebisingan yang tidak dibaca
+                      siapa pun. Yang perlu terlihat justru pengecualiannya. */}
+                  {r.source !== "PUBLIC" ? (
+                    <span className="mt-1 block text-[11px] text-[var(--slate)]">
+                      {r.source === "WALK_IN" ? "datang langsung" : "telepon/WA"}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="p-2 text-right">
                   {canManage && (
@@ -191,6 +263,20 @@ export function RegistrationTable({
 
             <label className="block text-xs">
               <span className="font-medium text-[var(--ink)]">
+                Nilai seleksi (opsional)
+              </span>
+              <input
+                type="number"
+                name="score"
+                min="0"
+                max="1000"
+                className="mt-1 w-full border border-[var(--chalk)] bg-white px-2 py-1.5 tabular-nums text-sm"
+                placeholder="Kosongkan bila tanpa tes"
+              />
+            </label>
+
+            <label className="block text-xs">
+              <span className="font-medium text-[var(--ink)]">
                 Biaya daftar ulang (Rp) — opsional
               </span>
               <input
@@ -236,6 +322,23 @@ export function RegistrationTable({
           </p>
         </form>
       )}
+
+      {/* Dokumen pendaftaran — diletakkan di panel tinjauan karena panitia
+          memeriksanya tepat saat memutuskan, bukan di halaman terpisah. */}
+      {openId && canManage ? (
+        <DocumentPanel
+          registrationId={openId}
+          docs={
+            rows.find((r) => r.id === openId)?.docs ?? {
+              docBirthCert: null,
+              docFamilyCard: null,
+              docPhoto: null,
+              docDiploma: null,
+            }
+          }
+          canManage={canManage}
+        />
+      ) : null}
 
       {/* Konversi ke siswa — hanya untuk pendaftar yang sudah DITERIMA.
           Dipisah dari form keputusan karena ini tindakan berbeda: menilai

@@ -517,6 +517,15 @@ export const registrationReviewSchema = z.object({
     "WITHDRAWN",
   ]),
   note: z.string().trim().max(500).default(""),
+  /**
+   * Nilai seleksi. Kolomnya sudah ada di database sejak awal tetapi tidak
+   * pernah bisa diisi dari mana pun — seleksi berbasis nilai tidak bisa
+   * dicatat. Opsional: banyak sekolah menerima tanpa tes.
+   */
+  score: z
+    .union([z.literal(""), z.coerce.number().int().min(0).max(1000)])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? undefined : v)),
   reRegistrationFee: z.coerce.number().int().min(0).max(1_000_000_000).optional(),
 });
 
@@ -524,37 +533,79 @@ export const registrationReviewSchema = z.object({
  * SPMB — GELOMBANG
  * ============================================================ */
 
-/** Bentuk dasar gelombang TANPA refine — supaya bisa di-`extend()`.
- *  (.refine() mengubah ZodObject menjadi ZodEffects yang tidak punya .extend()) */
+/**
+ * Bentuk dasar gelombang TANPA refine — supaya bisa di-`extend()`.
+ * (.refine() mengubah ZodObject menjadi ZodEffects yang tidak punya .extend())
+ *
+ * Tanggal dari `<input type="date">` datang sebagai "YYYY-MM-DD" — BUKAN
+ * ISO-8601 lengkap. Prisma menolaknya dengan "premature end of input", jadi
+ * nilainya diubah menjadi `Date` di sini, di satu tempat.
+ *
+ * Pola ini sama dengan `dateString` di validations/academic.ts. Menyimpan
+ * `z.string()` lalu mengubahnya di dalam action berarti setiap pemanggil baru
+ * harus ingat melakukannya — dan satu yang lupa akan gagal saat disimpan,
+ * bukan saat divalidasi.
+ */
+const batchDate = z
+  .string()
+  .trim()
+  .min(1, "Tanggal wajib diisi")
+  .transform((v) => new Date(v))
+  .refine((d) => !Number.isNaN(d.getTime()), "Tanggal tidak valid");
+
 const admissionBatchBase = z.object({
   academicYearId: z.string().min(1, "Tahun ajaran wajib dipilih"),
   name: z.string().trim().min(1, "Nama gelombang wajib diisi").max(80),
-  openDate: z.string().min(1, "Tanggal buka wajib diisi"),
-  closeDate: z.string().min(1, "Tanggal tutup wajib diisi"),
+  openDate: batchDate,
+  closeDate: batchDate,
   quota: z.coerce.number().int().min(0).max(100_000),
   description: optionalText(3000),
   requirements: optionalText(6000),
   isActive: z
     .union([z.literal("on"), z.boolean()])
     .optional()
-    .transform((v) => v === "on" || v === true),
+    // Bawaannya AKTIF. Sebelumnya `v === "on" || v === true` menghasilkan
+    // `false` ketika field tidak dikirim sama sekali — dan form "Buat
+    // gelombang" memang tidak punya kotak centangnya. Akibatnya setiap
+    // gelombang baru selalu lahir nonaktif, dan pendaftaran tidak pernah
+    // terbuka walau tanggalnya sudah benar.
+    //
+    // `undefined` sengaja dibedakan dari `false`: "tidak disebut" berarti pakai
+    // bawaan, sedangkan "dinyatakan tidak aktif" harus tetap dihormati.
+    .transform((v) => (v === undefined ? undefined : v === "on" || v === true)),
 });
 
 /** Tanggal tutup harus setelah tanggal buka. */
-const checkBatchDates = (d: { openDate: string; closeDate: string }) =>
-  new Date(d.closeDate).getTime() > new Date(d.openDate).getTime();
+const checkBatchDates = (d: { openDate: Date; closeDate: Date }) =>
+  d.closeDate.getTime() > d.openDate.getTime();
 
 export const admissionBatchCreateSchema = admissionBatchBase.refine(checkBatchDates, {
   message: "Tanggal tutup harus setelah tanggal buka",
   path: ["closeDate"],
 });
 
+/**
+ * Perbarui gelombang — BERSIFAT PARSIAL.
+ *
+ * ============================================================
+ * KENAPA TIDAK MEWAJIBKAN SEMUA KOLOM
+ * ============================================================
+ * Form "Ubah gelombang" di dasbor adalah suntingan cepat: hanya nama, kuota,
+ * dan status aktif. Tanggal tidak ada di sana karena mengubah periode
+ * pendaftaran di tengah gelombang yang sedang berjalan adalah keputusan besar
+ * yang pantas dilakukan lewat alur tersendiri, bukan sambil menyunting nama.
+ *
+ * Sebelumnya skema ini mewarisi kewajiban `openDate`/`closeDate` dari bentuk
+ * dasarnya, sehingga SETIAP penyimpanan dari form itu gagal dengan
+ * "Periksa kembali isian." — padahal yang diisi operator sudah benar.
+ *
+ * Konsistensi tanggal (tutup harus setelah buka) tetap diperiksa, tetapi di
+ * AKSI, terhadap nilai gabungan (tersimpan + yang baru). Di skema tidak bisa:
+ * saat salah satu tanggal tidak dikirim, tidak ada yang bisa dibandingkan.
+ */
 export const admissionBatchUpdateSchema = admissionBatchBase
-  .extend({ id: z.string().min(1) })
-  .refine(checkBatchDates, {
-    message: "Tanggal tutup harus setelah tanggal buka",
-    path: ["closeDate"],
-  });
+  .partial()
+  .extend({ id: z.string().min(1) });
 
 /** Pengumuman hasil seleksi. */
 export const admissionResultSchema = z.object({

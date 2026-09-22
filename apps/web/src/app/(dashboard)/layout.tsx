@@ -56,7 +56,7 @@ export default async function DashboardLayout({
         schoolName={schoolName}
         userName={name ?? "Pengguna"}
         role={role}
-        modules={modulesFor(role)}
+        modules={modulesFor(role, session.user.permissions)}
         previewUrl={previewUrl}
         schoolLevel={schoolLevel}
       />

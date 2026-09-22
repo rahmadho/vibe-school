@@ -36,7 +36,50 @@ import path from "node:path";
 /** Batas ukuran gambar unggahan. Logo & sampul tidak perlu lebih besar. */
 export const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB
 
+/**
+ * Batas ukuran dokumen (PDF) unggahan.
+ *
+ * Lebih besar dari gambar karena berkasnya bisa berisi banyak halaman hasil
+ * pindai — akta kelahiran, kartu keluarga, dan ijazah sering dipindai dalam
+ * satu berkas.
+ */
+export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024; // 5 MB
+
 export type ImageType = { ext: string; contentType: string };
+
+/**
+ * Kenali apakah berkas ini PDF, dari byte awalnya.
+ *
+ * Sama seperti gambar: `File.type` tidak dipercaya. PDF dipilih karena dokumen
+ * sekolah hampir selalu berformat ini (hasil pindai akta, KK, ijazah), dan
+ * karena formatnya TIDAK bisa memuat skrip yang berjalan di peramban —
+ * berbeda dari SVG atau HTML yang sengaja ditolak.
+ */
+export function sniffPdf(buf: Buffer): ImageType | null {
+  // "%PDF-" = 25 50 44 46 2D
+  if (
+    buf.length >= 5 &&
+    buf[0] === 0x25 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x44 &&
+    buf[3] === 0x46 &&
+    buf[4] === 0x2d
+  ) {
+    return { ext: "pdf", contentType: "application/pdf" };
+  }
+  return null;
+}
+
+/**
+ * Kenali berkas dokumen pendaftaran: PDF atau gambar.
+ *
+ * Mengembalikan null bila bukan keduanya. Sekolah sering meminta "fotokopi"
+ * dokumen — dan yang datang bisa berupa hasil pindai PDF atau foto dari
+ * ponsel, jadi keduanya diterima.
+ */
+export function sniffDocumentType(buf: Buffer): ImageType | null {
+  return sniffPdf(buf) ?? sniffImageType(buf);
+}
 
 /**
  * Kenali jenis gambar dari BYTE AWAL berkas.
@@ -121,6 +164,11 @@ export const LOCAL_URL_PREFIX = "/uploads";
  * `app/uploads/[...key]/route.ts`, yang bekerja sama di dev maupun produksi.
  */
 function localRoot(): string {
+  // UPLOAD_DIR memungkinkan compose/produksi menunjuk folder volume terpisah
+  // (mis. /data/uploads) yang bertahan saat container di-redeploy. Bila tak
+  // diset, jatuh ke var/uploads relatif cwd (perilaku dev).
+  const dir = process.env.UPLOAD_DIR?.trim();
+  if (dir) return path.resolve(dir);
   return path.join(process.cwd(), "var", "uploads");
 }
 
@@ -223,6 +271,24 @@ export async function saveImage(input: {
 }): Promise<StoredFile> {
   // Nama acak: mencegah dua unggahan saling menimpa, dan membuat URL lama tidak
   // bisa ditebak (berkas sekolah lain tidak bisa ditebak dari polanya).
+  const name = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
+  const key = `${input.prefix}/${name}.${input.type.ext}`;
+  return getStorage().put(key, input.data, input.type.contentType);
+}
+
+/**
+ * Simpan dokumen (PDF/gambar) dan kembalikan URL publiknya.
+ *
+ * Dipisah dari `saveImage` bukan karena kode berbeda, tetapi karena batas
+ * ukurannya berbeda — dokumen hasil pindai wajar lebih besar dari logo.
+ * Memakai `saveImage` untuk dokumen akan menolak berkas yang sebenarnya sah.
+ */
+export async function saveDocument(input: {
+  data: Buffer;
+  /** Awalan kunci, mis. `<schoolId>/registrations/<id>`. */
+  prefix: string;
+  type: ImageType;
+}): Promise<StoredFile> {
   const name = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
   const key = `${input.prefix}/${name}.${input.type.ext}`;
   return getStorage().put(key, input.data, input.type.contentType);

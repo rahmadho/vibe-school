@@ -6,6 +6,7 @@ import {
   listStudents,
   getClassOptions,
   getStudentStats,
+  countUnassignedStudents,
 } from "@/lib/data/students";
 import { getMajorOptions } from "@/lib/data/academic";
 import { majorTerminology } from "@/lib/major-labels";
@@ -48,25 +49,54 @@ export default async function StudentsPage({
 
   const schoolId = session.user.schoolId;
   const sp = await searchParams;
+
+  // Tahun ajaran aktif dipakai sebagai bawaan filter kelas. Tanpa ini, sekolah
+  // yang sudah berjalan dua tahun melihat "7A" dua kali di dropdown — dari
+  // tahun lalu dan tahun ini — dengan nama yang tampak identik.
+  const years = await prisma.academicYear.findMany({
+    where: { schoolId },
+    select: { id: true, name: true, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  const activeYear = years.find((y) => y.isActive);
+
+  const rawYear = typeof sp.academicYearId === "string" ? sp.academicYearId : "";
+  const academicYearId = rawYear === "all" ? undefined : (rawYear || activeYear?.id);
+
   const filter = studentFilterSchema.parse({
     q: typeof sp.q === "string" ? sp.q : undefined,
     classId: typeof sp.classId === "string" ? sp.classId : undefined,
     majorId: typeof sp.majorId === "string" ? sp.majorId : undefined,
+    academicYearId,
     status: typeof sp.status === "string" ? sp.status : undefined,
     page: sp.page ?? 1,
     perPage: sp.perPage ?? 20,
   });
 
-  const [result, classes, majors, school, stats] = await Promise.all([
-    listStudents(schoolId, filter),
+  // Siswa tanpa kelas hanya disertakan saat melihat tahun ajaran AKTIF —
+  // merekalah yang sedang menunggu ditempatkan.
+  const viewingActiveYear = academicYearId === activeYear?.id;
+
+  const [result, classes, majors, school, stats, unassignedCount] = await Promise.all([
+    listStudents(schoolId, filter, { includeUnassigned: viewingActiveYear }),
+    // SEMUA kelas dikirim, bukan hanya tahun terpilih. Alasannya: operator
+    // mengganti pemilih tahun untuk melihat pilihannya SEBELUM menekan
+    // "Terapkan", dan penyaringan di peramban butuh daftar lengkapnya. Jumlah
+    // kelas satu sekolah hanya puluhan baris — jauh lebih murah daripada
+    // memaksa satu perjalanan bolak-balik ke server untuk setiap percobaan.
     getClassOptions(schoolId),
     getMajorOptions(schoolId),
     prisma.school.findUnique({ where: { id: schoolId }, select: { level: true } }),
     getStudentStats(schoolId),
+    countUnassignedStudents(schoolId),
   ]);
 
+  // `getClassOptions(schoolId, undefined)` sudah mengembalikan SELURUH kelas —
+  // jadi saat "Semua tahun" dipilih, `classes` memang sudah lengkap dan tidak
+  // perlu diambil ulang.
+
   const term = majorTerminology(school?.level);
-  const canManage = can(session.user.role, "students", "create");
+  const canManage = can(session.user.role, "students", "create", session.user.permissions);
   const hasFilter = Boolean(filter.q || filter.classId || filter.majorId || filter.status);
 
   return (
@@ -91,11 +121,19 @@ export default async function StudentsPage({
       <StudentFilters
         classes={classes}
         majors={majors}
+        years={years}
         terminology={term.singular}
+        unassignedCount={unassignedCount}
         current={{
           q: filter.q ?? "",
           classId: filter.classId ?? "",
           majorId: filter.majorId ?? "",
+          // Yang dikirim adalah tahun EFEKTIF, bukan nilai mentah dari URL.
+          // Bila dikirim mentah (""), komponen filter mengira "tidak ada
+          // penyaringan" lalu menampilkan kelas dari SEMUA tahun — padahal
+          // server sudah menyaring siswa ke tahun aktif. Akibatnya daftar
+          // kelas dan daftar siswa saling bertentangan.
+          academicYearId: rawYear === "all" ? "all" : (academicYearId ?? ""),
           status: filter.status ?? "",
         }}
       />

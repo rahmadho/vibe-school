@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   if (!session.user.schoolId) {
     return NextResponse.json({ error: "Tanpa sekolah" }, { status: 403 });
   }
-  if (!can(session.user.role, "attendance", "read")) {
+  if (!can(session.user.role, "attendance", "read", session.user.permissions)) {
     return NextResponse.json({ error: "Tidak punya akses" }, { status: 403 });
   }
   const schoolId = session.user.schoolId;

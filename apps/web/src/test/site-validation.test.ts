@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BLOCK_PROPS_SCHEMAS,
   admissionBatchCreateSchema,
+  admissionBatchUpdateSchema,
   admissionPathCreateSchema,
   navigationCreateSchema,
   pageCreateSchema,
@@ -311,6 +312,80 @@ describe("admissionBatchCreateSchema", () => {
       openDate: "2026-01-01",
       closeDate: "2026-01-01",
     });
+    expect(r.success).toBe(false);
+  });
+
+  /**
+   * KENAPA TEST INI ADA:
+   * Form "Buat gelombang" tidak punya kotak centang "Aktif" (kini sudah ada,
+   * tetapi skema tetap harus benar sendiri). Sebelumnya `isActive` yang tidak
+   * dikirim berubah menjadi `false`, sehingga SETIAP gelombang baru lahir
+   * nonaktif — pendaftaran tidak pernah terbuka walau tanggalnya sudah benar,
+   * dan tidak ada pesan galat apa pun.
+   */
+  it("isActive TIDAK dikirim berarti undefined (bukan false)", () => {
+    const r = admissionBatchCreateSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      // `undefined` = "tidak disebut" → pemanggil memakai bawaan aktif.
+      // `false` = "dinyatakan nonaktif" → harus dihormati.
+      expect(r.data.isActive).toBeUndefined();
+    }
+  });
+
+  it("isActive 'on' menjadi true", () => {
+    const r = admissionBatchCreateSchema.safeParse({ ...base, isActive: "on" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.isActive).toBe(true);
+  });
+
+  it("isActive false tetap dihormati", () => {
+    const r = admissionBatchCreateSchema.safeParse({ ...base, isActive: false });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.isActive).toBe(false);
+  });
+});
+
+/**
+ * KENAPA TEST INI ADA:
+ * Form "Ubah gelombang" hanya mengirim nama, kuota, dan status aktif — tanpa
+ * tanggal. Skema yang mewajibkan `openDate`/`closeDate` membuat SETIAP
+ * penyimpanan dari form itu gagal dengan "Periksa kembali isian.", walaupun
+ * isian operator sudah benar.
+ */
+describe("admissionBatchUpdateSchema — suntingan sebagian", () => {
+  it("menerima suntingan hanya nama", () => {
+    const r = admissionBatchUpdateSchema.safeParse({ id: "b1", name: "Gelombang Baru" });
+    expect(r.success).toBe(true);
+  });
+
+  it("menerima suntingan hanya kuota dan status", () => {
+    const r = admissionBatchUpdateSchema.safeParse({ id: "b1", quota: 150, isActive: "on" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.quota).toBe(150);
+      expect(r.data.isActive).toBe(true);
+    }
+  });
+
+  it("tetap mewajibkan id", () => {
+    expect(admissionBatchUpdateSchema.safeParse({ name: "X" }).success).toBe(false);
+  });
+
+  it("menerima susunan lengkap", () => {
+    const r = admissionBatchUpdateSchema.safeParse({
+      id: "b1",
+      academicYearId: "y1",
+      name: "Gelombang 1",
+      openDate: "2026-01-01",
+      closeDate: "2026-03-31",
+      quota: 100,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("menolak tanggal yang tidak valid bila dikirim", () => {
+    const r = admissionBatchUpdateSchema.safeParse({ id: "b1", openDate: "bukan-tanggal" });
     expect(r.success).toBe(false);
   });
 });
