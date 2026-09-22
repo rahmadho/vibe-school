@@ -47,6 +47,9 @@ Wajib diisi:
 | `WA_GATEWAY_TOKEN` | Shared secret web ↔ wa-gateway. `openssl rand -hex 32`. |
 | `PAYMENT_ENCRYPTION_KEY` | 64 hex char (AES-256-GCM). `openssl rand -hex 32`. |
 
+Penjelasan lengkap tiap variabel (termasuk yang opsional) ada di
+[panduan-env-produksi.md](panduan-env-produksi.md).
+
 Nilai `WA_GATEWAY_URL` dan `WA_SESSION_DIR` di `.env` di-override otomatis oleh
 compose (`http://wa-gateway:3001` dan `/data/sessions`) — tak perlu diubah.
 

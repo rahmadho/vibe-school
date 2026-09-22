@@ -215,6 +215,7 @@ docker compose up -d --build
 
 Panduan lengkap (backup, migrasi, TLS, troubleshooting):
 [docs/panduan-deploy-docker.md](docs/panduan-deploy-docker.md).
+Penjelasan tiap variabel `.env`: [docs/panduan-env-produksi.md](docs/panduan-env-produksi.md).
 
 ---
 
