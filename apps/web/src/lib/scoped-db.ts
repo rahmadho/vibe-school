@@ -46,6 +46,7 @@ export const TENANT_MODELS = [
   "invoice",
   "paymentMethod",
   "payment",
+  "receipt",
   "paymentGatewayTransaction",
   "post",
   // Fase 8: web sekolah publik + SPMB multi-jalur.

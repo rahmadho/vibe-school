@@ -42,6 +42,8 @@ DECLARE
     'schedules','academic_years','semesters','time_slots','admission_batches',
     'registrations','attendances','grade_items','grades','report_cards',
     'fee_types','invoices','payment_methods','payments',
+    -- Kwitansi: memuat nama, kelas, dan nominal yang dibayar satu keluarga.
+    'receipts',
     'payment_gateway_transactions','posts','announcements',
     'notification_templates','notification_queue','audit_logs',
     'student_class_histories','subscriptions',

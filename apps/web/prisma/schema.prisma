@@ -60,6 +60,7 @@ model School {
   admissionBatches AdmissionBatch[]
   admissionPaths   AdmissionPath[]
   invoices         Invoice[]
+  receipts         Receipt[]
   paymentMethods   PaymentMethod[]
   attendances      Attendance[]
   gradeItems       GradeItem[]
@@ -147,6 +148,7 @@ model User {
   auditLogs              AuditLog[]
   paymentsRecorded       Payment[]              @relation("PaymentRecordedBy")
   gradesCreated          Grade[]                @relation("GradeCreatedBy")
+  receiptsIssued         Receipt[]              @relation("ReceiptIssuedBy")
   attendancesMarked      Attendance[]           @relation("AttendanceMarkedBy")
   campaignsCreated       AnnouncementCampaign[] @relation("CampaignCreatedBy")
   mediaUploaded          Media[]                @relation("MediaUploadedBy")
@@ -488,6 +490,7 @@ model Student {
   attendances     Attendance[]
   grades          Grade[]
   invoices        Invoice[]
+  receipts        Receipt[]
   registration    Registration?
   classHistories  StudentClassHistory[]
   internships     Internship[]
@@ -949,8 +952,67 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Satu pembayaran hanya boleh punya satu kwitansi (lihat model Receipt).
+  receipt Receipt?
+
   @@index([schoolId, invoiceId])
   @@map("payments")
+}
+
+/// Kwitansi / nota pembayaran yang bisa dicetak.
+///
+/// MENGAPA nomor kwitansi disimpan di tabel ini, bukan dihitung saat cetak:
+///   Nomor kwitansi adalah dokumen resmi. Kalau dihitung ulang setiap kali
+///   dicetak, nomor bisa BERUBAH (karena ada pembayaran lain yang masuk di
+///   antaranya) atau BOLONG (karena transaksi gagal di tengah). Keduanya
+///   merusak pembukuan sekolah. Karena itu nomor dikunci di sini, sekali,
+///   saat kwitansi pertama kali diterbitkan.
+///
+/// IDEMPOTEN: `paymentId` unik — satu pembayaran hanya boleh punya satu
+/// kwitansi. Menekan tombol cetak dua kali tidak membuat nomor baru.
+model Receipt {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+
+  /// Nomor dokumen, mis. "KWT/202609/0007". Unik per sekolah.
+  receiptNo String
+
+  /// Pembayaran yang menjadi dasar kwitansi ini.
+  /// Unik → inilah yang membuat penerbitan kwitansi idempoten.
+  paymentId String  @unique
+  payment   Payment @relation(fields: [paymentId], references: [id])
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  /// Salinan nilai pada saat penerbitan. Sengaja DIDUPLIKASI dari Payment:
+  /// kalau nominal pembayaran dikoreksi belakangan, kwitansi yang sudah
+  /// dipegang orang tua tidak boleh ikut berubah — ia bukti tertulis.
+  amountPaid Int
+  methodName String?
+  paidAt     DateTime
+  note       String?
+
+  /// Dibatalkan TIDAK dihapus (jejak audit). Kwitansi batal tetap memakai
+  /// nomornya supaya urutan nomor tidak bolong tanpa penjelasan.
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  issuedById String?
+  issuedBy   User?   @relation("ReceiptIssuedBy", fields: [issuedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Menghitung nomor urut berikutnya per sekolah per bulan. Bukan unik,
+  /// karena nomor lama tetap tersimpan untuk keperluan penomoran berurutan.
+  periodKey String // "202609"
+
+  @@unique([schoolId, receiptNo])
+  @@index([schoolId, periodKey])
+  @@index([schoolId, studentId])
+  @@map("receipts")
 }
 
 // ============================================================

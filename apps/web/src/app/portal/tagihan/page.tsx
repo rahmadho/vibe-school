@@ -104,7 +104,21 @@ export default async function PortalTagihanPage() {
                           {p.method?.name ? ` · ${p.method.name}` : ""}
                           {p.reference ? ` · ${p.reference}` : ""}
                         </span>
-                        <span>{formatRupiah(p.amount)}</span>
+                        <span className="flex items-center gap-3">
+                          {formatRupiah(p.amount)}
+                          {/* Unduh kwitansi sendiri. Nomor diterbitkan server
+                              saat pertama diunduh; unduhan berikutnya memakai
+                              nomor yang sama. Route API memeriksa bahwa
+                              pembayaran ini memang milik anak pemilik akun. */}
+                          <a
+                            href={`/api/kwitansi/${p.id}`}
+                            target="_blank"
+                            rel="noopener"
+                            className="font-medium text-board underline"
+                          >
+                            Kwitansi
+                          </a>
+                        </span>
                       </li>
                     ))}
                   </ul>

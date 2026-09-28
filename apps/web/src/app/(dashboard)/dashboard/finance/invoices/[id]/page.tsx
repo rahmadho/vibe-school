@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
+import { prisma } from "@/lib/prisma";
 import { getInvoice, listPaymentMethods } from "@/lib/data/finance";
 import { loadActiveGateway } from "@/lib/gateway-client";
 import {
@@ -16,6 +17,8 @@ import { recordPayment } from "../../actions";
 import { createPaymentLink } from "../../gateway-actions";
 import { ManualPaymentForm, PaymentLinkButton } from "./payment-forms";
 import { CancelInvoiceButton } from "./cancel-button";
+import { CetakKwitansiButton } from "./kwitansi-button";
+import { BatalKwitansiButton } from "./batal-kwitansi-button";
 
 export const metadata = { title: "Detail tagihan" };
 
@@ -42,6 +45,23 @@ export default async function InvoiceDetailPage({
     listPaymentMethods(schoolId),
     loadActiveGateway(schoolId),
   ]);
+
+  // Kwitansi yang SUDAH diterbitkan untuk pembayaran-pembayaran di tagihan ini.
+  // Diambil sekali (bukan per baris) supaya tidak menembak database berkali-kali
+  // saat tagihan punya banyak cicilan.
+  const kwitansiAda = inv.payments.length
+    ? await prisma.receipt.findMany({
+        where: {
+          schoolId,
+          paymentId: { in: inv.payments.map((p) => p.id) },
+          cancelledAt: null,
+        },
+        select: { id: true, paymentId: true },
+      })
+    : [];
+  const kwitansiPerPembayaran: Record<string, string> = Object.fromEntries(
+    kwitansiAda.map((k) => [k.paymentId, k.id]),
+  );
 
   const sisa = remainingAmount(inv.totalAmount, inv.paidAmount);
   const overdue =
@@ -144,6 +164,7 @@ export default async function InvoiceDetailPage({
                 <th>Referensi</th>
                 <th className="w-32">Dicatat oleh</th>
                 <th className="w-32 text-right">Nominal</th>
+                <th className="w-36 text-right">Kwitansi</th>
               </>
             }
           >
@@ -172,6 +193,25 @@ export default async function InvoiceDetailPage({
                 </td>
                 <td className="text-right tabular-nums text-ink">
                   {formatRupiah(p.amount)}
+                </td>
+                <td className="text-right">
+                  {/* Pembayaran bernilai nol tidak diterbitkan kwitansi —
+                      tagihan tanpa uang tidak perlu bukti pembayaran. */}
+                  {p.amount > 0 ? (
+                    <div className="flex flex-col items-end gap-1">
+                      <CetakKwitansiButton paymentId={p.id} sudahAda={false} />
+                      {/* Pembatalan butuh ID KWITANSI, bukan ID pembayaran.
+                          Kwitansi mungkin belum pernah diterbitkan — maka
+                          tombol batal belum ada gunanya. */}
+                      {canManage && kwitansiPerPembayaran[p.id] && (
+                        <BatalKwitansiButton
+                          receiptId={kwitansiPerPembayaran[p.id]}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-light">—</span>
+                  )}
                 </td>
               </tr>
             ))}
