@@ -50,6 +50,7 @@ const ENTITY_LABEL: Record<string, string> = {
   MessageTemplate: "Template Pesan",
   NavigationItem: "Menu Web",
   Post: "Berita",
+  Impersonation: "Sesi Bantuan (Impersonasi)",
 };
 
 export function entityLabel(entity: string): string {

@@ -5,6 +5,7 @@ import type { UserRole } from "@prisma/client";
 import { prisma } from "./prisma";
 import { verifyPassword } from "./password";
 import { getOverridesForRole } from "./data/permissions";
+import { verifyImpersonateToken } from "./impersonate";
 
 /**
  * ============================================================
@@ -32,12 +33,19 @@ declare module "next-auth" {
        * baru saja dicabut. Objek ini juga bisa berisi puluhan modul.
        */
       permissions: Record<string, string[]>;
+      /**
+       * Bila sesi ini adalah hasil impersonasi Super Admin, berisi identitas
+       * aktor aslinya. `null` untuk sesi biasa. Dipakai untuk menampilkan
+       * spanduk "kembali ke akun Super Admin" dan menandai audit.
+       */
+      impersonatedBy: { id: string; name: string } | null;
     } & DefaultSession["user"];
   }
   interface User {
     id: string;
     role: UserRole;
     schoolId: string | null;
+    impersonatedBy?: { id: string; name: string } | null;
   }
 }
 
@@ -110,6 +118,101 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
+    /**
+     * Provider IMPERSONATE — "Masuk sebagai".
+     *
+     * Tidak menerima identitas mentah dari klien, melainkan TIKET bertanda
+     * tangan yang dibuat server action setelah memverifikasi pemanggil
+     * benar-benar SUPER_ADMIN (lihat `lib/impersonate.ts` untuk alasannya).
+     *
+     * Yang diperiksa di sini hanya: (1) tanda tangan tiket sah & belum
+     * kedaluwarsa, (2) target ada, aktif, dan BUKAN super-admin. Aturan
+     * terakhir penting — tanpa itu, impersonasi bisa dipakai untuk berpindah
+     * antar sesama super-admin dan menghapus batas peran.
+     */
+    Credentials({
+      id: "impersonate",
+      name: "impersonate",
+      credentials: { token: { label: "token", type: "text" } },
+      async authorize(raw) {
+        const token = typeof raw?.token === "string" ? raw.token : "";
+        const payload = verifyImpersonateToken(token);
+        if (!payload) return null;
+
+        const target = await prisma.user.findUnique({
+          where: { id: payload.targetUserId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            schoolId: true,
+            isActive: true,
+            deletedAt: true,
+          },
+        });
+
+        // Target harus ada, aktif, dan bukan sesama super-admin.
+        if (!target || !target.isActive || target.deletedAt) return null;
+        if (target.role === "SUPER_ADMIN") return null;
+
+        return {
+          id: target.id,
+          email: target.email,
+          name: target.name,
+          role: target.role,
+          schoolId: target.schoolId,
+          impersonatedBy: { id: payload.actorId, name: payload.actorName },
+        };
+      },
+    }),
+    /**
+     * Provider KEMBALI — menukar sesi target kembali ke sesi Super Admin.
+     *
+     * Memakai mekanisme tiket yang sama, tetapi arahnya berlawanan (`to`
+     * bernilai "restore"). Dipisahkan dari provider "impersonate" supaya tiket
+     * masuk-tidak bisa dipakai untuk kembali, dan sebaliknya.
+     *
+     * Yang menjadi `id` sesi adalah aktor (super-admin). Karena aktor memang
+     * role SUPER_ADMIN di database, tidak ada yang perlu dipalsukan — cukup
+     * pastikan tiket sah, akun aktor masih aktif, dan ia benar-benar super-admin.
+     */
+    Credentials({
+      id: "impersonate-return",
+      name: "impersonate-return",
+      credentials: { token: { label: "token", type: "text" } },
+      async authorize(raw) {
+        const token = typeof raw?.token === "string" ? raw.token : "";
+        const payload = verifyImpersonateToken(token);
+        if (!payload || payload.to !== "restore") return null;
+
+        const actor = await prisma.user.findUnique({
+          where: { id: payload.actorId },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            schoolId: true,
+            isActive: true,
+            deletedAt: true,
+          },
+        });
+        if (!actor || !actor.isActive || actor.deletedAt) return null;
+        // Hanya super-admin yang boleh dipulihkan lewat jalur ini.
+        if (actor.role !== "SUPER_ADMIN") return null;
+
+        return {
+          id: actor.id,
+          email: actor.email,
+          name: actor.name,
+          role: actor.role,
+          schoolId: actor.schoolId,
+          // Sesi hasil pemulihan adalah sesi normal — tanpa penanda.
+          impersonatedBy: null,
+        };
+      },
+    }),
   ],
   callbacks: {
     async jwt({ token, user }) {
@@ -117,6 +220,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.uid = user.id;
         token.role = user.role;
         token.schoolId = user.schoolId;
+        // Penanda impersonasi ikut di token agar bertahan lintas request.
+        token.impersonatedBy = user.impersonatedBy ?? null;
       }
       return token;
     },
@@ -125,6 +230,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.uid as string;
         session.user.role = token.role as UserRole;
         session.user.schoolId = (token.schoolId as string | null) ?? null;
+        session.user.impersonatedBy =
+          (token.impersonatedBy as { id: string; name: string } | null) ?? null;
 
         // Izin diambil dari DATABASE pada setiap penyusunan sesi, bukan dari
         // token. Kalau disimpan di token, izin yang baru dicabut tetap berlaku

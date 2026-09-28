@@ -81,6 +81,19 @@ export async function getSchool(id: string) {
   });
 }
 
+/**
+ * Pengguna milik SATU sekolah — dipakai super-admin untuk memilih akun yang
+ * akan diperankan ("Masuk sebagai"). Dikecualikan akun nonaktif dan yang
+ * sudah dihapus, karena keduanya akan ditolak provider impersonate.
+ */
+export async function listSchoolUsers(schoolId: string) {
+  return prisma.user.findMany({
+    where: { schoolId, deletedAt: null, isActive: true },
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+  });
+}
+
 export async function getSchoolStats() {
   const [schools, active, students, users] = await Promise.all([
     prisma.school.count({ where: { deletedAt: null } }),

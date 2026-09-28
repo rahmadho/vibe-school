@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { getSchool, listPlans } from "@/lib/data/schools";
+import { getSchool, listPlans, listSchoolUsers } from "@/lib/data/schools";
 import { SCHOOL_LEVEL_LABEL } from "@/lib/validations/school";
+import { USER_ROLE_LABEL } from "@/lib/validations/user";
 import { formatDate, formatRupiah } from "@/lib/format";
 import { Button } from "@/components/ui";
 import { PageHeader } from "@/components/data-table";
@@ -13,6 +14,8 @@ import {
   SubscriptionForm,
   ToggleActiveButton,
 } from "./school-detail-client";
+import { ImpersonateButton } from "./impersonate-button";
+import { startImpersonation, canImpersonate } from "./impersonate-actions";
 
 export const metadata = { title: "Detail sekolah" };
 
@@ -28,7 +31,12 @@ export default async function SchoolDetailPage({
   }
 
   const { id } = await params;
-  const [school, plans] = await Promise.all([getSchool(id), listPlans()]);
+  const [school, plans, users, mayImpersonate] = await Promise.all([
+    getSchool(id),
+    listPlans(),
+    listSchoolUsers(id),
+    canImpersonate(),
+  ]);
   if (!school) notFound();
 
   const sub = school.subscription;
@@ -146,6 +154,48 @@ export default async function SchoolDetailPage({
             />
           </div>
         </section>
+
+        {/* Bantuan: masuk sebagai pengguna sekolah (impersonasi beraudit) */}
+        {mayImpersonate ? (
+          <section className="card lg:col-span-3">
+            <h2 className="card-title">Bantuan &amp; penelusuran</h2>
+            <p className="mt-1 max-w-prose text-sm text-slate">
+              Masuk sebagai pengguna sekolah untuk menelusuri masalah yang mereka
+              laporkan, tanpa perlu meminta kata sandi mereka. Semua tindakan
+              selama sesi bantuan tercatat di Log Aktivitas, dan sebuah spanduk
+              akan selalu mengingatkan bahwa Anda sedang memerankan akun lain.
+            </p>
+            {users.length === 0 ? (
+              <p className="mt-3 text-sm text-slate">
+                Sekolah ini belum punya pengguna aktif.
+              </p>
+            ) : (
+              <ul className="mt-4 divide-y divide-chalk">
+                {users.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-ink">{u.name}</p>
+                      <p className="text-xs text-slate">
+                        {USER_ROLE_LABEL[u.role as keyof typeof USER_ROLE_LABEL]} ·{" "}
+                        <span className="font-mono">{u.email}</span>
+                      </p>
+                    </div>
+                    {u.role === "SUPER_ADMIN" ? null : (
+                      <ImpersonateButton
+                        targetUserId={u.id}
+                        targetName={u.name}
+                        action={startImpersonation}
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
 
         {/* Status */}
         <section className="card lg:col-span-3">

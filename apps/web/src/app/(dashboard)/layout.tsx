@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { modulesFor } from "@/lib/rbac";
 import { getSchoolPreviewUrl } from "@/lib/site-preview";
 import { Sidebar } from "@/components/sidebar";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 
 /**
  * Layout dashboard — gerbang otorisasi utama (selain middleware).
@@ -51,18 +52,23 @@ export default async function DashboardLayout({
    * mendorong sidebar keluar layar (perilaku bawaan flex item).
    */
   return (
-    <div className="flex h-screen overflow-hidden bg-paper">
-      <Sidebar
-        schoolName={schoolName}
-        userName={name ?? "Pengguna"}
-        role={role}
-        modules={modulesFor(role, session.user.permissions)}
-        previewUrl={previewUrl}
-        schoolLevel={schoolLevel}
-      />
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
-      </main>
+    <div className="flex h-screen flex-col overflow-hidden bg-paper">
+      {session.user.impersonatedBy ? (
+        <ImpersonationBanner actorName={session.user.impersonatedBy.name} />
+      ) : null}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar
+          schoolName={schoolName}
+          userName={name ?? "Pengguna"}
+          role={role}
+          modules={modulesFor(role, session.user.permissions)}
+          previewUrl={previewUrl}
+          schoolLevel={schoolLevel}
+        />
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-6xl px-8 py-10">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }
