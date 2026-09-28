@@ -47,7 +47,7 @@ Prinsip: **jangan lompat tahap**. Setiap fase harus lolos Definition of Done (li
 - [x] Auto-update Invoice + buat Payment saat settlement
 - [x] Pencatatan pembayaran manual (tunai) oleh bendahara
 - [x] Laporan tunggakan & rekap penerimaan
-- [ ] Kwitansi PDF — belum
+- [x] Kwitansi PDF — selesai (tombol cetak di detail tagihan, unduh mandiri di portal)
 - [ ] Cron penandaan OVERDUE — belum (status bisa diset manual)
 
 ---
@@ -65,7 +65,10 @@ Prinsip: **jangan lompat tahap**. Setiap fase harus lolos Definition of Done (li
 - [x] Input nilai per siswa
 - [x] Hitung nilai akhir (terbobot) → `ReportCard`
 - [x] Rekap nilai digital
-- [ ] **Rapor PDF format resmi** — belum
+- [x] **Rapor PDF format resmi** — selesai (kop + logo, nilai angka + predikat
+  per mapel dengan penanda di bawah KKM, rekap kehadiran, catatan wali kelas,
+  tanda tangan kepala sekolah & wali kelas). Sesuai keputusan PRD #1: nilai
+  angka + rekap, BUKAN replika resmi K13/Kurikulum Merdeka.
 - [ ] Publikasi nilai + notif WA — template WA sudah ada, alur publikasi belum
 
 ---

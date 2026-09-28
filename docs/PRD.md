@@ -237,7 +237,9 @@ Skema yang sudah ada perlu diperluas:
 - **ORM:** Prisma · **DB:** PostgreSQL
 - **Auth:** NextAuth (RBAC)
 - **Validasi:** Zod · **UI:** Tailwind + shadcn/ui
-- **PDF:** `@react-pdf/renderer` (rapor & kwitansi)
+- **PDF:** `pdfkit` (rapor & kwitansi). Murni JavaScript, tanpa dependensi
+  sistem — image produksi memakai `node:24-slim` tanpa Chromium, jadi
+  Puppeteer/Chromium akan menambah ±300–400 MB per container.
 - **WA:** Node.js + Baileys (service terpisah)
 - **Payment:** Midtrans (rekomendasi) — QRIS + VA + webhook
 - **Deploy:** VPS (Docker Compose + Nginx + Let's Encrypt)

@@ -9,6 +9,29 @@ export default async function PortalNilaiPage() {
   const { anak } = await wajibKonteksPortal();
   const { nilai, rapor } = await nilaiPortal(anak.id, anak.schoolId);
 
+  // Rapor diunduh PER SEMESTER (satu PDF memuat semua mapel semester itu),
+  // jadi semester dikumpulkan dari baris ReportCard dan dihitung jumlah
+  // mapelnya. Tanpa pengelompokan ini, "Ganjil" akan muncul berkali-kali.
+  const petaSemester = new Map<
+    string,
+    { semesterId: string; semesterName: string; jumlahMapel: number }
+  >();
+  for (const r of rapor) {
+    const ada = petaSemester.get(r.semesterId);
+    if (ada) {
+      ada.jumlahMapel += 1;
+    } else {
+      petaSemester.set(r.semesterId, {
+        semesterId: r.semesterId,
+        semesterName: r.semesterName,
+        jumlahMapel: 1,
+      });
+    }
+  }
+  const semesterUnik = [...petaSemester.values()].sort((a, b) =>
+    a.semesterName.localeCompare(b.semesterName),
+  );
+
   // Kelompokkan per mapel — orang tua membaca "nilai Matematika", bukan
   // daftar komponen lepas.
   const perMapel = new Map<
@@ -67,6 +90,41 @@ export default async function PortalNilaiPage() {
             );
           })}
         </div>
+      )}
+
+      {semesterUnik.length > 0 && (
+        <section className="rounded-xl border border-chalk bg-white p-5">
+          <h2 className="font-display text-lg text-ink">Rapor</h2>
+          <p className="mt-1 text-xs text-slate">
+            Unduh rapor resmi (PDF) berisi seluruh nilai semester tersebut.
+          </p>
+          <ul className="mt-3 divide-y divide-chalk">
+            {semesterUnik.map((s) => (
+              <li
+                key={s.semesterId}
+                className="flex items-center justify-between gap-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-ink">{s.semesterName}</p>
+                  <p className="text-xs text-slate-light">
+                    {s.jumlahMapel} mata pelajaran
+                  </p>
+                </div>
+                {/* Unduhan membawa studentId & semesterId; route API memeriksa
+                    sendiri bahwa ini memang rapor anak pemilik akun, jadi
+                    menebak ID di URL tidak membuka rapor orang lain. */}
+                <a
+                  href={`/api/rapor/${anak.id}/${s.semesterId}`}
+                  target="_blank"
+                  rel="noopener"
+                  className="shrink-0 rounded-lg border border-chalk px-3 py-1.5 text-xs font-medium text-board"
+                >
+                  Unduh rapor
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {rapor.length > 0 && (

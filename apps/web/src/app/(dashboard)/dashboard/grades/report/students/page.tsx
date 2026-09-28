@@ -266,11 +266,25 @@ export default async function StudentReportPage({
                         {data.klass.major ? ` · ${data.klass.major.name}` : ""}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-[var(--slate)]">Rata-rata</p>
-                      <p className="tabular-display text-2xl text-[var(--ink)]">
-                        {average ?? "—"}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-xs text-[var(--slate)]">Rata-rata</p>
+                        <p className="tabular-display text-2xl text-[var(--ink)]">
+                          {average ?? "—"}
+                        </p>
+                      </div>
+                      {/* Unduh rapor PDF resmi untuk siswa ini.
+                          Pratinjau di atas adalah pandangan wali kelas;
+                          PDF-nya dokumen yang diserahkan ke orang tua —
+                          lengkap dengan kop, tanda tangan, dan catatan. */}
+                      <a
+                        href={`/api/rapor/${student.id}/${semesterId}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="shrink-0 border-2 border-[var(--ink)] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ink)] hover:bg-[var(--paper)]"
+                      >
+                        Unduh PDF
+                      </a>
                     </div>
                   </header>
 
