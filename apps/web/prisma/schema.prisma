@@ -6,7 +6,7 @@
 // ============================================================
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // Engine disertakan untuk Linux (Docker/produksi) DAN Windows (dev lokal),
   // supaya `prisma generate` di satu OS tetap menghasilkan client yang jalan
   // di kedua tempat. Tanpa ini, image Docker bisa gagal: "Query engine ...
@@ -112,17 +112,24 @@ enum SchoolLevel {
 // ============================================================
 
 model User {
-  id           String    @id @default(cuid())
-  schoolId     String? // null = super-admin lintas sekolah
-  school       School?   @relation(fields: [schoolId], references: [id])
-  email        String    @unique
-  passwordHash String
-  name         String
-  phone        String? // E.164 tanpa '+'
-  avatarUrl    String?
-  role         UserRole
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
+  id                 String    @id @default(cuid())
+  schoolId           String? // null = super-admin lintas sekolah
+  school             School?   @relation(fields: [schoolId], references: [id])
+  email              String    @unique
+  /// Username untuk login alternatif — dipakai akun siswa/wali (diisi NIS).
+  /// BUKAN unik global: NIS "2024001" bisa ada di beberapa sekolah. Keunikan
+  /// dijaga per sekolah lewat @@unique([schoolId, username]) di bawah.
+  username           String?
+  passwordHash       String
+  /// true = user wajib ganti password sebelum boleh memakai aplikasi.
+  /// Dipakai akun siswa/wali yang dibuat massal dengan password awal seragam.
+  mustChangePassword Boolean   @default(false)
+  name               String
+  phone              String? // E.164 tanpa '+'
+  avatarUrl          String?
+  role               UserRole
+  isActive           Boolean   @default(true)
+  lastLoginAt        DateTime?
 
   // Kaitan ke entitas lain (opsional, tergantung role)
   student   Student? @relation(fields: [studentId], references: [id])
@@ -136,15 +143,16 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  sessions          Session[]
-  auditLogs         AuditLog[]
-  paymentsRecorded  Payment[]              @relation("PaymentRecordedBy")
-  gradesCreated     Grade[]                @relation("GradeCreatedBy")
-  attendancesMarked Attendance[]           @relation("AttendanceMarkedBy")
-  campaignsCreated  AnnouncementCampaign[] @relation("CampaignCreatedBy")
-  mediaUploaded     Media[]                @relation("MediaUploadedBy")
-  rolePermissionsUpdated RolePermission[] @relation("RolePermissionUpdatedBy")
+  sessions               Session[]
+  auditLogs              AuditLog[]
+  paymentsRecorded       Payment[]              @relation("PaymentRecordedBy")
+  gradesCreated          Grade[]                @relation("GradeCreatedBy")
+  attendancesMarked      Attendance[]           @relation("AttendanceMarkedBy")
+  campaignsCreated       AnnouncementCampaign[] @relation("CampaignCreatedBy")
+  mediaUploaded          Media[]                @relation("MediaUploadedBy")
+  rolePermissionsUpdated RolePermission[]       @relation("RolePermissionUpdatedBy")
 
+  @@unique([schoolId, username])
   @@index([schoolId])
   @@index([role])
   @@map("users")
@@ -1169,11 +1177,11 @@ model Media {
   school   School @relation(fields: [schoolId], references: [id])
 
   /// Nama tampil di pustaka. Untuk unggahan, diambil dari nama berkas asli.
-  name     String
+  name   String
   /// URL publik yang dipakai di halaman web.
-  url      String
+  url    String
   /// "UPLOAD" = tersimpan di penyimpanan kita; "LINK" = tautan luar.
-  source   MediaSource @default(UPLOAD)
+  source MediaSource @default(UPLOAD)
 
   /// Jenis MIME ("image/png"). Null untuk tautan luar yang belum diperiksa.
   mimeType String?
@@ -1280,9 +1288,9 @@ model RolePermission {
   schoolId String
   school   School @relation(fields: [schoolId], references: [id])
 
-  role   UserRole
+  role    UserRole
   /// Nama modul dari `lib/rbac.ts` (mis. "finance").
-  module String
+  module  String
   /// Aksi yang diizinkan: "read" | "create" | "update" | "delete" | "manage".
   /// Array kosong berarti role ini TIDAK punya akses ke modul tersebut.
   actions String[]

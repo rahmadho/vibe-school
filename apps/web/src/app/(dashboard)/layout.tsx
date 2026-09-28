@@ -18,7 +18,19 @@ export default async function DashboardLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  // Akun yang masih memakai password awal (tanggal lahir) TIDAK boleh memakai
+  // aplikasi sebelum menggantinya. Gerbang ini harus ada di setiap pintu masuk
+  // — dashboard dan portal — karena keduanya bisa dibuka langsung lewat URL.
+  if (session.user.mustChangePassword) redirect("/ganti-password");
+
   const { role, schoolId, name } = session.user;
+
+  // Siswa & orang tua TIDAK boleh masuk dashboard staf. Mereka punya portal
+  // sendiri. Tanpa gerbang ini, akun siswa yang tahu URL /dashboard akan
+  // melihat menu operator — dan walaupun aksi tulisnya dijaga izin, membiarkan
+  // mereka masuk ke ruang kerja staf tetap salah: banyak halaman hanya
+  // "menyembunyikan" tombol berdasarkan izin, bukan menolak akses.
+  if (role === "STUDENT" || role === "PARENT") redirect("/portal");
 
   // SUPER_ADMIN lintas-sekolah tidak punya schoolId → tampilkan label khusus.
   let schoolName = "Semua Sekolah";

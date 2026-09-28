@@ -67,7 +67,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <h1 className="font-display text-3xl text-ink">Masuk ke akun Anda</h1>
           <p className="mt-2 text-sm text-slate">
-            Gunakan email sekolah yang terdaftar.
+            Staf dan guru memakai email. Siswa dan orang tua memakai NIS.
           </p>
 
           <Suspense fallback={<LoginFormSkeleton />}>

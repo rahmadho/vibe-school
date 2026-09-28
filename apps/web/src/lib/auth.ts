@@ -6,6 +6,8 @@ import { prisma } from "./prisma";
 import { verifyPassword } from "./password";
 import { getOverridesForRole } from "./data/permissions";
 import { verifyImpersonateToken } from "./impersonate";
+import { USER_LOGIN_SELECT, schoolIdUntukLoginNis } from "./login-identitas";
+import { normalkanIdentitas } from "./login-identitas-murni";
 
 /**
  * ============================================================
@@ -39,6 +41,13 @@ declare module "next-auth" {
        * spanduk "kembali ke akun Super Admin" dan menandai audit.
        */
       impersonatedBy: { id: string; name: string } | null;
+      /**
+       * true = user harus mengganti password sebelum memakai aplikasi.
+       * Dipakai akun siswa/wali yang dibuat massal dengan password awal
+       * seragam — tanpa ini, satu siswa yang tahu polanya bisa mencoba
+       * masuk ke akun siswa lain.
+       */
+      mustChangePassword: boolean;
     } & DefaultSession["user"];
   }
   interface User {
@@ -46,12 +55,18 @@ declare module "next-auth" {
     role: UserRole;
     schoolId: string | null;
     impersonatedBy?: { id: string; name: string } | null;
+    mustChangePassword?: boolean;
   }
 }
 
 const credentialsSchema = z.object({
-  email: z.string().email(),
+  // Menerima email ATAU username (NIS). Validasi bentuk dilakukan di dalam
+  // authorize() karena polanya bergantung pada isinya.
+  identifier: z.string().min(1),
   password: z.string().min(1),
+  // Slug sekolah yang ikut dikirim halaman login. WAJIB untuk login NIS:
+  // tanpa ini NIS ambigu antar sekolah. Diabaikan untuk login email.
+  schoolSlug: z.string().optional(),
 });
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -68,31 +83,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       name: "credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        identifier: { label: "NIS atau Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
-        const { email, password } = parsed.data;
+        const { identifier, password, schoolSlug } = parsed.data;
 
-        // Login butuh lintas-tenant (mencari user by email) → prisma mentah.
-        // Ini SATU-SATUNYA query data user yang tidak lewat scopedDb, dan
-        // aman karena tujuannya memang menemukan tenant si user.
-        const user = await prisma.user.findUnique({
-          where: { email: email.toLowerCase() },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            passwordHash: true,
-            role: true,
-            schoolId: true,
-            isActive: true,
-            deletedAt: true,
-          },
-        });
+        // Klasifikasi & normalisasi memakai logika murni yang teruji
+        // (lihat test/login-identitas.test.ts). Input cacat ditolak di sini,
+        // sebelum menyentuh database.
+        const ident = normalkanIdentitas(identifier);
+        if (!ident) return null;
+
+        // Login butuh lintas-tenant (mencari user sebelum tenant diketahui)
+        // → prisma mentah. Ini SATU-SATUNYA tempat data user dicari tanpa
+        // scopedDb, dan aman karena tujuannya memang menemukan tenant.
+        //
+        // Untuk NIS, pencarian DIBATASI ke satu sekolah (slug dari form, atau
+        // subdomain). Tanpa pembatasan itu, NIS "2024001" yang ada di dua
+        // sekolah akan ambigu — dan menebak bisa membuka akun sekolah lain.
+        let user;
+        if (ident.jenis === "email") {
+          user = await prisma.user.findUnique({
+            where: { email: ident.nilai },
+            select: USER_LOGIN_SELECT,
+          });
+        } else {
+          const schoolId = await schoolIdUntukLoginNis(schoolSlug);
+          if (!schoolId) return null;
+          user = await prisma.user.findFirst({
+            where: { username: ident.nilai, schoolId },
+            select: USER_LOGIN_SELECT,
+          });
+        }
 
         if (!user || !user.isActive || user.deletedAt) return null;
 
@@ -115,6 +141,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           role: user.role,
           schoolId: user.schoolId,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
@@ -222,6 +249,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.schoolId = user.schoolId;
         // Penanda impersonasi ikut di token agar bertahan lintas request.
         token.impersonatedBy = user.impersonatedBy ?? null;
+        token.mustChangePassword =
+          (user as { mustChangePassword?: boolean }).mustChangePassword ?? false;
       }
       return token;
     },
@@ -232,6 +261,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.schoolId = (token.schoolId as string | null) ?? null;
         session.user.impersonatedBy =
           (token.impersonatedBy as { id: string; name: string } | null) ?? null;
+        session.user.mustChangePassword =
+          (token.mustChangePassword as boolean | undefined) ?? false;
 
         // Izin diambil dari DATABASE pada setiap penyusunan sesi, bukan dari
         // token. Kalau disimpan di token, izin yang baru dicabut tetap berlaku

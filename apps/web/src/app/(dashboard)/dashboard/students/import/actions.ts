@@ -10,6 +10,8 @@ import {
   parseStudentWorkbook,
   type ParseResult,
 } from "@/lib/import/students";
+import { buatAkunSiswa } from "@/lib/akun-siswa";
+import { ambilSlugSekolah } from "@/lib/sekolah-helper";
 
 /**
  * Import siswa tahap 2: setelah PREVIEW (parse di client/server), admin
@@ -48,6 +50,8 @@ export async function commitImport(
   }
 
   const schoolId = session.user.schoolId;
+  // Slug dipakai membentuk email akun siswa; diambil sekali di luar loop.
+  const slugSekolah = await ambilSlugSekolah(schoolId);
   const parsed = parseStudentWorkbook(fileBuffer);
 
   if (parsed.headerErrors.length) {
@@ -90,37 +94,64 @@ export async function commitImport(
     }
 
     try {
-      await prisma.student.create({
-        data: {
-          schoolId,
-          nis: d.nis,
-          nisn: d.nisn ?? null,
-          fullName: d.fullName,
-          gender: d.gender,
-          birthPlace: d.birthPlace ?? null,
-          birthDate: d.birthDate ?? null,
-          religion: d.religion ?? null,
-          address: d.address ?? null,
-          phone: d.phone ?? null,
-          entryYear: d.entryYear,
-          classId: d.classId ?? null,
-          status: d.status,
-          ...(d.parentName
-            ? {
-                parents: {
-                  create: {
-                    fullName: d.parentName,
-                    relation: d.parentRelation ?? "GUARDIAN",
-                    phone: d.parentPhone ?? "",
-                    isPrimary: true,
+      // Siswa + akun login dibuat dalam satu transaksi — supaya tidak ada
+      // akun yatim bila pembuatan siswa gagal di tengah impor.
+      const hasil = await prisma.$transaction(async (tx) => {
+        const siswa = await tx.student.create({
+          data: {
+            schoolId,
+            nis: d.nis,
+            nisn: d.nisn ?? null,
+            fullName: d.fullName,
+            gender: d.gender,
+            birthPlace: d.birthPlace ?? null,
+            birthDate: d.birthDate ?? null,
+            religion: d.religion ?? null,
+            address: d.address ?? null,
+            phone: d.phone ?? null,
+            entryYear: d.entryYear,
+            classId: d.classId ?? null,
+            status: d.status,
+            ...(d.parentName
+              ? {
+                  parents: {
+                    create: {
+                      fullName: d.parentName,
+                      relation: d.parentRelation ?? "GUARDIAN",
+                      phone: d.parentPhone ?? "",
+                      isPrimary: true,
+                    },
                   },
-                },
-              }
-            : {}),
-        },
+                }
+              : {}),
+          },
+          select: { id: true, nis: true, fullName: true, birthDate: true },
+        });
+
+        // Akun login: username = NIS, password awal = tanggal lahir,
+        // wajib ganti saat pertama masuk.
+        const akun = await buatAkunSiswa(tx, {
+          studentId: siswa.id,
+          schoolId,
+          nis: siswa.nis,
+          nama: siswa.fullName,
+          tanggalLahir: siswa.birthDate,
+          slugSekolah,
+        });
+
+        return { siswa, akun };
       });
+
       existingNis.add(d.nis);
       imported += 1;
+
+      // Akun yang gagal dibuat TIDAK membatalkan impor, tetapi dicatat supaya
+      // operator bisa menindaklanjuti (mis. NIS ganda di berkas Excel).
+      if (hasil.akun.status === "gagal") {
+        errors.push(
+          `Baris ${row.rowNumber}: siswa masuk, akun login gagal — ${hasil.akun.alasan}`,
+        );
+      }
     } catch {
       skipped += 1;
       errors.push(`Baris ${row.rowNumber}: gagal disimpan.`);

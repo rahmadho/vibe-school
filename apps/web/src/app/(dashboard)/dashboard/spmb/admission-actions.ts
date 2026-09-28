@@ -14,6 +14,8 @@ import {
   registrationReviewSchema,
 } from "@/lib/validations/site";
 import { queueNotification } from "@/lib/notification-queue";
+import { buatAkunSiswa } from "@/lib/akun-siswa";
+import { ambilSlugSekolah } from "@/lib/sekolah-helper";
 import { getBlock } from "@/lib/site-blocks";
 import { BLOCK_PROPS_SCHEMAS } from "@/lib/validations/site";
 import { manualRegistrationSchema } from "@/lib/validations/spmb-manual";
@@ -1336,6 +1338,10 @@ export async function convertRegistrationToStudent(
     };
   }
 
+  // Slug sekolah untuk membentuk email akun siswa; diambil di luar transaksi
+  // supaya transaksi tidak menyentuh tabel schools.
+  const slugSekolah = await ambilSlugSekolah(schoolId);
+
   try {
     const student = await prisma.$transaction(async (tx) => {
       const created = await tx.student.create({
@@ -1362,7 +1368,19 @@ export async function convertRegistrationToStudent(
             },
           },
         },
-        select: { id: true },
+        select: { id: true, nis: true, fullName: true, birthDate: true },
+      });
+
+      // Akun login siswa baru (username = NIS, password awal = tanggal lahir).
+      // Dibuat DI DALAM transaksi yang sama supaya siswa yang jadi tidak
+      // pernah tertinggal tanpa akun.
+      const akun = await buatAkunSiswa(tx, {
+        studentId: created.id,
+        schoolId,
+        nis: created.nis,
+        nama: created.fullName,
+        tanggalLahir: created.birthDate,
+        slugSekolah,
       });
 
       // Tandai pendaftaran sudah dikonversi — penanda idempotensi.

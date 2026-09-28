@@ -11,6 +11,8 @@ import {
   studentCreateSchema,
   studentUpdateSchema,
 } from "@/lib/validations/student";
+import { buatAkunSiswa } from "@/lib/akun-siswa";
+import { ambilSlugSekolah } from "@/lib/sekolah-helper";
 
 /**
  * Server Actions untuk Siswa.
@@ -102,36 +104,56 @@ export async function createStudent(
 
   const meta = await requestMeta();
 
-  const created = await prisma.student.create({
-    data: {
-      schoolId: ctx.schoolId, // ← isolasi tenant
-      nis: data.nis,
-      nisn: data.nisn ?? null,
-      fullName: data.fullName,
-      gender: data.gender,
-      birthPlace: data.birthPlace ?? null,
-      birthDate: data.birthDate ?? null,
-      religion: data.religion ?? null,
-      address: data.address ?? null,
-      phone: data.phone ?? null,
-      entryYear: data.entryYear,
-      classId: data.classId ?? null,
-      majorId: data.majorId ?? null,
-      status: data.status,
-      ...(data.parentName
-        ? {
-            parents: {
-              create: {
-                fullName: data.parentName,
-                relation: data.parentRelation ?? "GUARDIAN",
-                phone: data.parentPhone ?? "",
-                isPrimary: true,
+  // Pembuatan siswa + akun login-nya dijalankan dalam SATU transaksi.
+  // Kalau akun dibuat di luar transaksi lalu pembuatan siswa gagal, akan
+  // tertinggal akun yatim yang tidak terhubung ke siswa mana pun.
+  const slugSekolah = await ambilSlugSekolah(ctx.schoolId);
+
+  const { created, akun } = await prisma.$transaction(async (tx) => {
+    const siswa = await tx.student.create({
+      data: {
+        schoolId: ctx.schoolId, // ← isolasi tenant
+        nis: data.nis,
+        nisn: data.nisn ?? null,
+        fullName: data.fullName,
+        gender: data.gender,
+        birthPlace: data.birthPlace ?? null,
+        birthDate: data.birthDate ?? null,
+        religion: data.religion ?? null,
+        address: data.address ?? null,
+        phone: data.phone ?? null,
+        entryYear: data.entryYear,
+        classId: data.classId ?? null,
+        majorId: data.majorId ?? null,
+        status: data.status,
+        ...(data.parentName
+          ? {
+              parents: {
+                create: {
+                  fullName: data.parentName,
+                  relation: data.parentRelation ?? "GUARDIAN",
+                  phone: data.parentPhone ?? "",
+                  isPrimary: true,
+                },
               },
-            },
-          }
-        : {}),
-    },
-    select: { id: true },
+            }
+          : {}),
+      },
+      select: { id: true, nis: true, fullName: true, birthDate: true },
+    });
+
+    // Akun login: username = NIS, password awal = tanggal lahir.
+    // Wajib ganti password saat pertama masuk (lihat lib/akun-siswa.ts).
+    const hasilAkun = await buatAkunSiswa(tx, {
+      studentId: siswa.id,
+      schoolId: ctx.schoolId,
+      nis: siswa.nis,
+      nama: siswa.fullName,
+      tanggalLahir: siswa.birthDate,
+      slugSekolah,
+    });
+
+    return { created: siswa, akun: hasilAkun };
   });
 
   await recordAudit({
@@ -140,12 +162,34 @@ export async function createStudent(
     action: "CREATE",
     entity: "Student",
     entityId: created.id,
-    after: { nis: data.nis, fullName: data.fullName },
+    after: {
+      nis: data.nis,
+      fullName: data.fullName,
+      akun: akun.status,
+      ...(akun.status !== "dibuat" ? { akunAlasan: akun.alasan } : {}),
+    },
     ...meta,
   });
 
   revalidatePath("/dashboard/students");
-  return { ok: true, id: created.id, message: "Siswa ditambahkan." };
+
+  // Kegagalan membuat akun TIDAK membatalkan pembuatan siswa (data siswa tetap
+  // tersimpan), tetapi operator harus tahu — bukan diam-diam.
+  if (akun.status === "gagal") {
+    return {
+      ok: true,
+      id: created.id,
+      message: `Siswa ditambahkan, tetapi akun login GAGAL dibuat: ${akun.alasan}`,
+    };
+  }
+  if (akun.status === "dilewati") {
+    return {
+      ok: true,
+      id: created.id,
+      message: `Siswa ditambahkan. Akun login dilewati: ${akun.alasan}`,
+    };
+  }
+  return { ok: true, id: created.id, message: "Siswa ditambahkan beserta akun login." };
 }
 
 /* ============================================================
