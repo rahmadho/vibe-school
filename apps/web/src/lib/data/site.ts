@@ -225,20 +225,19 @@ export async function getPublicNavigation(schoolId: string) {
 /** Tulisan terbit, terbaru lebih dulu. */
 export async function listPublishedPosts(
   schoolId: string,
-  opts: { type?: "NEWS" | "ANNOUNCEMENT" | "AGENDA" | "GALLERY"; take?: number } = {},
+  opts: {
+    type?: "NEWS" | "ANNOUNCEMENT" | "AGENDA" | "GALLERY";
+    take?: number;
+    /** Lompati N baris awal — untuk pagination (halaman 2 = skip (per-1)*N). */
+    skip?: number;
+  } = {},
 ) {
   const now = new Date();
   return prisma.post.findMany({
-    where: {
-      schoolId,
-      deletedAt: null,
-      isPublished: true,
-      // Terbit terjadwal: jangan tampilkan yang belum waktunya.
-      OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
-      ...(opts.type ? { type: opts.type } : {}),
-    },
+    where: publishedPostWhere(schoolId, now, opts.type),
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: opts.take ?? 12,
+    skip: opts.skip ?? 0,
     select: {
       id: true,
       title: true,
@@ -250,6 +249,39 @@ export async function listPublishedPosts(
       createdAt: true,
     },
   });
+}
+
+/**
+ * Jumlah tulisan terbit — dipakai pagination untuk menghitung total halaman.
+ *
+ * Memakai filter yang SAMA dengan listPublishedPosts (lewat helper) agar
+ * hitungan dan daftar tidak pernah berbeda; kalau salah satunya diubah dan
+ * yang lain tertinggal, halaman terakhir bisa tampak kosong atau ada tulisan
+ * yang tak pernah muncul.
+ */
+export async function countPublishedPosts(
+  schoolId: string,
+  opts: { type?: "NEWS" | "ANNOUNCEMENT" | "AGENDA" | "GALLERY" } = {},
+) {
+  return prisma.post.count({
+    where: publishedPostWhere(schoolId, new Date(), opts.type),
+  });
+}
+
+/** Filter bersama: tulisan terbit & sudah waktunya tayang (terbit terjadwal). */
+function publishedPostWhere(
+  schoolId: string,
+  now: Date,
+  type?: "NEWS" | "ANNOUNCEMENT" | "AGENDA" | "GALLERY",
+) {
+  return {
+    schoolId,
+    deletedAt: null,
+    isPublished: true,
+    // Jangan tampilkan tulisan yang belum waktunya (terbit terjadwal).
+    OR: [{ publishedAt: null }, { publishedAt: { lte: now } }],
+    ...(type ? { type } : {}),
+  };
 }
 
 export async function getPostBySlug(schoolId: string, slug: string) {

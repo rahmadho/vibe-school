@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveSchoolFromRequest } from "@/lib/site-server";
-import { listPublishedPosts, getPostBySlug } from "@/lib/data/site";
+import {
+  listPublishedPosts,
+  countPublishedPosts,
+  getPostBySlug,
+} from "@/lib/data/site";
 import { Section, SectionHeading, SiteCard, SiteImage, BlockEmpty, RichContent, formatSiteDate } from "@/components/site/site-ui";
 
 /**
@@ -16,6 +20,9 @@ import { Section, SectionHeading, SiteCard, SiteImage, BlockEmpty, RichContent, 
  */
 
 export const dynamic = "force-dynamic";
+
+/** Jumlah tulisan per halaman pada daftar berita. */
+const PER_PAGE = 9;
 
 export async function generateMetadata({
   params,
@@ -36,8 +43,10 @@ export async function generateMetadata({
 
 export default async function NewsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug?: string[] }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { slug: slugArr } = await params;
   const ctx = await resolveSchoolFromRequest();
@@ -46,7 +55,22 @@ export default async function NewsPage({
   const slug = slugArr?.[0];
   if (slug) return <Article schoolId={ctx.school.id} slug={slug} />;
 
-  const posts = await listPublishedPosts(ctx.school.id, { take: 40 });
+  // Halaman daftar: paginasi 9 tulisan per halaman.
+  const sp = await searchParams;
+  const total = await countPublishedPosts(ctx.school.id);
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+
+  // Clamp 1..totalPages: `?page=999` atau `?page=abc` tidak boleh menghasilkan
+  // halaman kosong atau query skip yang aneh.
+  const requested = Number(sp.page);
+  const page = Number.isFinite(requested)
+    ? Math.min(totalPages, Math.max(1, Math.trunc(requested)))
+    : 1;
+
+  const posts = await listPublishedPosts(ctx.school.id, {
+    take: PER_PAGE,
+    skip: (page - 1) * PER_PAGE,
+  });
 
   return (
     <Section>
@@ -84,7 +108,84 @@ export default async function NewsPage({
           </SiteCard>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <NewsPagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+        />
+      )}
     </Section>
+  );
+}
+
+/**
+ * Navigasi halaman berita.
+ *
+ * Dibuat lokal (bukan memakai komponen `Pagination` dashboard) karena halaman
+ * publik memakai variabel tema `--site-*`, bukan palet dasbor. Memakai `Link`
+ * agar perpindahan halaman tidak memuat ulang seluruh dokumen.
+ */
+function NewsPagination({
+  page,
+  totalPages,
+  total,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+}) {
+  const from = (page - 1) * PER_PAGE + 1;
+  const to = Math.min(total, page * PER_PAGE);
+
+  return (
+    <nav
+      className="mt-10 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--site-muted)]"
+      aria-label="Navigasi halaman berita"
+    >
+      <p>
+        Menampilkan {from}–{to} dari {total} berita
+      </p>
+
+      <div className="flex items-center gap-2">
+        <PageLink href={`/berita?page=${page - 1}`} disabled={page <= 1}>
+          ← Sebelumnya
+        </PageLink>
+        <span className="px-1">
+          Halaman {page} / {totalPages}
+        </span>
+        <PageLink href={`/berita?page=${page + 1}`} disabled={page >= totalPages}>
+          Berikutnya →
+        </PageLink>
+      </div>
+    </nav>
+  );
+}
+
+function PageLink({
+  href,
+  disabled,
+  children,
+}: {
+  href: string;
+  disabled: boolean;
+  children: React.ReactNode;
+}) {
+  if (disabled) {
+    return (
+      <span className="rounded border border-[var(--site-border)] px-3 py-1.5 opacity-40">
+        {children}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className="rounded border border-[var(--site-border)] px-3 py-1.5 text-[var(--site-text)] transition-colors hover:bg-[var(--site-surface)]"
+    >
+      {children}
+    </Link>
   );
 }
 
