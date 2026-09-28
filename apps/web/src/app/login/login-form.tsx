@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button, Field, Input } from "@/components/ui";
+import { PasswordInput } from "@/components/form-fields";
 
 export function LoginForm() {
   const router = useRouter();
@@ -53,10 +54,9 @@ export function LoginForm() {
       </Field>
 
       <Field label="Password" htmlFor="password" error={error ?? undefined}>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           value={password}

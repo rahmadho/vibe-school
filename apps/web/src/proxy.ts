@@ -2,15 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { allowDevFallback } from "@/lib/site-host";
 
-// Next.js mura default di edge runtime, nguni `crypto` Node không ada di edge.
-// Forcam nodejs karena auth → password-hash pakai Node crypto.
-export const runtime = "nodejs";
+// Pada Next.js 16 berkas proxy SELALU berjalan di runtime Node.js, jadi tidak
+// perlu (dan tidak boleh) ada `export const runtime`. Ini justru menguntungkan:
+// auth → password-hash memakai `crypto` bawaan Node yang tidak tersedia di Edge.
 
 /** Nama cookie yang menyimpan sekolah pilihan saat preview pengembangan. */
 export const DEV_SCHOOL_COOKIE = "dev_school";
 
 /**
- * Middleware.
+ * Proxy (sebelumnya bernama `middleware.ts`).
+ *
+ * Next.js 16 mengganti konvensi `middleware` → `proxy`; fungsi & `config`
+ * identik, hanya nama berkas yang berubah. Berkas ini WAJIB tetap di `src/`.
  *
  * 1. Proteksi rute: /dashboard/* wajib login; /login ditolak bila sudah login.
  * 2. JEMBATAN PREVIEW (hanya di luar produksi): menerjemahkan `?school=<slug>`

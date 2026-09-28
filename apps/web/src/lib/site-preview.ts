@@ -11,7 +11,7 @@ import {
  * yang harus tersedia dari halaman mana pun di dasbor.
  *
  * Di luar produksi dipakai `?school=<slug>` — jembatan yang sudah teruji di
- * `middleware.ts` — karena port server dev (3000/3001/…) tidak diketahui dari
+ * `proxy.ts` — karena port server dev (3000/3001/…) tidak diketahui dari
  * sisi server, sedangkan subdomain butuh port itu. Di produksi subdomain wajib
  * (`allowDevFallback()` selalu false), jadi alamat dibangun dari ROOT_DOMAIN.
  *

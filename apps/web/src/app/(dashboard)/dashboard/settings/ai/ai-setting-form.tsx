@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@/components/ui";
-import { Select, FormError } from "@/components/form-fields";
+import { Select, FormError, PasswordInput } from "@/components/form-fields";
 import {
   AI_PROVIDERS,
   AI_TONES,
@@ -222,10 +222,9 @@ export function AiSettingForm({
               error={fe("apiKey")}
               hint="Kosongkan bila tidak ingin mengubah kunci yang tersimpan."
             >
-              <Input
+              <PasswordInput
                 id="apiKey"
                 name="apiKey"
-                type="password"
                 autoComplete="off"
                 placeholder="tempel kunci API di sini"
                 className="font-mono"

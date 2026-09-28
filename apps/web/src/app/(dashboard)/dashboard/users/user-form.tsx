@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@/components/ui";
-import { Select, FormError } from "@/components/form-fields";
+import { Select, FormError, PasswordInput } from "@/components/form-fields";
 import {
   USER_ROLES,
   USER_ROLE_LABEL,
@@ -90,10 +90,9 @@ export function UserForm({
                 />
               </Field>
               <Field label="Password awal" htmlFor="password" error={fe("password")}>
-                <Input
+                <PasswordInput
                   id="password"
                   name="password"
-                  type="password"
                   minLength={8}
                   required
                   autoComplete="new-password"

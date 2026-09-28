@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@/components/ui";
-import { Select, Textarea, FormError } from "@/components/form-fields";
+import { Select, Textarea, FormError, PasswordInput } from "@/components/form-fields";
 import {
   SCHOOL_LEVELS,
   SCHOOL_LEVEL_LABEL,
@@ -234,10 +234,9 @@ export function SchoolForm({
               />
             </Field>
             <Field label="Password admin" htmlFor="adminPassword">
-              <Input
+              <PasswordInput
                 id="adminPassword"
                 name="adminPassword"
-                type="password"
                 minLength={8}
                 placeholder="Minimal 8 karakter"
                 autoComplete="new-password"

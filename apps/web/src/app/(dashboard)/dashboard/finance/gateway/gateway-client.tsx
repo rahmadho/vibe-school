@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@/components/ui";
-import { Select, FormError, FormSuccess } from "@/components/form-fields";
+import { Select, FormError, FormSuccess, PasswordInput } from "@/components/form-fields";
 import {
   GATEWAY_LABEL,
   GATEWAY_CHANNELS,
@@ -122,10 +122,9 @@ export function GatewayForm({
           htmlFor={`sk-${provider}`}
           error={fe("serverKey")}
         >
-          <Input
+          <PasswordInput
             id={`sk-${provider}`}
             name="serverKey"
-            type="password"
             autoComplete="off"
             placeholder={current?.hasServerKey ? "••••••••" : "Masukkan server key"}
             className="font-mono"
@@ -141,10 +140,9 @@ export function GatewayForm({
           htmlFor={`ck-${provider}`}
           error={fe("clientKey")}
         >
-          <Input
+          <PasswordInput
             id={`ck-${provider}`}
             name="clientKey"
-            type="password"
             autoComplete="off"
             placeholder={current?.hasClientKey ? "••••••••" : "Client key (bila ada)"}
             className="font-mono"

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button, Field, Input } from "@/components/ui";
-import { FormError, FormSuccess } from "@/components/form-fields";
+import { FormError, FormSuccess, PasswordInput } from "@/components/form-fields";
 import type { ActionResult } from "@/lib/action-result";
 
 /** Form reset password (ditampilkan dengan konfirmasi). */
@@ -51,10 +51,9 @@ export function ResetPasswordForm({
         <form onSubmit={onSubmit} className="space-y-3" noValidate>
           <input type="hidden" name="id" value={id} />
           <Field label="Password baru" htmlFor="password" error={fe("password")}>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               minLength={8}
               required
               autoComplete="new-password"
