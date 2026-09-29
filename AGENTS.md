@@ -72,9 +72,6 @@ school-app/
 
 ```bash
 npm install                 # install deps
-npx prisma generate         # generate client
-npx prisma migrate dev      # buat & jalankan migrasi (dev)
-npx prisma studio           # GUI database
 npm run dev                 # jalankan dev server
 npm run build               # build produksi
 npm run lint                # lint
@@ -84,6 +81,26 @@ npm run db:seed             # seed data demo (2 sekolah + riwayat 2 tahun)
 docker compose up -d        # postgres + wa-gateway
 ```
 
+### Perintah Prisma dijalankan dari `apps/web`
+
+`schema.prisma` ada di `apps/web/prisma/`, bukan di akar repo. Prisma mencari
+skema di lokasi default, jadi menjalankan perintah Prisma dari **akar repo**
+gagal dengan:
+
+```
+Error: Could not find Prisma Schema that is required for this command.
+```
+
+Karena itu selalu `cd apps/web` lebih dulu (atau pakai `-w apps/web`):
+
+```bash
+cd apps/web
+npx prisma generate
+npx prisma migrate dev      # buat & jalankan migrasi (dev)
+npx prisma migrate deploy   # jalankan migrasi (produksi)
+npx prisma studio           # GUI database
+```
+
 ### Izin database (sekali per database baru)
 
 RLS mewajibkan aplikasi terhubung sebagai role **non-owner**. Role seperti itu
@@ -91,11 +108,16 @@ TIDAK otomatis punya hak ke tabel, sehingga query gagal dengan
 `42501 permission denied`. Urutan pemasangan yang benar:
 
 ```bash
+cd apps/web                                                  # path relatif di bawah dari sini
+
 npx prisma migrate deploy                                   # 1. owner buat tabel
 psql "$OWNER_URL" -v app_role=<role_di_DATABASE_URL> \
-  -f apps/web/prisma/grants.sql                             # 2. hak akses
-psql "$OWNER_URL" -f apps/web/prisma/rls.sql                # 3. RLS
+  -f prisma/grants.sql                                      # 2. hak akses
+psql "$OWNER_URL" -f prisma/rls.sql                         # 3. RLS
 ```
+
+**Ulangi langkah 2 & 3 setiap kali ada TABEL BARU** (model baru ber-`schoolId`).
+Migrasi yang hanya menambah kolom pada tabel lama tidak perlu RLS ulang.
 
 **Jangan** menjadikan role aplikasi sebagai owner atau superuser demi
 menyelesaikan error ini — keduanya membypass RLS sepenuhnya.
