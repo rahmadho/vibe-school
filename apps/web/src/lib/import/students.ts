@@ -14,23 +14,47 @@ import {
  * Alur: baca sheet → map header → validasi tiap baris → hasilkan laporan.
  */
 
-/** Header kolom yang diharapkan di template. */
+/**
+ * Header kolom yang diharapkan di template.
+ *
+ * `REQUIRED_COLUMNS` di bawah menentukan mana yang WAJIB ada; sisanya
+ * opsional. Kolom administrasi sengaja opsional supaya berkas Excel lama
+ * (yang dibuat sebelum kolom ini ada) tetap bisa diimpor — kalau tidak,
+ * sekolah harus menyusun ulang templatenya hanya untuk menambah NIK.
+ */
 export const IMPORT_COLUMNS = [
   "nis",
   "nisn",
+  "nik",
+  "kkNumber",
   "fullName",
   "gender",
   "birthPlace",
   "birthDate",
   "religion",
   "address",
+  "village",
+  "district",
+  "city",
+  "province",
+  "postalCode",
   "phone",
   "entryYear",
   "status",
   "parentName",
   "parentRelation",
   "parentPhone",
+  "parentNik",
+  "parentOccupation",
 ] as const;
+
+/** Kolom yang HARUS ada. Sisanya boleh tidak ada. */
+export const REQUIRED_COLUMNS: readonly ImportColumn[] = [
+  "nis",
+  "fullName",
+  "gender",
+  "entryYear",
+];
 
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
 
@@ -133,10 +157,13 @@ export function parseStudentWorkbook(buffer: ArrayBuffer | Buffer): ParseResult 
     headerMap.set(key.trim().toLowerCase(), key);
   }
 
-  const required = ["nis", "fullname"];
+  // Hanya kolom ini yang WAJIB. Kolom administrasi (NIK, alamat berjenjang)
+  // opsional supaya berkas lama tetap bisa diimpor.
   const headerErrors: string[] = [];
-  for (const req of required) {
-    if (!headerMap.has(req)) headerErrors.push(`Kolom wajib "${req}" tidak ditemukan.`);
+  for (const req of REQUIRED_COLUMNS) {
+    if (!headerMap.has(req.toLowerCase())) {
+      headerErrors.push(`Kolom wajib "${req}" tidak ditemukan.`);
+    }
   }
   if (headerErrors.length) {
     return { rows: [], validCount: 0, invalidCount: 0, headerErrors };
@@ -152,18 +179,29 @@ export function parseStudentWorkbook(buffer: ArrayBuffer | Buffer): ParseResult 
     const candidate = {
       nis: String(get(row, "nis") ?? "").trim(),
       nisn: String(get(row, "nisn") ?? "").trim(),
+      // Kolom administrasi — boleh tidak ada di berkas lama (`get` → undefined
+      // → "" → undefined di skema). NIK divalidasi seperti di form.
+      nik: String(get(row, "nik") ?? "").trim(),
+      kkNumber: String(get(row, "kkNumber") ?? "").trim(),
       fullName: String(get(row, "fullName") ?? "").trim(),
       gender: normalizeGender(get(row, "gender")),
       birthPlace: String(get(row, "birthPlace") ?? "").trim(),
       birthDate: normalizeDate(get(row, "birthDate")),
       religion: String(get(row, "religion") ?? "").trim(),
       address: String(get(row, "address") ?? "").trim(),
+      village: String(get(row, "village") ?? "").trim(),
+      district: String(get(row, "district") ?? "").trim(),
+      city: String(get(row, "city") ?? "").trim(),
+      province: String(get(row, "province") ?? "").trim(),
+      postalCode: String(get(row, "postalCode") ?? "").trim(),
       phone: String(get(row, "phone") ?? "").trim(),
       entryYear: get(row, "entryYear"),
       status: normalizeStatus(get(row, "status")),
       parentName: String(get(row, "parentName") ?? "").trim(),
       parentRelation: normalizeRelation(get(row, "parentRelation")),
       parentPhone: String(get(row, "parentPhone") ?? "").trim(),
+      parentNik: String(get(row, "parentNik") ?? "").trim(),
+      parentOccupation: String(get(row, "parentOccupation") ?? "").trim(),
     };
 
     const parsed = studentCreateSchema.safeParse(candidate);

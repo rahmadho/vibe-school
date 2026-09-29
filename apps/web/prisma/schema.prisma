@@ -462,16 +462,45 @@ model Student {
   school     School    @relation(fields: [schoolId], references: [id])
   nis        String // Nomor Induk Siswa
   nisn       String? // Nomor Induk Siswa Nasional
+  nik        String? // Nomor Induk Kependudukan (16 digit, dari KK/akta)
+  kkNumber   String? // Nomor Kartu Keluarga
   fullName   String
   gender     Gender
   birthPlace String?
   birthDate  DateTime?
   religion   String?
-  address    String?
   phone      String?
   photoUrl   String?
 
-  // Data masuk
+  /// Alamat lengkap. `address` tetap dipertahankan sebagai alamat jalan supaya
+  /// data lama tidak hilang; sisanya dipecah karena Dapodik & Disdik menolak
+  /// alamat satu baris — mereka meminta desa/kecamatan/kabupaten terpisah.
+  address    String? // jalan, nomor, RT/RW
+  village    String? // desa/kelurahan
+  district   String? // kecamatan
+  city       String? // kabupaten/kota
+  province   String? // provinsi
+  postalCode String? // kode pos
+
+  /// Kode wilayah BPS/Kemendagri untuk desa (10 digit) — kunci pencocokan
+  /// wilayah di Dapodik, lebih andal daripada nama yang sering berbeda ejaan.
+  villageCode String?
+
+  /// Tempat tinggal & perjalanan ke sekolah (diminta Dapodik).
+  residenceType  ResidenceType?
+  transportation Transportation?
+  distanceKm     Int? // jarak ke sekolah dalam kilometer
+  livingWith     LivingWith?
+
+  /// Riwayat kesehatan ringkas (Dapodik & UKS).
+  bloodType String?
+  heightCm  Int?
+  weightKg  Int?
+
+  /// Kesejahteraan — menentukan penyaluran bantuan (KIP/PIP).
+  isKipRecipient Boolean @default(false)
+
+  /// Data masuk
   entryYear Int
   classId   String?
   class     Class?        @relation(fields: [classId], references: [id])
@@ -521,6 +550,22 @@ model Parent {
   occupation String?
   isPrimary  Boolean        @default(true)
 
+  /// NIK & KK orang tua. Dapodik meminta keduanya, dan NIK ortu dipakai
+  /// mencocokkan data keluarga saat penyaluran bantuan. NIK ortu boleh SAMA
+  /// dengan NIK siswa? Tidak — beda orang, beda NIK. Kalau terisi sama,
+  /// kemungkinan besar salah input.
+  nik      String?
+  kkNumber String?
+
+  /// Pendidikan terakhir & penghasilan. Dapodik memakai keduanya untuk
+  /// menentukan peringkat kesejahteraan (dasar penyaluran KIP/PIP).
+  education     EducationLevel?
+  incomeRange   IncomeRange?
+  /// Penghasilan per bulan dalam rupiah (integer). Diisi bila sekolah butuh
+  /// angka pasti, bukan rentang.
+  monthlyIncome Int?
+  birthYear     Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -532,6 +577,61 @@ enum ParentRelation {
   FATHER
   MOTHER
   GUARDIAN
+}
+
+/// Tempat tinggal siswa — istilah mengikuti pilihan yang dipakai Dapodik,
+/// supaya operator sekolah tidak perlu menerjemahkan sendiri.
+enum ResidenceType {
+  BERSAMA_ORANG_TUA
+  BERSAMA_WALI
+  KOST
+  ASRAMA
+  PANTI_ASUH
+  LAINNYA
+}
+
+enum LivingWith {
+  ORANG_TUA
+  WALI
+  SENDIRI
+  LAINNYA
+}
+
+/// Moda transportasi ke sekolah (diminta Dapodik untuk analisis akses).
+enum Transportation {
+  JALAN_KAKI
+  SEPEDA
+  SEPEDA_MOTOR
+  MOBIL_PRIBADI
+  ANTAR_JEMPUT
+  ANGKUTAN_UMUM
+  OJEK_ONLINE
+  PERAHU
+  LAINNYA
+}
+
+/// Pendidikan terakhir orang tua/wali (Dapodik).
+enum EducationLevel {
+  TIDAK_SEKOLAH
+  SD
+  SMP
+  SMA_SMK
+  D1_D3
+  D4_S1
+  S2
+  S3
+}
+
+/// Rentang penghasilan bulanan orang tua/wali (Dapodik). Sengaja berupa
+/// rentang, bukan angka pasti — orang tua sering enggan menyebut nominal
+/// persisnya, dan rentang sudah cukup untuk menentukan tingkat kesejahteraan.
+enum IncomeRange {
+  TIDAK_BERPERGHASILAN
+  KURANG_1_JUTA
+  JUTA_1_2
+  JUTA_2_5
+  JUTA_5_10
+  LEBIH_10_JUTA
 }
 
 // ============================================================

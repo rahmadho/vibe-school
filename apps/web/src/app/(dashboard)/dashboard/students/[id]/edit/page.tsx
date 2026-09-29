@@ -61,6 +61,38 @@ export default async function EditStudentPage({
           religion: student.religion ?? "",
           address: student.address ?? "",
           phone: student.phone ?? "",
+
+          // Data administrasi — tanpa ini, field tampak KOSONG saat siswa
+          // disunting walau datanya ada, dan operator akan mengisinya ulang
+          // (atau mengira datanya hilang).
+          nik: student.nik ?? "",
+          kkNumber: student.kkNumber ?? "",
+          village: student.village ?? "",
+          district: student.district ?? "",
+          city: student.city ?? "",
+          province: student.province ?? "",
+          postalCode: student.postalCode ?? "",
+          villageCode: student.villageCode ?? "",
+          residenceType: student.residenceType ?? "",
+          transportation: student.transportation ?? "",
+          livingWith: student.livingWith ?? "",
+          distanceKm: student.distanceKm?.toString() ?? "",
+          bloodType: student.bloodType ?? "",
+          heightCm: student.heightCm?.toString() ?? "",
+          weightKg: student.weightKg?.toString() ?? "",
+          isKipRecipient: student.isKipRecipient ? "true" : "",
+
+          // Wali utama (isPrimary). Sekolah umumnya satu wali utama per siswa.
+          parentName: student.parents[0]?.fullName ?? "",
+          parentRelation: student.parents[0]?.relation ?? "",
+          parentPhone: student.parents[0]?.phone ?? "",
+          parentNik: student.parents[0]?.nik ?? "",
+          parentKkNumber: student.parents[0]?.kkNumber ?? "",
+          parentOccupation: student.parents[0]?.occupation ?? "",
+          parentEducation: student.parents[0]?.education ?? "",
+          parentIncomeRange: student.parents[0]?.incomeRange ?? "",
+          parentBirthYear: student.parents[0]?.birthYear?.toString() ?? "",
+
           entryYear: student.entryYear,
           classId: student.classId ?? "",
           majorId: student.majorId ?? "",

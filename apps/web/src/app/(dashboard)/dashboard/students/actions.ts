@@ -2,6 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import type {
+  EducationLevel,
+  IncomeRange,
+  LivingWith,
+  ResidenceType,
+  Transportation,
+} from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { scopedDb } from "@/lib/scoped-db";
@@ -122,6 +129,34 @@ export async function createStudent(
         religion: data.religion ?? null,
         address: data.address ?? null,
         phone: data.phone ?? null,
+
+        // Data administrasi (Dapodik/Disdik). NIK & KK disimpan apa adanya
+        // (sudah dibersihkan validasi); `?? null` supaya kolom kosong jadi
+        // NULL, bukan string kosong.
+        nik: data.nik ?? null,
+        kkNumber: data.kkNumber ?? null,
+        village: data.village ?? null,
+        district: data.district ?? null,
+        city: data.city ?? null,
+        province: data.province ?? null,
+        postalCode: data.postalCode ?? null,
+        villageCode: data.villageCode ?? null,
+        // Enum di-cast di sini, bukan mengandalkan tipe dari Zod.
+        //
+        // Zod melebarkan literal enum jadi `string` ketika skema dibungkus
+        // `z.object` (nilai `""` yang di-transform tidak dipertahankan
+        // tipenya). Nilainya SUDAH divalidasi `z.enum` di skema — string di
+        // luar daftar ditolak sebelum sampai sini. Jadi cast ini aman dan
+        // tidak menyembunyikan kesalahan.
+        residenceType: (data.residenceType ?? null) as ResidenceType | null,
+        transportation: (data.transportation ?? null) as Transportation | null,
+        livingWith: (data.livingWith ?? null) as LivingWith | null,
+        distanceKm: data.distanceKm ?? null,
+        bloodType: data.bloodType ?? null,
+        heightCm: data.heightCm ?? null,
+        weightKg: data.weightKg ?? null,
+        isKipRecipient: data.isKipRecipient ?? false,
+
         entryYear: data.entryYear,
         classId: data.classId ?? null,
         majorId: data.majorId ?? null,
@@ -134,6 +169,20 @@ export async function createStudent(
                   relation: data.parentRelation ?? "GUARDIAN",
                   phone: data.parentPhone ?? "",
                   isPrimary: true,
+                  // Data administrasi orang tua — diminta Dapodik & dipakai
+                  // menentukan peringkat kesejahteraan (dasar KIP/PIP).
+                  nik: data.parentNik ?? null,
+                  kkNumber: data.parentKkNumber ?? null,
+                  occupation: data.parentOccupation ?? null,
+                  // Cast sama seperti field enum siswa (lihat catatan di atas):
+                  // nilainya sudah divalidasi `z.enum` di skema.
+                  education: (data.parentEducation ?? null) as
+                    | EducationLevel
+                    | null,
+                  incomeRange: (data.parentIncomeRange ?? null) as
+                    | IncomeRange
+                    | null,
+                  birthYear: data.parentBirthYear ?? null,
                 },
               },
             }
@@ -235,6 +284,27 @@ export async function updateStudent(
     };
   }
 
+  // Cek duplikat NIK — NIK unik per sekolah. Tanpa cek ini, sekolah dapat
+  // pesan error database yang membingungkan alih-alih keterangan jelas.
+  if (data.nik) {
+    const dupNik = await prisma.student.findFirst({
+      where: {
+        schoolId: ctx.schoolId,
+        nik: data.nik,
+        id: { not: id },
+        deletedAt: null,
+      },
+      select: { id: true, fullName: true },
+    });
+    if (dupNik) {
+      return {
+        ok: false,
+        error: `NIK sudah dipakai siswa lain (${dupNik.fullName}).`,
+        fieldErrors: { nik: ["NIK sudah dipakai siswa lain"] },
+      };
+    }
+  }
+
   const meta = await requestMeta();
 
   await prisma.student.update({
@@ -249,6 +319,27 @@ export async function updateStudent(
       religion: data.religion ?? null,
       address: data.address ?? null,
       phone: data.phone ?? null,
+
+      // Data administrasi — wajib ikut di-update, kalau tidak, NIK yang
+      // diisi operator akan HILANG begitu siswa disunting.
+      nik: data.nik ?? null,
+      kkNumber: data.kkNumber ?? null,
+      village: data.village ?? null,
+      district: data.district ?? null,
+      city: data.city ?? null,
+      province: data.province ?? null,
+      postalCode: data.postalCode ?? null,
+      villageCode: data.villageCode ?? null,
+      // Cast enum — lihat catatan di createStudent.
+      residenceType: (data.residenceType ?? null) as ResidenceType | null,
+      transportation: (data.transportation ?? null) as Transportation | null,
+      livingWith: (data.livingWith ?? null) as LivingWith | null,
+      distanceKm: data.distanceKm ?? null,
+      bloodType: data.bloodType ?? null,
+      heightCm: data.heightCm ?? null,
+      weightKg: data.weightKg ?? null,
+      isKipRecipient: data.isKipRecipient ?? false,
+
       entryYear: data.entryYear,
       classId: data.classId ?? null,
       majorId: data.majorId ?? null,

@@ -5,8 +5,69 @@ import {
   optionalPhone,
   optionalId,
 } from "./common";
+import {
+  periksaKartuKeluarga,
+  periksaKodeWilayah,
+  periksaNIK,
+} from "@/lib/nik-murni";
 
 export { normalizePhone };
+
+/**
+ * Angka opsional dari input teks.
+ *
+ * PENTING — jangan pakai `z.coerce.number().optional()` langsung:
+ * `Number("")` adalah 0, jadi kolom kosong tersimpan sebagai 0. Untuk jarak,
+ * "0 km" terlihat seperti data nyata ("rumahnya di sebelah sekolah") padahal
+ * operator hanya belum mengisi. Untuk penghasilan, 0 berarti "tidak
+ * berpenghasilan" — kesimpulan yang salah dan berdampak ke bantuan siswa.
+ *
+ * Karena itu string kosong dikembalikan sebagai `undefined` LEBIH DULU,
+ * sebelum coerce sempat menyentuhnya.
+ */
+function angkaOpsional(
+  z: typeof import("zod").z,
+  min: number,
+  max: number,
+  pesanMin: string,
+  pesanMax: string,
+) {
+  return z
+    .union([
+      z.literal("").transform(() => undefined),
+      z.coerce.number().int().min(min, pesanMin).max(max, pesanMax),
+    ])
+    .optional();
+}
+
+/**
+ * Enum opsional yang menerima "" dari form.
+ *
+ * Form HTML selalu mengirim SEMUA field, dan `<select>` tanpa pilihan
+ * mengirim "" — bukan menghilangkan field. `z.enum` menolak "", sehingga
+ * satu dropdown kosong bisa menggagalkan seluruh form. Helper ini
+ * menerjemahkan "" → undefined.
+ *
+ * Tipe dikembalikan sebagai `z.ZodType<T | undefined>` (bukan hasil inferensi
+ * dari union) supaya nilai literalnya TIDAK melebar jadi `string` — kalau
+ * melebar, hasil parse tidak bisa disimpan ke kolom enum Prisma.
+ */
+function enumOpsional<T extends string>(
+  nilai: readonly [T, ...T[]],
+): z.ZodType<T | undefined, z.ZodTypeDef, string | undefined> {
+  // Opsi "" ditangani di DEPAN, lalu hasilnya DIKUNCI tipenya.
+  //
+  // Menangani "" lewat `z.union` membuat TypeScript melebarkan literalnya
+  // jadi `string`. Tetapi sekadar `as` juga tidak cukup: `z.preprocess` dan
+  // `z.union` menghasilkan ZodType yang tipe INPUT-nya longgar, dan tipe
+  // input itulah yang menentukan tipe `parse()` — sehingga keluarnya `string`
+  // walau sudah di-cast. Karena itu tipe input ditulis eksplisit sebagai
+  // `string | undefined` (bentuk mentah dari form) dan output sebagai `T`.
+  return z.preprocess(
+    (v) => (v === "" || v === undefined ? undefined : v),
+    z.enum(nilai).optional(),
+  ) as unknown as z.ZodType<T | undefined, z.ZodTypeDef, string | undefined>;
+}
 
 /**
  * Skema validasi Siswa — dipakai bersama oleh:
@@ -69,6 +130,96 @@ export const studentCreateSchema = z.object({
     }),
   religion: optionalText(40),
   address: optionalText(300),
+
+  /* ---------- Data administrasi (Dapodik/Disdik) ---------- */
+
+  /**
+   * NIK: 16 digit. Divalidasi lebih dari sekadar panjang — NIK menyandikan
+   * tanggal lahir & jenis kelamin, jadi salah ketik bisa ditangkap sekarang.
+   * Kolom ini OPSIONAL supaya input siswa lama tetap bisa disimpan.
+   */
+  nik: optionalText(20).superRefine((v, ctx) => {
+    if (!v) return;
+    const hasil = periksaNIK(v);
+    if (!hasil.valid) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: hasil.alasan });
+    }
+  }),
+  kkNumber: optionalText(20).superRefine((v, ctx) => {
+    if (!v) return;
+    const hasil = periksaKartuKeluarga(v);
+    if (!hasil.valid && hasil.alasan) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: hasil.alasan });
+    }
+  }),
+
+  // Alamat berjenjang — Dapodik & Disdik menolak alamat satu baris.
+  village: optionalText(80),
+  district: optionalText(80),
+  city: optionalText(80),
+  province: optionalText(80),
+  postalCode: optionalText(10),
+  villageCode: optionalText(20).superRefine((v, ctx) => {
+    if (!v) return;
+    const hasil = periksaKodeWilayah(v);
+    if (!hasil.valid && hasil.alasan) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: hasil.alasan });
+    }
+  }),
+
+  // Tempat tinggal & perjalanan. Kosong → undefined (bukan ""), karena
+  // z.enum menolak "" dan form selalu mengirim semua field.
+  residenceType: enumOpsional([
+    "BERSAMA_ORANG_TUA",
+    "BERSAMA_WALI",
+    "KOST",
+    "ASRAMA",
+    "PANTI_ASUH",
+    "LAINNYA",
+  ]),
+  transportation: enumOpsional([
+    "JALAN_KAKI",
+    "SEPEDA",
+    "SEPEDA_MOTOR",
+    "MOBIL_PRIBADI",
+    "ANTAR_JEMPUT",
+    "ANGKUTAN_UMUM",
+    "OJEK_ONLINE",
+    "PERAHU",
+    "LAINNYA",
+  ]),
+  livingWith: enumOpsional(["ORANG_TUA", "WALI", "SENDIRI", "LAINNYA"]),
+  distanceKm: angkaOpsional(
+    z,
+    0,
+    500,
+    "Jarak tidak boleh negatif",
+    "Jarak tidak wajar (maks 500 km)",
+  ),
+
+  // Kesehatan
+  bloodType: enumOpsional(["A", "B", "AB", "O"]),
+  heightCm: angkaOpsional(
+    z,
+    50,
+    250,
+    "Tinggi tidak wajar",
+    "Tinggi tidak wajar",
+  ),
+  weightKg: angkaOpsional(
+    z,
+    10,
+    300,
+    "Berat tidak wajar",
+    "Berat tidak wajar",
+  ),
+
+  // Kesejahteraan. Checkbox tidak tercentang mengirim "" → false.
+  isKipRecipient: z
+    .union([z.literal(""), z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
+    .optional()
+    .transform((v) => v === "on" || v === "true" || v === true),
+
   phone: phoneField,
   entryYear: z.coerce
     .number()
@@ -88,6 +239,47 @@ export const studentCreateSchema = z.object({
     .optional()
     .transform((v) => (v === "" ? undefined : v)),
   parentPhone: phoneField,
+  // Data administrasi orang tua (Dapodik).
+  parentNik: optionalText(20).superRefine((v, ctx) => {
+    if (!v) return;
+    const hasil = periksaNIK(v);
+    if (!hasil.valid) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: hasil.alasan });
+    }
+  }),
+  parentKkNumber: optionalText(20).superRefine((v, ctx) => {
+    if (!v) return;
+    const hasil = periksaKartuKeluarga(v);
+    if (!hasil.valid && hasil.alasan) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: hasil.alasan });
+    }
+  }),
+  parentOccupation: optionalText(80),
+  parentEducation: enumOpsional([
+    "TIDAK_SEKOLAH",
+    "SD",
+    "SMP",
+    "SMA_SMK",
+    "D1_D3",
+    "D4_S1",
+    "S2",
+    "S3",
+  ]),
+  parentIncomeRange: enumOpsional([
+    "TIDAK_BERPERGHASILAN",
+    "KURANG_1_JUTA",
+    "JUTA_1_2",
+    "JUTA_2_5",
+    "JUTA_5_10",
+    "LEBIH_10_JUTA",
+  ]),
+  parentBirthYear: angkaOpsional(
+    z,
+    1930,
+    new Date().getFullYear(),
+    "Tahun lahir orang tua tidak wajar",
+    "Tahun lahir orang tua tidak wajar",
+  ),
 });
 
 export const studentUpdateSchema = studentCreateSchema.extend({
