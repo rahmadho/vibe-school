@@ -23,13 +23,22 @@
 --
 -- ⚠️ Jalankan sebagai OWNER, SETELAH `rls-views.sql`.
 --    psql "$OWNER_URL" -f prisma/login-functions.sql
+--
+-- ⚠️ `CREATE FUNCTION` sengaja tanpa skema, mengandalkan
+-- `SET search_path = public` di bawah. Fungsi ini harus mendarat di `public`,
+-- bukan `app`: `app` berisi view penyaring, sedangkan fungsi ini justru harus
+-- menembus penyaring itu. `DROP`/`REVOKE` WAJIB memakai skema eksplisit —
+-- tanpa itu PostgreSQL meresolusi nama lewat search_path dan diam-diam bisa
+-- menghapus/mencabut hak fungsi yang berbeda.
 
 BEGIN;
 
+SET LOCAL search_path = public;
+
 -- CREATE OR REPLACE menolak perubahan tipe kembalian; drop dulu agar skrip ini
 -- idempoten walau definisi fungsinya berubah.
-DROP FUNCTION IF EXISTS app_login_user_by_email(text);
-DROP FUNCTION IF EXISTS app_login_user_by_username(text, text);
+DROP FUNCTION IF EXISTS public.app_login_user_by_email(text);
+DROP FUNCTION IF EXISTS public.app_login_user_by_username(text, text);
 
 CREATE FUNCTION app_login_user_by_email(p_email text)
 RETURNS TABLE (

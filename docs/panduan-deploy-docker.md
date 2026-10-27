@@ -166,6 +166,10 @@ Ringkas: Coolify memperlakukan repo sebagai satu resource Docker Compose dan
 menyuntik env dari panel. Karena compose ini sudah general, tidak ada berkas
 tambahan yang perlu dibuat.
 
+> **Panduan lengkap langkah demi langkah:**
+> [panduan-deploy-coolify.md](panduan-deploy-coolify.md). Bagian di bawah ini
+> hanya ringkasan.
+
 1. **Resource baru** → tipe **Docker Compose** (bukan "Nixpacks"/"Application
    only"). Pilih repo + branch `main`, base directory `/`, compose file
    `docker-compose.yml`.
@@ -174,6 +178,10 @@ tambahan yang perlu dibuat.
    dan container panel tidak membacanya dari working dir repo. Salin variabel
    dari tabel bagian 2 (`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`,
    `ROOT_DOMAIN`, `PAYMENT_ENCRYPTION_KEY`, `WA_GATEWAY_TOKEN`, dst).
+
+   `DATABASE_URL` **wajib** berakhir `?schema=app`, bukan `public`. Skema `app`
+   adalah lapisan view penyaring tenant; dengan `public` angka dan daftar akan
+   kosong. Peran DB-nya juga harus peran aplikasi (bukan owner).
 3. **Jaringan**:
    - Di Coolify, jaringan internal dibuat otomatis per resource. `app-network`
      cukup dibiarkan default (`school-app-network`) — Coolify akan membuatnya
@@ -189,9 +197,11 @@ tambahan yang perlu dibuat.
    domain (tidak ada port yang dipublish).
 5. **Deploy**. Perhatikan log build: build context root monorepo (butuh
    Dockerfile `apps/web/Dockerfile`), bukan subfolder.
-6. Selesai deploy pertama, jalankan **grants + RLS sekali** (perintah di
-   bagian 4) — lewat terminal container Coolify atau dari luar memakai
-   `OWNER_URL`.
+6. Selesai deploy pertama, jalankan **skrip SQL sekali** (bagian 1b di
+   [panduan-deploy-coolify.md](panduan-deploy-coolify.md)) — urutannya wajib:
+   `rls.sql` → `enum-move.sql` → `rls-views.sql` → `rls-global-views.sql` →
+   `login-functions.sql`. Tanpa ini aplikasi tampil normal tetapi seluruh
+   daftar kosong dan login gagal.
 
 Yang **tidak** perlu dilakukan di Coolify (dan sebaiknya tidak ditambahkan
 oleh siapa pun ke compose): `container_name`, `ports:`, label khusus Coolify,
