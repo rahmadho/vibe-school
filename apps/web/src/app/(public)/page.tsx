@@ -3,6 +3,7 @@ import {
   getSiteConfig,
   getHomepageBlocks,
   fallbackHomepageBlocks,
+  getSchoolCounts,
   listPeopleForSite,
   listPublishedPosts,
   getOpenBatches,
@@ -22,8 +23,18 @@ import { BlockData, SiteBlockList } from "@/components/site/block-renderer";
 // Selalu ambil data segar: berita bisa terbit kapan saja.
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
-  const ctx = await resolveSchoolFromRequest();
+export default async function HomePage({
+  searchParams,
+}: {
+  // Opsional: Next mengetik props halaman dengan `searchParams?`; bila
+  // diperlakukan wajib, `tsc` menolak karena src/app/page.tsx merender
+  // halaman ini tanpa prop tersebut.
+  searchParams?: Promise<{ school?: string | string[] }>;
+}) {
+  // `?school=<slug>` diteruskan ke resolver supaya demo bisa berpindah sekolah
+  // lewat satu URL tunnel (trycloudflare menolak Host kustom). Resolver sendiri
+  // mematikan cadangan ini di produksi — lihat `allowDevFallback()`.
+  const ctx = await resolveSchoolFromRequest(await searchParams);
 
   // Layout sudah menangani kasus ini; pengaman tambahan di sini.
   if (ctx.status !== "ok") return null;
@@ -40,7 +51,9 @@ export default async function HomePage() {
   ]);
 
   // Sekolah baru: pakai susunan bawaan agar halaman tidak kosong.
-  const resolved = blocks.length > 0 ? blocks : fallbackHomepageBlocks();
+  // Angka capaian ikut diisi dari DB — lihat `getSchoolCounts`.
+  const resolved =
+    blocks.length > 0 ? blocks : fallbackHomepageBlocks(await getSchoolCounts(school.id));
 
   const data: BlockData = {
     posts: posts.map((p) => ({

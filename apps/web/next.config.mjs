@@ -21,6 +21,19 @@ const nextConfig = {
         },
       ],
     },
+  // Mode dev saja. Next menolak permintaan aset internal (font, HMR, dsb.) yang
+  // datang dari origin berbeda. Saat aplikasi diakses lewat tunnel — satu-satunya
+  // cara pratinjau di lingkungan tanpa port publik — penolakan itu membuat
+  // hidrasi React gagal: halaman tampak normal, tetapi setiap form jatuh ke
+  // submit native sehingga input masuk ke query string dan login tak pernah
+  // jalan. Karena itu host tunnel didaftarkan di sini, diambil dari env supaya
+  // URL tunnel yang berubah tiap sesi tidak perlu mengubah kode.
+  //
+  // Bukan celah produksi: `next start` mengabaikan opsi ini.
+  allowedDevOrigins: (process.env.DEV_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 };
 
 export default nextConfig;

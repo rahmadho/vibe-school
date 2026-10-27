@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { asTenant } from "@/lib/tenant-context";
 import { resolveTheme, type EffectiveTheme } from "@/lib/site-themes";
 import {
   DEFAULT_HOMEPAGE_LAYOUT,
@@ -78,7 +79,9 @@ export async function getSchoolIdentity(schoolId: string) {
 
 /** Tema efektif sekolah; mengembalikan bawaan bila belum diatur. */
 export async function getEffectiveTheme(schoolId: string): Promise<EffectiveTheme> {
-  const theme = await prisma.siteTheme.findUnique({ where: { schoolId } });
+  const theme = await asTenant(schoolId, (tx) =>
+    tx.siteTheme.findUnique({ where: { schoolId } }),
+  );
   return resolveTheme({
     preset: theme?.preset,
     primaryColor: theme?.primaryColor,
@@ -113,10 +116,12 @@ export type ResolvedBlock = {
  * halaman publik tidak boleh mati karena satu blok usang.
  */
 export async function getHomepageBlocks(schoolId: string): Promise<ResolvedBlock[]> {
-  const rows = await prisma.siteBlock.findMany({
-    where: { schoolId, isEnabled: true },
-    orderBy: { order: "asc" },
-  });
+  const rows = await asTenant(schoolId, (tx) =>
+    tx.siteBlock.findMany({
+      where: { schoolId, isEnabled: true },
+      orderBy: { order: "asc" },
+    }),
+  );
 
   const out: ResolvedBlock[] = [];
   for (const r of normalizeLayout(rows)) {
@@ -126,11 +131,77 @@ export async function getHomepageBlocks(schoolId: string): Promise<ResolvedBlock
       blockKey: r.blockKey,
       variantKey: r.variantKey,
       order: r.order,
-      props: (r.props ?? {}) as Record<string, unknown>,
+      props:
+        r.blockKey === "stats"
+          ? await fillAutoStats(schoolId, (r.props ?? {}) as Record<string, unknown>)
+          : ((r.props ?? {}) as Record<string, unknown>),
       definition,
     });
   }
   return out;
+}
+
+/**
+ * Isi "Angka Capaian" dari data yang SUDAH ada di database.
+ *
+ * KENAPA: sekolah baru hampir selalu membiarkan blok `stats` kosong, sehingga
+ * halaman depan menampilkan 0 siswa / 0 guru / 0 kelas padahal datanya ada.
+ * Angka nol di halaman publik merusak kredibilitas sekolah, dan mengisinya
+ * manual berarti menghitung ulang tiap kali ada siswa baru.
+ *
+ * ATURAN: angka yang diisi sekolah SELALU menang. Pengisian otomatis hanya
+ * menambal posisi yang kosong, dan hanya untuk label yang dikenal. Jadi
+ * sekolah tetap bisa menulis angka yang ia inginkan ("Akreditasi A").
+ *
+ * Dihitung sekali per permintaan halaman (3 COUNT paralel, semua terindeks
+ * schoolId) — bukan mahal, dan tidak di-cache supaya angka tidak basi.
+ */
+const AUTO_STAT_LABELS = ["siswa", "guru", "kelas"] as const;
+
+/** Angka ringkas sekolah untuk blok "Angka Capaian". */
+export async function getSchoolCounts(
+  schoolId: string,
+): Promise<{ label: string; value: string }[]> {
+  const [siswa, guru, kelas] = await asTenant(schoolId, (tx) =>
+    Promise.all([
+      tx.student.count({ where: { schoolId, deletedAt: null } }),
+      tx.teacher.count({ where: { schoolId } }),
+      tx.class.count({ where: { schoolId } }),
+    ]),
+  );
+  const angka = { siswa, guru, kelas } as const;
+  return AUTO_STAT_LABELS.map((label) => ({
+    label: label.charAt(0).toUpperCase() + label.slice(1),
+    value: angka[label].toLocaleString("id-ID"),
+  }));
+}
+
+async function fillAutoStats(
+  schoolId: string,
+  props: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  type StatItem = { label?: string; value?: string };
+  const current = Array.isArray(props.items) ? (props.items as StatItem[]) : [];
+
+  const needs = (label: string) =>
+    !current.some(
+      (it) =>
+        it?.label?.trim().toLowerCase() === label &&
+        String(it?.value ?? "").trim() !== "",
+    );
+
+  const wanted = AUTO_STAT_LABELS.filter(needs);
+  if (wanted.length === 0) return props;
+
+  const semua = await getSchoolCounts(schoolId);
+  const items: StatItem[] = [...current];
+
+  for (const label of wanted) {
+    const found = semua.find((s) => s.label.toLowerCase() === label);
+    if (found) items.push(found);
+  }
+
+  return { ...props, items };
 }
 
 /** Susunan blok untuk EDITOR — termasuk yang nonaktif, tanpa penyaringan. */
@@ -146,7 +217,9 @@ export async function getEditableBlocks(schoolId: string) {
  * Mengembalikan data siap-tampil TANPA menulis ke DB, supaya halaman publik
  * tetap bisa dibuka walau sekolah belum menyentuh editor.
  */
-export function fallbackHomepageBlocks(): ResolvedBlock[] {
+export function fallbackHomepageBlocks(
+  autoStats?: { label: string; value: string }[],
+): ResolvedBlock[] {
   return buildInitialLayout(DEFAULT_HOMEPAGE_LAYOUT)
     .map((b) => {
       const definition = getBlock(b.blockKey);
@@ -155,7 +228,11 @@ export function fallbackHomepageBlocks(): ResolvedBlock[] {
         blockKey: b.blockKey,
         variantKey: b.variantKey,
         order: b.order,
-        props: b.props,
+        // Susunan bawaan dipakai untuk sekolah yang belum punya blok sama
+        // sekali. Blok `stats` bawaannya kosong, jadi tanpa ini halaman depan
+        // sekolah baru menampilkan "0 Siswa / 0 Guru / 0 Kelas" padahal
+        // datanya ada di dasbor.
+        props: b.blockKey === "stats" && autoStats ? { items: autoStats } : b.props,
         definition,
       };
     })
@@ -370,14 +447,16 @@ export async function listPeopleForSite(schoolId: string, take: number) {
 /** Apakah sekolah punya gelombang SPMB yang sedang dibuka? */
 export async function hasActiveSpmb(schoolId: string): Promise<boolean> {
   const now = new Date();
-  const count = await prisma.admissionBatch.count({
-    where: {
-      schoolId,
-      isActive: true,
-      openDate: { lte: now },
-      closeDate: { gte: now },
-    },
-  });
+  const count = await asTenant(schoolId, (tx) =>
+    tx.admissionBatch.count({
+      where: {
+        schoolId,
+        isActive: true,
+        openDate: { lte: now },
+        closeDate: { gte: now },
+      },
+    }),
+  );
   return count > 0;
 }
 
@@ -440,20 +519,21 @@ export async function listPaths(schoolId: string, batchId: string) {
  * batal atau tidak lolos verifikasi.
  */
 export async function getPathQuotaUsage(schoolId: string, batchId: string) {
-  const paths = await prisma.admissionPath.findMany({
-    where: { schoolId, batchId },
-    orderBy: { order: "asc" },
-  });
-
-  const counts = await prisma.registration.groupBy({
-    by: ["pathId"],
-    where: {
-      schoolId,
-      batchId,
-      status: { in: ["VERIFIED", "TESTED", "ACCEPTED"] },
-    },
-    _count: { _all: true },
-  });
+  const { paths, counts } = await asTenant(schoolId, async (tx) => ({
+    paths: await tx.admissionPath.findMany({
+      where: { schoolId, batchId },
+      orderBy: { order: "asc" },
+    }),
+    counts: await tx.registration.groupBy({
+      by: ["pathId"],
+      where: {
+        schoolId,
+        batchId,
+        status: { in: ["VERIFIED", "TESTED", "ACCEPTED"] },
+      },
+      _count: { _all: true },
+    }),
+  }));
 
   const used = new Map<string, number>(
     counts.map((c): [string, number] => [c.pathId ?? "", c._count._all]),
@@ -517,32 +597,36 @@ export type PublicBatch = {
 export async function getPublicBatches(schoolId: string): Promise<PublicBatch[]> {
   const now = new Date();
 
-  const batches = await prisma.admissionBatch.findMany({
-    where: { schoolId, isActive: true },
-    orderBy: { openDate: "desc" },
-    take: 12,
-    include: {
-      paths: {
-        where: { isActive: true },
-        orderBy: [{ order: "asc" }, { name: "asc" }],
+  const batches = await asTenant(schoolId, (tx) =>
+    tx.admissionBatch.findMany({
+      where: { schoolId, isActive: true },
+      orderBy: { openDate: "desc" },
+      take: 12,
+      include: {
+        paths: {
+          where: { isActive: true },
+          orderBy: [{ order: "asc" }, { name: "asc" }],
+        },
       },
-    },
-  });
+    }),
+  );
 
   if (batches.length === 0) return [];
 
   // Hitung pemakai kuota per jalur dalam SATU query — bukan per jalur (N+1).
-  const counts = await prisma.registration.groupBy({
-    by: ["pathId", "batchId"],
-    where: {
-      schoolId,
-      batchId: { in: batches.map((b) => b.id) },
-      // Hanya pendaftaran yang sudah diverifikasi ke atas yang dianggap memakai
-      // kuota — pendaftar yang belum diverifikasi sering batal.
-      status: { in: ["VERIFIED", "TESTED", "ACCEPTED"] },
-    },
-    _count: { _all: true },
-  });
+  const counts = await asTenant(schoolId, (tx) =>
+    tx.registration.groupBy({
+      by: ["pathId", "batchId"],
+      where: {
+        schoolId,
+        batchId: { in: batches.map((b) => b.id) },
+        // Hanya pendaftaran yang sudah diverifikasi ke atas yang dianggap memakai
+        // kuota — pendaftar yang belum diverifikasi sering batal.
+        status: { in: ["VERIFIED", "TESTED", "ACCEPTED"] },
+      },
+      _count: { _all: true },
+    }),
+  );
 
   const usedByKey = new Map<string, number>(
     counts.map((c): [string, number] => [

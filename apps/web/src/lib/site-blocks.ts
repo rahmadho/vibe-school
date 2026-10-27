@@ -567,13 +567,12 @@ export function defaultPropsFor(blockKey: string): Record<string, unknown> {
         imagePosition: "kanan",
       };
     case "stats":
+      // Kosong, bukan "0/0/0". Nol yang dicetak sebagai fakta di halaman publik
+      // merusak kredibilitas sekolah; pengisian otomatis terjadi di
+      // `getHomepageBlocks` / `fallbackHomepageBlocks`.
       return {
         heading: "Sekolah Kami dalam Angka",
-        items: [
-          { label: "Siswa", value: "0" },
-          { label: "Guru", value: "0" },
-          { label: "Kelas", value: "0" },
-        ],
+        items: [],
       };
     case "news":
       return { heading: "Berita & Kegiatan", subtitle: "", itemCount: 3 };

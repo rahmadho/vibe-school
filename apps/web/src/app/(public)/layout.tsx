@@ -61,10 +61,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PublicSiteLayout({
   children,
+  searchParams,
 }: {
   children: React.ReactNode;
+  // Di Next 16 layout menerima searchParams. Diteruskan ke resolver supaya
+  // `?school=<slug>` (hanya non-produksi) juga berlaku di sini — bukan cuma
+  // di halaman. Tanpa ini layout menolak lebih dulu dan halaman tak pernah
+  // dirender, sehingga judul tetap "Web Sekolah".
+  //
+  // OPSIONAL: Next mengetik LayoutProps dengan `searchParams?`. Diperlakukan
+  // wajib, tipe ini tidak lagi cocok dan `tsc` menolak seluruh layout.
+  searchParams?: Promise<{ school?: string | string[] }>;
 }) {
-  const ctx = await resolveSchoolFromRequest();
+  const ctx = await resolveSchoolFromRequest(await searchParams);
 
   // Domain utama atau sekolah tidak ditemukan: tampilkan halaman penjelasan,
   // bukan galat mentah. Pengunjung tidak boleh melihat jejak teknis.

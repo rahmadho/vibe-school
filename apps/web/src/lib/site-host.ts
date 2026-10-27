@@ -158,6 +158,16 @@ export function resolveHost(
 
   // --- Selain itu: mungkin custom domain milik sekolah ---
   // Resolusinya lewat DB (School.customDomain). Kita tandai saja di sini.
+  //
+  // `byCustomDomain: true` membuat pemanggil mencari lewat kolom customDomain
+  // SAJA (lihat findSchoolByHost). Untuk host sembarang — termasuk tunnel
+  // pratinjau seperti *.trycloudflare.com — kolom itu kosong, sehingga tidak
+  // ada sekolah yang tampil walau `?school=<slug>` diberikan. Karena itu
+  // jangan tandai byCustomDomain bila host tidak layak jadi domain sekolah,
+  // supaya cadangan pengembangan tetap bisa dipakai.
+  if (!isValidSchoolSlug(clean.replace(/\./g, "-"))) {
+    return { kind: "unknown", reason: `Alamat "${clean}" bukan domain sekolah.` };
+  }
   return { kind: "school", identifier: clean, byCustomDomain: true };
 }
 

@@ -7,6 +7,7 @@ import { verifyPassword } from "./password";
 import { getOverridesForRole } from "./data/permissions";
 import { verifyImpersonateToken } from "./impersonate";
 import { USER_LOGIN_SELECT, schoolIdUntukLoginNis } from "./login-identitas";
+import { findUserForLoginByEmail, findUserForLoginByUsername } from "./login-lookup";
 import { normalkanIdentitas } from "./login-identitas-murni";
 
 /**
@@ -107,17 +108,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // sekolah akan ambigu — dan menebak bisa membuka akun sekolah lain.
         let user;
         if (ident.jenis === "email") {
-          user = await prisma.user.findUnique({
-            where: { email: ident.nilai },
-            select: USER_LOGIN_SELECT,
-          });
+          user = await findUserForLoginByEmail(ident.nilai);
         } else {
           const schoolId = await schoolIdUntukLoginNis(schoolSlug);
           if (!schoolId) return null;
-          user = await prisma.user.findFirst({
-            where: { username: ident.nilai, schoolId },
-            select: USER_LOGIN_SELECT,
-          });
+          user = await findUserForLoginByUsername(ident.nilai, schoolId);
         }
 
         if (!user || !user.isActive || user.deletedAt) return null;

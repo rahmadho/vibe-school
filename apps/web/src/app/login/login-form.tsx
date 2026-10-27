@@ -17,6 +17,18 @@ import { PasswordInput } from "@/components/form-fields";
  * jadi server harus tahu sekolah mana yang dimaksud. Slug dibaca dari query
  * string `?school=` (dipakai juga oleh preview web sekolah) dan dari cookie
  * pilihan sekolah, supaya pemilihan sekolah bertahan saat berpindah halaman.
+ *
+ * KEAMANAN — `method="post"` WAJIB
+ * Form ini tidak punya `action`, jadi tanpa `method` browser memakai GET
+ * bawaan. Begitu ada satu saja jalur yang tidak melewati `onSubmit` (Enter di
+ * tengah proses, JS belum siap, tombol diklik dua kali), browser mengirim
+ * seluruh isian sebagai query string:
+ *
+ *     /login?identifier=admin@...&password=password12345
+ *
+ * Password lalu tersimpan di access log server, riwayat browser, dan header
+ * `Referer` ke situs pihak ketiga. `method="post"` menutup jalur itu: bila
+ * submit native tetap terjadi, isian dikirim di body, bukan URL.
  */
 export function LoginForm() {
   const router = useRouter();
@@ -54,7 +66,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-8 space-y-4" noValidate>
+    <form onSubmit={onSubmit} method="post" className="mt-8 space-y-4" noValidate>
       <Field label="NIS atau Email" htmlFor="identifier">
         <Input
           id="identifier"
