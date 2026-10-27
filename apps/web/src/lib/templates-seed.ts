@@ -4,11 +4,25 @@
  * Dibuat sebagai "pabrik" agar setiap sekolah baru langsung punya pesan yang
  * rapi, tanpa harus menulis dari nol. Sekolah bebas mengubahnya di UI.
  *
- * Aturan penulisan pesan sekolah:
- *  - Sebut nama siswa & kelas di awal → orang tua langsung tahu ini tentang anaknya.
- *  - Hindari istilah teknis ("tagihan ID INV/202510/0007") di badan pesan.
- *  - Sertakan satu langkah tindakan yang jelas.
- *  - Tanpa tanda seru berlebihan; nada tenang tapi jelas.
+ * Bentuk baku setiap pesan (lihat docs/format-pesan-wa.md):
+ *
+ *   Assalamualaikum, Bapak/Ibu {{nama_wali}}.
+ *                                                    <- satu baris kosong
+ *   *{{judul_kejadian}}*
+ *   {{nama_siswa}} · {{kelas}} · {{tanggal}}
+ *                                                    <- satu baris kosong
+ *   {{isi_rinci}}                                    <- maks 3 baris
+ *                                                    <- satu baris kosong
+ *   {{satu_langkah_tindakan}}
+ *                                                    <- satu baris kosong
+ *   — {{nama_sekolah}}
+ *
+ * Aturan penulisan:
+ *  - Nama siswa & kelas hanya di baris meta, tidak diulang di paragraf isi.
+ *  - Daftar panjang memakai placeholder {{daftar_*}} yang diisi
+ *    formatDaftarNilai() / formatDaftarTagihan() dari notification-format.ts.
+ *  - Hindari istilah teknis (nomor tagihan internal) di badan pesan.
+ *  - Tepat satu langkah tindakan; nada tenang, tanpa tanda seru berlebihan.
  */
 
 export type TemplateSeed = {
@@ -34,9 +48,12 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     description: "Dikirim saat siswa berstatus alpa (tanpa keterangan).",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Kami memberitahukan bahwa *{{nama_siswa}}* ({{kelas}}) tidak hadir tanpa keterangan pada *{{tanggal}}*.
+*Tidak hadir tanpa keterangan*
+{{nama_siswa}} · {{kelas}} · {{tanggal}}
 
-Mohon konfirmasi kepada wali kelas bila anak Anda sebenarnya sakit atau ada keperluan lain. Terima kasih.
+Sampai pesan ini terkirim, kami belum menerima kabar dari Bapak/Ibu.
+
+Mohon balas pesan ini atau hubungi wali kelas untuk memberi keterangan.
 
 — {{nama_sekolah}}`,
   },
@@ -47,9 +64,12 @@ Mohon konfirmasi kepada wali kelas bila anak Anda sebenarnya sakit atau ada kepe
     description: "Dikirim saat siswa datang terlambat.",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-*{{nama_siswa}}* ({{kelas}}) tercatat datang terlambat pada *{{tanggal}}* pukul {{jam}}.
+*Datang terlambat*
+{{nama_siswa}} · {{kelas}} · {{tanggal}} pukul {{jam}}
 
-Kami sampaikan agar Bapak/Ibu dapat membantu anak datang lebih awal. Terima kasih atas perhatiannya.
+Catatan keterlambatan sudah kami masukkan ke rekap kehadiran.
+
+Mohon bantu anak agar besok datang lebih awal, ya, Bapak/Ibu.
 
 — {{nama_sekolah}}`,
   },
@@ -57,20 +77,16 @@ Kami sampaikan agar Bapak/Ibu dapat membantu anak datang lebih awal. Terima kasi
     key: "attendance.summary",
     name: "Rekap kehadiran bulanan",
     category: "ATTENDANCE",
-    description: "Ringkasan kehadiran satu bulan, biasanya dikirim akhir bulan.",
+    description:
+      "Ringkasan kehadiran satu bulan, biasanya dikirim akhir bulan. Variabel {{rekap_kehadiran}} diisi baris rekap (lihat docs/format-pesan-wa.md).",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Rekap kehadiran *{{nama_siswa}}* ({{kelas}}) untuk {{periode}}:
+*Rekap kehadiran {{periode}}*
+{{nama_siswa}} · {{kelas}} · persentase kehadiran {{persentase}}%
 
-Hadir: {{hadir}} hari
-Terlambat: {{terlambat}} hari
-Sakit: {{sakit}} hari
-Izin: {{izin}} hari
-Alpa: {{alpa}} hari
+{{rekap_kehadiran}}
 
-Persentase kehadiran: *{{persentase}}%*
-
-Terima kasih.
+Bila ada hari yang menurut Bapak/Ibu tidak sesuai, mohon hubungi wali kelas.
 
 — {{nama_sekolah}}`,
   },
@@ -80,12 +96,18 @@ Terima kasih.
     key: "grade.below_kkm",
     name: "Nilai di bawah KKM",
     category: "GRADE",
-    description: "Dikirim saat nilai siswa baru turun di bawah KKM.",
+    description:
+      "Dikirim saat nilai siswa turun di bawah KKM. {{daftar_nilai}} diisi hasil formatDaftarNilai() dari notification-format.ts (baris '• Mapel — nilai', tanda * untuk nilai di bawah KKM).",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Nilai *{{mata_pelajaran}}* untuk *{{nama_siswa}}* ({{kelas}}) adalah *{{nilai}}*, sedangkan batas ketuntasan (KKM) adalah {{kkm}}.
+*Nilai di bawah KKM*
+{{nama_siswa}} · {{kelas}} · {{tanggal}}
 
-Anak Anda akan diikutkan program perbaikan (remedial). Mohon dukungan Bapak/Ibu di rumah.
+{{daftar_nilai}}
+
+Anak akan diikutkan program perbaikan (remedial).
+
+Mohon dukungan Bapak/Ibu di rumah dan hubungi wali kelas bila ingin berdiskusi.
 
 — {{nama_sekolah}}`,
   },
@@ -96,9 +118,12 @@ Anak Anda akan diikutkan program perbaikan (remedial). Mohon dukungan Bapak/Ibu 
     description: "Pemberitahuan bahwa rapor sudah bisa diambil.",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Rapor *{{nama_siswa}}* ({{kelas}}) untuk {{semester}} sudah siap.
+*Rapor siap diambil*
+{{nama_siswa}} · {{kelas}} · {{semester}}
 
-Rapor dapat diambil pada {{tanggal_pengambilan}}. Mohon hadir tepat waktu agar dapat berbincang dengan wali kelas.
+Rapor dapat diambil pada {{tanggal_pengambilan}}.
+
+Mohon hadir tepat waktu agar bisa berbincang dengan wali kelas.
 
 — {{nama_sekolah}}`,
   },
@@ -108,18 +133,17 @@ Rapor dapat diambil pada {{tanggal_pengambilan}}. Mohon hadir tepat waktu agar d
     key: "finance.invoice",
     name: "Tagihan baru",
     category: "FINANCE",
-    description: "Dikirim saat tagihan baru dibuat.",
+    description:
+      "Dikirim saat tagihan baru dibuat. {{daftar_tagihan}} diisi hasil formatDaftarTagihan() dari notification-format.ts (baris '• Judul — Rp250.000 (tempo 31 Okt)').",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Tagihan baru untuk *{{nama_siswa}}* ({{kelas}}):
+*Tagihan baru*
+{{nama_siswa}} · {{kelas}} · {{tanggal}}
 
-*{{judul_tagihan}}*
-Jumlah: *{{jumlah}}*
-Jatuh tempo: {{jatuh_tempo}}
+{{daftar_tagihan}}
+Jatuh tempo terdekat: {{jatuh_tempo}}
 
-{{tautan_bayar}}
-
-Terima kasih.
+Mohon lakukan pembayaran melalui {{tautan_bayar}}.
 
 — {{nama_sekolah}}`,
   },
@@ -127,14 +151,18 @@ Terima kasih.
     key: "finance.reminder",
     name: "Pengingat jatuh tempo",
     category: "FINANCE",
-    description: "Dikirim mendekati atau setelah jatuh tempo.",
+    description:
+      "Dikirim mendekati atau setelah jatuh tempo. {{daftar_tagihan}} diisi hasil formatDaftarTagihan() dari notification-format.ts.",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Kami mengingatkan tagihan *{{judul_tagihan}}* untuk *{{nama_siswa}}* ({{kelas}}) sebesar *{{jumlah}}* telah jatuh tempo pada {{jatuh_tempo}}.
+*Pengingat pembayaran*
+{{nama_siswa}} · {{kelas}} · {{tanggal}}
+
+{{daftar_tagihan}}
 
 Bila sudah membayar, mohon abaikan pesan ini dan kirimkan bukti transfer ke bendahara.
 
-{{tautan_bayar}}
+Pembayaran dapat dilakukan melalui {{tautan_bayar}}.
 
 — {{nama_sekolah}}`,
   },
@@ -145,12 +173,13 @@ Bila sudah membayar, mohon abaikan pesan ini dan kirimkan bukti transfer ke bend
     description: "Kwitansi digital setelah pembayaran dicatat.",
     body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
 
-Pembayaran sebesar *{{jumlah}}* untuk *{{nama_siswa}}* ({{kelas}}) telah kami terima pada {{tanggal_bayar}}.
+*Pembayaran diterima*
+{{nama_siswa}} · {{kelas}} · {{tanggal_bayar}}
 
-Sisa tagihan: *{{sisa}}*
-Status: {{status}}
+Terima kasih, pembayaran sebesar {{jumlah}} sudah kami catat dengan status {{status}}.
+Sisa tagihan: {{sisa}}
 
-Terima kasih atas pembayarannya.
+Kwitansi dapat diunduh dari portal orang tua.
 
 — {{nama_sekolah}}`,
   },
@@ -163,9 +192,12 @@ Terima kasih atas pembayarannya.
     description: "Konfirmasi pendaftaran SPMB sudah masuk.",
     body: `Assalamualaikum, Bapak/Ibu {{nama_pendaftar}}.
 
-Pendaftaran {{nama_calon}} dengan nomor *{{nomor_pendaftaran}}* telah kami terima.
+*Pendaftaran SPMB diterima*
+{{nama_calon}} · {{nomor_pendaftaran}} · {{tanggal}}
 
-Kami akan menginformasikan tahapan selanjutnya. Mohon simpan nomor pendaftaran ini.
+Berkas pendaftaran sudah masuk ke sistem kami dan akan diperiksa panitia.
+
+Mohon simpan pesan ini; kabar tahapan berikutnya dikirim ke nomor ini juga.
 
 — {{nama_sekolah}}`,
   },
@@ -176,10 +208,12 @@ Kami akan menginformasikan tahapan selanjutnya. Mohon simpan nomor pendaftaran i
     description: "Hasil seleksi: calon murid diterima.",
     body: `Assalamualaikum, Bapak/Ibu {{nama_pendaftar}}.
 
-Selamat! *{{nama_calon}}* dinyatakan *DITERIMA* sebagai murid baru {{nama_sekolah}}.
+*Diterima sebagai murid baru*
+{{nama_calon}} · {{nomor_pendaftaran}} · {{tanggal}}
 
-Nomor pendaftaran: {{nomor_pendaftaran}}
-Langkah selanjutnya: {{langkah_selanjutnya}}
+Selamat, {{nama_calon}} dinyatakan diterima di {{nama_sekolah}}.
+
+{{langkah_selanjutnya}}
 
 — {{nama_sekolah}}`,
   },
@@ -193,12 +227,12 @@ Langkah selanjutnya: {{langkah_selanjutnya}}
     // pesan otomatis — kalimatnya harus tetap menghormati.
     body: `Assalamualaikum, Bapak/Ibu {{nama_pendaftar}}.
 
-Terima kasih atas kepercayaan Bapak/Ibu mendaftarkan {{nama_calon}} ke {{nama_sekolah}}.
+*Hasil seleksi SPMB*
+{{nama_calon}} · {{nomor_pendaftaran}} · {{tanggal}}
 
-Setelah menimbang daya tampung dan hasil seleksi, dengan berat hati kami sampaikan bahwa {{nama_calon}} belum dapat kami terima pada gelombang ini.
+Terima kasih atas kepercayaan Bapak/Ibu. Setelah menimbang daya tampung dan hasil seleksi, dengan berat hati kami sampaikan bahwa {{nama_calon}} belum dapat kami terima pada gelombang ini.
 
-Nomor pendaftaran: {{nomor_pendaftaran}}
-Catatan: {{langkah_selanjutnya}}
+{{langkah_selanjutnya}}
 
 Kami mendoakan yang terbaik untuk {{nama_calon}}.
 
@@ -214,8 +248,11 @@ Kami mendoakan yang terbaik untuk {{nama_calon}}.
     body: `Assalamualaikum, Bapak/Ibu.
 
 *{{judul}}*
+{{nama_sekolah}} · {{tanggal}}
 
 {{isi}}
+
+Mohon membaca sampai selesai dan menyampaikan ke anggota keluarga lain.
 
 — {{nama_sekolah}}`,
   },
@@ -234,19 +271,14 @@ export const SAMPLE_VARS: Record<string, string> = {
   nama_pendaftar: "Bapak Hendra",
   nama_calon: "Aisyah Putri",
   kelas: "VII A",
-  tanggal: "12 Oktober 2025",
+  tanggal: "Senin, 3 November 2025",
   jam: "07:15",
   periode: "Oktober 2025",
   semester: "Semester Ganjil 2025/2026",
-  hadir: "18",
-  terlambat: "2",
-  sakit: "1",
-  izin: "1",
-  alpa: "0",
   persentase: "92,5",
-  mata_pelajaran: "Matematika",
-  nilai: "65",
-  kkm: "70",
+  rekap_kehadiran: "• Hadir — 18 hari\n• Terlambat — 2 hari\n• Sakit — 1 hari\n• Izin — 1 hari\n• Alpa — 0 hari",
+  daftar_nilai: "• Matematika — 65 *\n• IPA — 82\n* di bawah KKM 70",
+  daftar_tagihan: "• SPP November 2025 — Rp350.000 (tempo 10 Nov)\n• Kegiatan Semester — Rp150.000 (tempo 20 Nov)",
   judul_tagihan: "SPP Oktober 2025",
   jumlah: "Rp250.000",
   jatuh_tempo: "31 Oktober 2025",
@@ -256,7 +288,7 @@ export const SAMPLE_VARS: Record<string, string> = {
   tautan_bayar: "https://smpn1.sch.id/bayar/INV2025100007",
   tanggal_pengambilan: "20 Desember 2025",
   nomor_pendaftaran: "SPMB-2026-00123",
-  langkah_selanjutnya: "Daftar ulang sebelum 30 Juni 2026",
+  langkah_selanjutnya: "Mohon lakukan daftar ulang sebelum 30 Juni 2026 melalui portal SPMB.",
   judul: "Libur Semester",
-  isi: "Kegiatan belajar mengajar diliburkan mulai 23 Desember 2025.",
+  isi: "Kegiatan belajar mengajar diliburkan mulai 23 Desember 2025 dan dimulai kembali 5 Januari 2026.",
 };

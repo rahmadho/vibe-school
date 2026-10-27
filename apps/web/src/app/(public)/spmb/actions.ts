@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { queueNotification } from "@/lib/notification-queue";
+import { bolehFitur } from "@/lib/entitlement";
 import { resolveSchoolFromRequest } from "@/lib/site-server";
 import { getPublicBatches } from "@/lib/data/site";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -94,6 +95,18 @@ export async function submitPublicRegistration(
     return { ok: false, error: "Alamat pendaftaran tidak dikenali." };
   }
   const schoolId = ctx.school.id;
+
+  // Paket sekolah harus mencakup SPMB. Halaman publik TIDAK boleh 500 di
+  // sini: orang tua hanya perlu tahu pendaftaran belum dibuka untuk sekolah
+  // ini — bukan melihat galat server.
+  if (!(await bolehFitur(schoolId, "spmb"))) {
+    return {
+      ok: false,
+      error:
+        "Pendaftaran SPMB belum dibuka. Silakan hubungi sekolah untuk informasi " +
+        "jadwal pendaftaran berikutnya.",
+    };
+  }
 
   // Pembatasan laju: 10 pendaftaran per 10 menit per alamat IP.
   //

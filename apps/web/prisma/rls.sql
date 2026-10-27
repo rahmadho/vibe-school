@@ -34,12 +34,22 @@ CREATE OR REPLACE FUNCTION app_current_school_id() RETURNS text AS $$
 $$ LANGUAGE sql STABLE;
 
 -- Daftar tabel tenant yang diberi RLS.
+--
+-- PENTING: tidak semua tabel punya kolom `schoolId` langsung. `parents`
+-- (anak dari `students`) dan `semesters` (anak dari `academic_years`) memakai
+-- kolom `studentId` / `academicYearId`. Memasukkan keduanya ke daftar kolom-
+-- `schoolId` membuat SELURUH blok gagal dengan `column "schoolId" does not
+-- exist`, dan RLS tidak pernah terpasang sama sekali — tanpa pesan yang jelas,
+-- karena bloknya dijalankan dalam satu DO. Itu sebabnya keduanya dipisah.
+--
+-- `page_blocks` tidak ada di skema saat ini. Tabel yang tidak ada dilewati
+-- otomatis (lihat `to_regclass`), jadi daftar ini boleh memuat nama lama.
 DO $$
 DECLARE
   t text;
   tenant_tables text[] := ARRAY[
-    'users','students','parents','teachers','staffs','classes','subjects',
-    'schedules','academic_years','semesters','time_slots','admission_batches',
+    'users','students','teachers','staffs','classes','subjects',
+    'schedules','academic_years','time_slots','admission_batches',
     'registrations','attendances','grade_items','grades','report_cards',
     'fee_types','invoices','payment_methods','payments',
     -- Kwitansi: memuat nama, kelas, dan nominal yang dibayar satu keluarga.
@@ -60,6 +70,10 @@ DECLARE
     'message_templates','announcement_campaigns','wa_sessions',
     -- school_payment_gateways menyimpan KUNCI API gateway terenkripsi.
     'school_payment_gateways',
+    -- plan_orders: pesanan paket langganan (termasuk tautan pembayaran).
+    -- WAJIB terdaftar — tanpa RLS, satu query yang lupa memfilter schoolId
+    -- cukup untuk membocorkan tautan pembayaran sekolah lain.
+    'plan_orders',
     -- Fase SMK/SMA: jurusan/peminatan, PKL, dan UKK.
     -- WAJIB terdaftar: data jurusan & nilai PKL adalah data akademik per
     -- sekolah. Tanpa RLS, satu query yang lupa memfilter schoolId cukup untuk
@@ -73,10 +87,31 @@ DECLARE
     'role_permissions',
     -- Pengaturan AI menyimpan KUNCI API terenkripsi per sekolah. Kebocoran di
     -- sini berarti sekolah lain bisa memakai kuota AI sekolah ini.
-    'ai_settings'
+    'ai_settings',
+    -- Domain tambahan per sekolah, termasuk TOKEN verifikasi DNS. Bocor berarti
+    -- sekolah lain bisa membaca token milik sekolah ini (dan menyiapkan record
+    -- TXT atas namanya sendiri lebih dulu).
+    'school_host_aliases'
   ];
 BEGIN
   FOREACH t IN ARRAY tenant_tables LOOP
+    -- Lewati tabel yang tidak ada di skema ini (daftar memuat nama historis).
+    -- Tanpa ini, satu nama lama menggagalkan seluruh blok.
+    IF to_regclass('public.' || quote_ident(t)) IS NULL THEN
+      RAISE NOTICE 'RLS: tabel % dilewati (tidak ada)', t;
+      CONTINUE;
+    END IF;
+
+    -- Lewati tabel yang memang tidak punya kolom schoolId (ditangani terpisah
+    -- di bawah sebagai tabel anak).
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t AND column_name = 'schoolId'
+    ) THEN
+      RAISE NOTICE 'RLS: tabel % dilewati (tanpa kolom schoolId)', t;
+      CONTINUE;
+    END IF;
+
     -- Aktifkan RLS
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
 
@@ -95,6 +130,42 @@ BEGIN
     $f$, t, t);
   END LOOP;
 END $$;
+
+-- ---------- Tabel anak: sekolah lewat induknya ----------
+-- `parents` dan `semesters` tidak menyimpan `schoolId`; kepemilikan sekolah
+-- diturunkan lewat induknya (students / academic_years). Tanpa kebijakan di
+-- sini, tabel ini terbuka penuh untuk semua sekolah — dan `parents` memuat
+-- nama, nomor HP, NIK, dan KK orang tua murid.
+--
+-- Biaya: satu sub-select per baris. Keduanya kecil dan selalu diakses lewat
+-- studentId / academicYearId yang berindeks, jadi praktis tidak terasa.
+ALTER TABLE "parents" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "parents";
+CREATE POLICY tenant_isolation ON "parents"
+  USING (EXISTS (
+    SELECT 1 FROM "students" s
+    WHERE s."id" = "parents"."studentId"
+      AND s."schoolId" = app_current_school_id()
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM "students" s
+    WHERE s."id" = "parents"."studentId"
+      AND s."schoolId" = app_current_school_id()
+  ));
+
+ALTER TABLE "semesters" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "semesters";
+CREATE POLICY tenant_isolation ON "semesters"
+  USING (EXISTS (
+    SELECT 1 FROM "academic_years" y
+    WHERE y."id" = "semesters"."academicYearId"
+      AND y."schoolId" = app_current_school_id()
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM "academic_years" y
+    WHERE y."id" = "semesters"."academicYearId"
+      AND y."schoolId" = app_current_school_id()
+  ));
 
 -- ============================================================
 -- Model GLOBAL (schools, plans) TIDAK diberi RLS — dikelola SUPER_ADMIN

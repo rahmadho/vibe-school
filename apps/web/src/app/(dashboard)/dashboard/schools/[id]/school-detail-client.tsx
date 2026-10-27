@@ -124,3 +124,50 @@ export function ToggleActiveButton({
     </div>
   );
 }
+
+/**
+ * Tombol untuk keputusan atas pesanan paket (setujui / batalkan).
+ *
+ * Aksi server memakai `FormData` (sama seperti aksi lain di halaman ini), jadi
+ * kita kirim lewat form — bukan memanggil fungsi dengan string. Tombolnya
+ * menyembunyikan kompleksitas itu supaya halaman tetap ringkas.
+ */
+export function OrderActionButton({
+  orderId,
+  label,
+  submitLabel,
+  action,
+  variant = "secondary",
+}: {
+  orderId: string;
+  label: string;
+  submitLabel: string;
+  action: (formData: FormData) => Promise<ActionResult>;
+  variant?: "secondary" | "ghost" | "danger";
+}) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function run(formData: FormData) {
+    if (!confirm(submitLabel)) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await action(formData);
+      if (res.ok) router.refresh();
+      else setError(res.error);
+    });
+  }
+
+  return (
+    <div className="space-y-1">
+      <FormError message={error} />
+      <form action={run}>
+        <input type="hidden" name="orderId" value={orderId} />
+        <Button variant={variant} disabled={pending}>
+          {pending ? "Memproses…" : label}
+        </Button>
+      </form>
+    </div>
+  );
+}

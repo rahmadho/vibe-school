@@ -11,6 +11,7 @@ import {
 } from "@/lib/data/billing";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "@/components/data-table";
+import { OrderPlanForm } from "./order-form";
 
 /**
  * Langganan — paket sekolah ini.
@@ -76,6 +77,19 @@ export default async function BillingPage() {
   });
 
   const { subscription, plan, usage, school } = data;
+
+  // Pilihan paket untuk formulir pesanan: paket sekarang + paket lain, urut
+  // harga supaya "naik paket" terbaca dari kiri ke kanan.
+  // Add-on domain: dihitung dari fitur paket yang SAMA dengan gerbang server
+  // action, supaya tampilan tidak pernah menjanjikan lebih dari yang diizinkan.
+  const whiteLabelAktif = Boolean(plan?.features) && planFeatures(plan!.features).some(
+    (f) => f.key === "whiteLabel" && f.enabled,
+  );
+
+  const daftarPaket = [plan, ...data.otherPlans]
+    .filter((p): p is NonNullable<typeof p> => Boolean(p))
+    .sort((a, b) => a.pricePerMonth - b.pricePerMonth)
+    .map((p) => ({ id: p.id, name: p.name, pricePerMonth: p.pricePerMonth }));
 
   const studentLimit = plan?.maxStudents ?? 0;
   const studentPercent =
@@ -260,6 +274,48 @@ export default async function BillingPage() {
           </ul>
         </section>
       ) : null}
+
+      {/* ---- Add-on domain (whiteLabel) ----
+          Ditampilkan terpisah dari daftar fitur paket: domain sendiri TIDAK
+          ikut paket mana pun, jadi ia add-on. Menampilkannya di "Yang termasuk"
+          akan membuat admin mengira sudah terbayar. */}
+      <section className="rounded-lg border border-chalk bg-white p-6">
+        <h2 className="font-display text-lg text-ink">Domain sekolah sendiri</h2>
+        <p className="mt-0.5 max-w-prose text-sm text-slate">
+          {whiteLabelAktif
+            ? "Add-on White-label AKTIF. Anda bisa mendaftarkan domain sendiri (mis. sman1-padang.sch.id) di halaman Ubah sekolah, lalu memverifikasinya lewat record TXT DNS."
+            : "Add-on White-label TIDAK aktif. Sekolah tetap memakai subdomain gratis dari layanan tanpa biaya tambahan. Domain sendiri menyusul bila add-on diaktifkan."}
+        </p>
+        <p className="mt-2 text-sm">
+          Status:{" "}
+          <strong className={whiteLabelAktif ? "text-board" : "text-slate"}>
+            {whiteLabelAktif ? "Aktif" : "Tidak aktif"}
+          </strong>
+        </p>
+        {!whiteLabelAktif ? (
+          <p className="mt-1 text-sm text-slate">
+            Tambahkan sebagai add-on dari halaman Langganan, lalu hubungi admin
+            layanan untuk mengaktifkannya.
+          </p>
+        ) : null}
+      </section>
+
+      {/* ---- Perpanjang / upgrade ----
+          Satu tombol untuk dua kebutuhan yang sebenarnya sama di sisi data:
+          memperpanjang paket yang sama & naik paket. Keduanya membuat
+          PlanOrder; super-admin (atau gateway) yang mengubah Subscription. */}
+      <section className="rounded-lg border border-chalk bg-white p-6">
+        <h2 className="font-display text-lg text-ink">Perpanjang / Upgrade</h2>
+        <p className="mt-0.5 max-w-prose text-sm text-slate">
+          Ajukan perpanjangan atau naik paket. Bila pembayaran online sudah
+          aktif, Anda menerima tautan pembayaran; bila belum, admin layanan
+          akan menghubungi Anda untuk penyelesaian manual.
+        </p>
+        <OrderPlanForm
+          plans={daftarPaket}
+          defaultPlanId={plan?.id}
+        />
+      </section>
 
       {/* ---- Paket lain ---- */}
       {data.otherPlans.length > 0 ? (

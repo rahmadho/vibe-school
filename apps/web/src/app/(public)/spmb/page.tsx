@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { resolveSchoolFromRequest } from "@/lib/site-server";
 import { getPublicBatches } from "@/lib/data/site";
 import { getMajorOptions } from "@/lib/data/academic";
+import { bolehFitur } from "@/lib/entitlement";
 import { Section, SectionHeading, SiteButton, BlockEmpty, formatSiteDate } from "@/components/site/site-ui";
 import { SpmbForm, type PublicBatch } from "./spmb-form";
 
@@ -20,6 +21,32 @@ export const metadata = { title: "Pendaftaran Murid Baru" };
 export default async function SpmbPage() {
   const ctx = await resolveSchoolFromRequest();
   if (ctx.status !== "ok") notFound();
+
+  // Paket sekolah tidak mencakup SPMB → tampilkan pesan, BUKAN daftar
+  // gelombang kosong yang membingungkan ("pendaftaran belum dibuka" padahal
+  // gelombangnya ada). Orang tua mendapat penjelasan yang bisa ditanyakan
+  // ke sekolah.
+  if (!(await bolehFitur(ctx.school.id, "spmb"))) {
+    return (
+      <Section>
+        <SectionHeading
+          title="Pendaftaran Murid Baru"
+          subtitle={ctx.school.name}
+        />
+        <BlockEmpty
+          message="Pendaftaran SPMB belum dibuka"
+          hint="Silakan hubungi sekolah untuk informasi jadwal pendaftaran berikutnya."
+        />
+        {ctx.school.phone && (
+          <div className="mt-6">
+            <SiteButton href={`tel:${ctx.school.phone}`} variant="outline">
+              Tanya panitia: {ctx.school.phone}
+            </SiteButton>
+          </div>
+        )}
+      </Section>
+    );
+  }
 
   const [batches, majors] = await Promise.all([
     getPublicBatches(ctx.school.id),

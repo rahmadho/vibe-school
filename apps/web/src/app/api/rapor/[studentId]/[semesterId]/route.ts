@@ -5,6 +5,7 @@ import { can } from "@/lib/rbac";
 import { ambilDataRapor } from "@/lib/data/rapor";
 import { buatRaporPdf, pdfKeBuffer } from "@/lib/rapor-pdf";
 import { namaBerkasRapor } from "@/lib/rapor-bentuk";
+import { bolehFitur } from "@/lib/entitlement";
 
 /**
  * ============================================================
@@ -86,6 +87,24 @@ export async function GET(
     if (!siswaAda) {
       return NextResponse.json({ error: "Siswa tidak ditemukan." }, { status: 404 });
     }
+  }
+
+  // Rapor PDF adalah fitur berbayar (paket Pro ke atas). Diperiksa SETELAH
+  // kepemilikan siswa, supaya ID milik orang lain tetap 404 (tidak membocorkan
+  // keberadaan siswa lewat pesan paket).
+  //
+  // 402 = "butuh pembayaran/upgrade", bukan 403: penggunanya punya izin, yang
+  // kurang adalah paket. Klien bisa membedakan dan menampilkan ajakan upgrade.
+  if (!(await bolehFitur(schoolId, "reportPdf"))) {
+    return NextResponse.json(
+      {
+        error:
+          "Paket langganan sekolah ini belum mencakup cetak Rapor PDF. " +
+          "Hubungi admin sekolah untuk menaikkan paket.",
+        kode: "FITUR_TIDAK_TERMASUK",
+      },
+      { status: 402 },
+    );
   }
 
   const data = await ambilDataRapor({ schoolId, studentId, semesterId });

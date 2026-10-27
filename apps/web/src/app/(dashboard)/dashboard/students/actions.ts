@@ -19,6 +19,7 @@ import {
   studentUpdateSchema,
 } from "@/lib/validations/student";
 import { buatAkunSiswa } from "@/lib/akun-siswa";
+import { cekKuotaSiswa } from "@/lib/entitlement";
 import { ambilSlugSekolah } from "@/lib/sekolah-helper";
 
 /**
@@ -94,6 +95,12 @@ export async function createStudent(
     };
   }
   const data = parsed.data;
+
+  // Kuota siswa: bagian dari paket yang dibayar, jadi ditegakkan di server —
+  // bukan hanya disembunyikan di UI. Diperiksa SEBELUM validasi duplikat agar
+  // sekolah yang kuotanya habis mendapat pesan yang tepat.
+  const kuota = await cekKuotaSiswa(ctx.schoolId, 1);
+  if (!kuota.boleh) return { ok: false, error: kuota.pesan ?? "Kuota siswa habis." };
 
   // Cek duplikat NIS dalam sekolah ini.
   const db = scopedDb(ctx.schoolId);

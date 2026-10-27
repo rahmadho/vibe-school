@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { bolehFitur } from "@/lib/entitlement";
 import {
   renderTemplate,
   cleanMessage,
@@ -42,6 +43,12 @@ export async function queueNotification(
   input: QueueNotificationInput,
 ): Promise<string | null> {
   try {
+    // Paket sekolah tanpa fitur WA tidak boleh MENUMPUK antrean. Kalau dicek
+    // di worker, baris QUEUED akan menumpuk ratusan per hari dan baru
+    // terkirim saat paket di-upgrade — pesan absensi minggu lalu tiba-tiba
+    // terkirim ke orang tua. Cek di sumbernya: tidak diantrekan sama sekali.
+    if (!(await bolehFitur(input.schoolId, "wa"))) return null;
+
     const phone = normalizePhone(input.to);
     if (!phone) return null;
 
@@ -103,6 +110,10 @@ export async function queueNotificationBulk(input: {
   refId?: string;
 }): Promise<number> {
   try {
+    // Alasan sama dengan queueNotification: paket tanpa WA tidak boleh
+    // menumpuk antrean. Impor massal bisa membuat ribuan baris sekaligus.
+    if (!(await bolehFitur(input.schoolId, "wa"))) return 0;
+
     const valid = input.recipients
       .map((r) => ({ ...r, phone: normalizePhone(r.phone) }))
       .filter((r): r is { phone: string; name?: string | null } => Boolean(r.phone));

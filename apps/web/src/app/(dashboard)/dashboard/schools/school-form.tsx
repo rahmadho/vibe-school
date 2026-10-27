@@ -31,7 +31,6 @@ export function SchoolForm({
     email?: string;
     timezone?: string;
     themeColor?: string;
-    customDomain?: string;
     waSenderName?: string;
     isActive?: boolean;
   };
@@ -162,7 +161,8 @@ export function SchoolForm({
         <h2 className="card-title">Tampilan & domain (white-label)</h2>
         <p className="text-sm text-slate">
           Warna tema dipakai pada halaman publik sekolah dan bagian tertentu
-          aplikasi. Domain kustom memerlukan pengaturan DNS di sisi Anda.
+          aplikasi. Domain sendiri diatur di panel <strong>Domain</strong> pada
+          halaman detail sekolah — bukan di sini — karena harus diverifikasi.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Warna tema" htmlFor="themeColor" error={fe("themeColor")}>
@@ -183,15 +183,6 @@ export function SchoolForm({
                 className="font-mono uppercase"
               />
             </div>
-          </Field>
-          <Field label="Domain kustom (opsional)" htmlFor="customDomain" error={fe("customDomain")}>
-            <Input
-              id="customDomain"
-              name="customDomain"
-              defaultValue={initial?.customDomain ?? ""}
-              placeholder="sekolah.sch.id"
-              className="font-mono lowercase"
-            />
           </Field>
         </div>
       </section>

@@ -11,6 +11,7 @@ import {
   type ParseResult,
 } from "@/lib/import/students";
 import { buatAkunSiswa } from "@/lib/akun-siswa";
+import { cekKuotaSiswa } from "@/lib/entitlement";
 import { ambilSlugSekolah } from "@/lib/sekolah-helper";
 
 /**
@@ -69,6 +70,27 @@ export async function commitImport(
     ipAddress: h.get("x-forwarded-for") ?? null,
     userAgent: h.get("user-agent") ?? null,
   };
+
+  // KUOTA dihitung untuk SELURUH baris valid sekaligus, bukan per baris.
+  // Kalau diperiksa satu per satu, impor 500 siswa akan lolos di kuota 200:
+  // pemeriksaan per baris melihat "masih ada 1 tempat kosong" sampai baris
+  // terakhir, lalu sisanya tetap masuk. Baris yang NIS-nya sudah ada tidak
+  // dihitung karena akan dilewati.
+  const calonBaru = parsed.rows.filter(
+    (r) => r.ok && r.data && !existingNis.has(r.data.nis),
+  );
+  if (calonBaru.length > 0) {
+    const kuota = await cekKuotaSiswa(schoolId, calonBaru.length);
+    if (!kuota.boleh) {
+      return {
+        ok: false,
+        imported: 0,
+        skipped: parsed.invalidCount,
+        errors: [],
+        message: kuota.pesan ?? "Kuota siswa tidak mencukupi untuk impor ini.",
+      };
+    }
+  }
 
   let imported = 0;
   let skipped = parsed.invalidCount;

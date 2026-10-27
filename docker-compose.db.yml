@@ -1,0 +1,50 @@
+# Override OPSIONAL: ikut menjalankan PostgreSQL di compose yang sama.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db up -d --build
+#
+# Tanpa flag `--profile db`, service `postgres` diabaikan — jadi pemakaian
+# normal (DB eksternal) tidak berubah sama sekali.
+#
+# TEGAS: untuk produksi sungguhan tetap disarankan DB terkelola/terpisah
+# (RDS, Cloud SQL, atau container Postgres di stack lain) — backup, upgrade,
+# dan skalabilitasnya bukan urusan compose ini. Berkas ini untuk dev dan
+# self-host skala kecil.
+#
+# DATABASE_URL saat mode ini dipakai: host = `postgres` (nama service di bawah,
+# yang juga jadi DNS di db-network), contoh:
+#   postgresql://school:<password>@postgres:5432/schoolapp?schema=public
+# Tambahkan `?connection_limit=...` / `pool_timeout` bila perlu; jangan pakai
+# `localhost` — dari container web, localhost berarti container web itu sendiri.
+#
+# Port TIDAK dipublish ke host. Buka publish HANYA bila DB ini mau dipakai
+# stack lain di luar compose ini, dan saat itu bind ke IP privat VPS
+# (mis. "10.0.0.5:5432:5432"), JANGAN "5432:5432"/"0.0.0.0" — Postgres tidak
+# punya rate limit login dan akan langsung dipindai bot.
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["db"]
+    restart: unless-stopped
+    environment:
+      # POSTGRES_PASSWORD wajib: tanpa `:?`, compose memakai string kosong dan
+      # Postgres menolak start dengan pesan yang membingungkan.
+      POSTGRES_USER: "${POSTGRES_USER:-school}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi}"
+      POSTGRES_DB: "${POSTGRES_DB:-school}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    networks:
+      - db-network
+    healthcheck:
+      # `-d` eksplisit: tanpa itu pg_isready memakai nama user sebagai DB,
+      # dan healthcheck tetap gagal walau server sudah siap.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  postgres_data:

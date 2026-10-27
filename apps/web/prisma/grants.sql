@@ -42,6 +42,19 @@ GRANT USAGE ON SCHEMA public TO :"app_role";
 -- ---------- 2. Tabel yang sudah ada ----------
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO :"app_role";
 
+-- Tabel baru: plan_orders (pesanan paket langganan, migrasi
+-- 20261027090000_plan_orders). Baris ini eksplisit karena instalasi yang
+-- hanya menjalankan grants.sql lama (tanpa ALTER DEFAULT PRIVILEGES) akan
+-- mendapat `42501 permission denied` pada tabel ini. GRANT ALL TABLES di atas
+-- memang mencakupnya bila berkas ini dijalankan ulang setelah migrasi —
+-- baris ini membuatnya aman walau urutannya terbalik.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "plan_orders" TO :"app_role";
+
+-- Tabel baru: school_host_aliases (domain tambahan + token verifikasi DNS,
+-- migrasi 20261027120000_domain_verification). Sama seperti plan_orders:
+-- baris eksplisit supaya aman walau urutan grants/migrate terbalik.
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "school_host_aliases" TO :"app_role";
+
 -- ---------- 3. Sequence (kolom auto-increment) ----------
 -- Tanpa ini, INSERT ke tabel ber-serial akan gagal.
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"app_role";

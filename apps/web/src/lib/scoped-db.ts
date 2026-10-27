@@ -70,6 +70,9 @@ export const TENANT_MODELS = [
   // menyimpan kunci API gateway terenkripsi. Keduanya WAJIB ter-scope.
   "waSession",
   "schoolPaymentGateway",
+  // Pesanan paket langganan. Membocorkan baris ini antar-sekolah berarti
+  // sekolah lain bisa melihat tautan pembayaran & nominal tagihan paketnya.
+  "planOrder",
   // Fase SMK/SMA: jurusan/peminatan, PKL, dan UKK.
   "major",
   "internship",
@@ -80,6 +83,8 @@ export const TENANT_MODELS = [
   "aiSetting",
   // Penimpaan izin per sekolah.
   "rolePermission",
+  // Domain tambahan + token verifikasi DNS milik sekolah.
+  "schoolHostAlias",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

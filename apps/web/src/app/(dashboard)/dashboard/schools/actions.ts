@@ -11,6 +11,12 @@ import {
   schoolUpdateSchema,
 } from "@/lib/validations/school";
 import { slugExists, domainExists } from "@/lib/data/schools";
+import { bolehFitur } from "@/lib/entitlement";
+import {
+  PLAN_ORDER_STATUS_LABEL,
+  bolehTransisi,
+  hitungExpiresBaru,
+} from "@/lib/plan-order";
 
 /**
  * Server Actions Sekolah — KHUSUS SUPER_ADMIN.
@@ -54,6 +60,18 @@ export async function createSchool(
       fieldErrors: { customDomain: ["Domain sudah dipakai"] },
     };
   }
+  // Domain sendiri = add-on. Saat CREATE sekolah baru belum punya langganan,
+  // jadi tidak mungkin membeli add-on — isian domain ditolak dengan pesan
+  // yang jelas (bukan 500). Daftarkan setelah paket + add-on aktif.
+  if (d.customDomain) {
+    return {
+      ok: false,
+      error:
+        "Domain sendiri adalah add-on berbayar (White-label) dan baru bisa didaftarkan " +
+        "setelah sekolah punya paket + add-on. Simpan sekolah dulu, lalu atur domain di halaman Ubah.",
+      fieldErrors: { customDomain: ["Perlu add-on White-label"] },
+    };
+  }
 
   // Admin pertama wajib lengkap ketiganya bila diisi sebagian.
   const hasAdminPartial = Boolean(d.adminName || d.adminEmail || d.adminPassword);
@@ -80,7 +98,8 @@ export async function createSchool(
         email: d.email ?? null,
         timezone: d.timezone,
         themeColor: d.themeColor ?? null,
-        customDomain: d.customDomain ?? null,
+        // customDomain sengaja null: domain pendaftaran lewat alur verifikasi
+        // (domain-actions.ts), bukan formulir sekolah.
         waSenderName: d.waSenderName ?? null,
       },
       select: { id: true },
@@ -155,6 +174,21 @@ export async function updateSchool(
     };
   }
 
+  // Domain sendiri = ADD-ON berbayar (whiteLabel). Gerbangnya di sini, bukan di
+  // formulir: Server Action bisa dipanggil langsung, dan menyembunyikan input
+  // bukan penegakan. Menghapus domain (mengosongkan field) tetap diperbolehkan
+  // walau add-on sudah berakhir — pelanggan tidak boleh terjebak memegang domain.
+  const domainBerubah = Boolean(d.customDomain) && d.customDomain !== existing.customDomain;
+  if (domainBerubah && !(await bolehFitur(id, "whiteLabel"))) {
+    return {
+      ok: false,
+      error:
+        "Domain sendiri adalah add-on berbayar (White-label) dan tidak termasuk paket sekolah ini. " +
+        "Tambahkan sebagai add-on dari halaman Langganan.",
+      fieldErrors: { customDomain: ["Perlu add-on White-label"] },
+    };
+  }
+
   const meta = await requestMeta();
   await prisma.school.update({
     where: { id },
@@ -167,7 +201,12 @@ export async function updateSchool(
       email: d.email ?? null,
       timezone: d.timezone,
       themeColor: d.themeColor ?? null,
-      customDomain: d.customDomain ?? null,
+      // Domain hanya diubah bila memang berubah; perubahan sudah lolos gerbang
+      // whiteLabel di atas. Domain yang dikosongkan = dihapus (diperbolehkan).
+      ...(domainBerubah ? { customDomain: d.customDomain ?? null } : {}),
+      ...(domainBerubah && !d.customDomain
+        ? { domainVerifyStatus: "UNVERIFIED" as const, domainVerifiedAt: null }
+        : {}),
       waSenderName: d.waSenderName ?? null,
       isActive: d.isActive,
     },
@@ -287,6 +326,142 @@ export async function assignSubscription(
     ok: true,
     message: `Paket ${plan.name} ditetapkan untuk ${months} bulan.`,
   };
+}
+
+/* ============================================================
+ * PESANAN PAKET — persetujuan super-admin
+ * ============================================================ */
+
+/**
+ * Setujui pesanan paket: perpanjang `Subscription.expiresAt` sebanyak `months`.
+ *
+ * INI yang membuat MODE MANUAL tetap jalan. Kredensial gateway boleh belum
+ * ada sama sekali; sekolah tetap bisa mengajukan, dan super-admin
+ * mengaktifkannya di sini. Tanpa jalur ini, permintaan manual hanya akan
+ * menumpuk sebagai baris PENDING tanpa akibat.
+ *
+ * Berlaku untuk pesanan PENDING (manual) maupun PAID (sudah dibayar lewat
+ * gateway). APPROVED bersifat final — menyetujui dua kali akan memperpanjang
+ * dua kali, jadi ditolak oleh `bolehTransisi`.
+ */
+export async function approvePlanOrder(formData: FormData): Promise<ActionResult> {
+  const g = await guard("billing", "manage");
+  if ("fail" in g) return g.fail;
+
+  const orderId = String(formData.get("orderId") ?? "");
+  if (!orderId) return { ok: false, error: "Pesanan tidak dikenali." };
+
+  const order = await prisma.planOrder.findUnique({
+    where: { id: orderId },
+    include: { plan: { select: { name: true } } },
+  });
+  if (!order) return { ok: false, error: "Pesanan tidak ditemukan." };
+  if (!bolehTransisi(order.status, "APPROVED")) {
+    return {
+      ok: false,
+      error: `Pesanan berstatus "${PLAN_ORDER_STATUS_LABEL[order.status]}" tidak bisa disetujui lagi.`,
+    };
+  }
+
+  const sub = await prisma.subscription.findUnique({ where: { schoolId: order.schoolId } });
+  const expiresAt = hitungExpiresBaru(sub?.expiresAt ?? null, order.months);
+  const sekarang = new Date();
+  const meta = await requestMeta();
+
+  // Satu transaksi: status pesanan & langganan harus berubah bersama. Kalau
+  // pesanan sudah APPROVED tetapi langganan gagal diperpanjang, tagihan sudah
+  // dianggap selesai padahal sekolah tidak mendapat apa pun.
+  await prisma.$transaction(async (tx) => {
+    await tx.planOrder.update({
+      where: { id: order.id },
+      data: {
+        status: "APPROVED",
+        approvedByUserId: g.ctx.userId,
+        approvedAt: sekarang,
+        // Pesanan manual yang disetujui berarti sudah dibayar (transfer/kesepakatan).
+        paidAt: order.paidAt ?? sekarang,
+      },
+    });
+
+    // Paket mengikuti pesanan: upgrade & perpanjangan adalah alur yang sama.
+    await tx.subscription.upsert({
+      where: { schoolId: order.schoolId },
+      create: {
+        schoolId: order.schoolId,
+        planId: order.planId,
+        status: "ACTIVE",
+        startedAt: sekarang,
+        expiresAt,
+      },
+      update: { planId: order.planId, status: "ACTIVE", expiresAt },
+    });
+  });
+
+  await recordAudit({
+    schoolId: order.schoolId,
+    userId: g.ctx.userId,
+    action: "UPDATE",
+    entity: "PlanOrder",
+    entityId: order.id,
+    before: { status: order.status, expiresAt: sub?.expiresAt.toISOString() ?? null },
+    after: {
+      status: "APPROVED",
+      plan: order.plan.name,
+      months: order.months,
+      expiresAt: expiresAt.toISOString(),
+    },
+    ...meta,
+  });
+
+  revalidatePath(`/dashboard/schools/${order.schoolId}`);
+  revalidatePath("/dashboard/schools");
+  return {
+    ok: true,
+    message: `Pesanan ${order.plan.name} (${order.months} bulan) disetujui. Langganan berlaku sampai ${formatTanggal(expiresAt)}.`,
+  };
+}
+
+/** Batalkan pesanan yang belum dibayar (manual maupun gateway). */
+export async function cancelPlanOrder(formData: FormData): Promise<ActionResult> {
+  const g = await guard("billing", "manage");
+  if ("fail" in g) return g.fail;
+
+  const orderId = String(formData.get("orderId") ?? "");
+  const order = await prisma.planOrder.findUnique({
+    where: { id: orderId },
+    select: { id: true, schoolId: true, status: true },
+  });
+  if (!order) return { ok: false, error: "Pesanan tidak ditemukan." };
+  if (!bolehTransisi(order.status, "CANCELLED")) {
+    return { ok: false, error: "Pesanan ini tidak bisa dibatalkan." };
+  }
+
+  const meta = await requestMeta();
+  await prisma.planOrder.update({
+    where: { id: order.id },
+    data: { status: "CANCELLED" },
+  });
+  await recordAudit({
+    schoolId: order.schoolId,
+    userId: g.ctx.userId,
+    action: "UPDATE",
+    entity: "PlanOrder",
+    entityId: order.id,
+    before: { status: order.status },
+    after: { status: "CANCELLED" },
+    ...meta,
+  });
+
+  revalidatePath(`/dashboard/schools/${order.schoolId}`);
+  return { ok: true, message: "Pesanan dibatalkan." };
+}
+
+function formatTanggal(d: Date): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(d);
 }
 
 /** Pastikan hanya super-admin (dipakai halaman untuk cek akses). */

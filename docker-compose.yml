@@ -1,26 +1,53 @@
 # Docker Compose — aplikasi (web) + WA gateway.
 #
-# Nama project Compose dipatok `school-app` agar tidak mengikuti nama folder
-# (mis. `vibe-school`). Efeknya: prefix resource jadi `school-app_*` dan
-# volume/network bernama konsisten di mesin mana pun. Override bila perlu:
-#     docker compose -p nama-lain ...
+# Berkas ini sengaja DIBUAT GENERAL: satu berkas yang sama dipakai di VPS
+# manual maupun di panel (Coolify/Dokploy/dsb). Karena itu tidak ada yang
+# ditambal khusus panel:
+#   * TIDAK ada `container_name`  -> nama container jadi <project>-web-1.
+#     `container_name` bersifat GLOBAL per daemon; di server yang menjalankan
+#     lebih dari satu stack, nama seperti `school-web` pasti bentrok.
+#   * TIDAK ada `ports:` publish  -> cukup `expose:`. Publish port adalah
+#     sumber error "port is already allocated" saat ada dua stack/panel yang
+#     berebut 3000. Reverse proxy / panel masuk lewat app-network.
+#   * TIDAK ada `image:` tag tetap -> Compose memberi nama project-scoped.
+#     Tag `school-app-web:latest` yang ditulis eksplisit membuat Compose
+#     mencoba PULL dari registry ("pull access denied") padahal image hanya
+#     dibangun lokal.
+#   * Tidak ada label khusus panel; Coolify mendeteksi compose biasa.
+#
+# TIGA MODE PAKAI
+# ---------------
+# 1) VPS manual (DB eksternal / remote):
+#       cp .env.docker.example .env      # isi nilainya
+#       docker network create school-db           # sekali saja
+#       docker network create school-app-network  # sekali saja
+#       docker compose up -d --build
+#
+# 2) Coolify (atau panel lain): buat resource "Docker Compose" dari repo ini,
+#    lalu isi environment lewat panel — JANGAN lewat .env (berkas .env tidak
+#    ikut ter-commit dan bisa tidak ada di server panel). `env_file` di bawah
+#    bersifat OPSIONAL sehingga compose tetap valid walau .env tidak ada.
+#    Set domain aplikasi ke port 3000 di panel.
+#
+# 3) DB ikut compose (dev / self-host skala kecil): pakai berkas override
+#       docker compose -f docker-compose.yml -f docker-compose.db.yml \
+#                      --profile db up -d --build
+#    Saat mode ini dipakai, host di DATABASE_URL = `postgres`
+#    (postgresql://school:***@postgres:5432/schoolapp?schema=public).
+#    Untuk produksi sungguhan tetap disarankan DB terkelola/terpisah.
+#
+# PostgreSQL dan Nginx TIDAK didefinisikan di sini:
+#   * PostgreSQL berjalan di stack lain (atau di host remote) dan dijangkau
+#     lewat jaringan eksternal `db-network`.
+#   * Nginx reverse proxy berada di jaringan eksternal `app-network`.
+# Nama kedua jaringan bisa diatur lewat env (default di bawah) supaya tidak
+# memaksa Anda memakai nama tertentu di server yang sudah punya jaringan
+# sendiri: DB_NETWORK, APP_NETWORK.
+#
+# Nama project Compose dipatok `school-app` agar prefix resource
+# (`school-app_*`) konsisten dan tidak mengikuti nama folder. Override bila
+# perlu: docker compose -p nama-lain ...
 name: school-app
-#
-# PostgreSQL dan Nginx TIDAK dikelola di sini:
-#   * PostgreSQL sudah berjalan di container/stack lain pada jaringan eksternal
-#     `db-network` (nama container/host-nya lihat DATABASE_URL di .env).
-#   * Nginx reverse proxy sudah berjalan pada jaringan eksternal `app-network`.
-#
-# Karena itu berkas ini hanya mendefinisikan dua layanan:
-#   * web        — aplikasi Next.js (dibangun dari root monorepo)
-#   * wa-gateway — worker antrean WA + HTTP API sesi (Baileys)
-#
-# Kedua jaringan di bawah WAJIB sudah ada lebih dulu (dibuat oleh stack DB /
-# reverse proxy). Bila belum ada, buat manual:
-#     docker network create db-network
-#     docker network create app-network
-#
-# Menjalankan:  docker compose up -d --build
 
 services:
   # ------------------------------------------------------------------
@@ -32,28 +59,38 @@ services:
       # ada di apps/web dan lockfile di root.
       context: .
       dockerfile: apps/web/Dockerfile
-    image: school-app-web:latest
-    container_name: school-web
     restart: unless-stopped
     env_file:
-      - .env
+      # Long syntax + required:false (Compose >= 2.24). Panel seperti Coolify
+      # menyuntik env langsung ke container, bukan dari berkas ini — kalau
+      # `required` dibiarkan true, deploy di panel gagal karena ".env not found".
+      - path: .env
+        required: false
     environment:
-      NODE_ENV: "production"
+      NODE_ENV: "${NODE_ENV:-production}"
       PORT: "3000"
+      # Nilai diambil dari env (panel/.env) bila ada, kalau tidak pakai default.
+      # Sengaja diberi default agar `docker compose config` tetap valid tanpa
+      # .env sama sekali — bukan berarti aman dijalankan tanpa rahasia asli.
+      DATABASE_URL: "${DATABASE_URL:-postgresql://school:school@postgres:5432/schoolapp?schema=public}"
+      NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3000}"
+      NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-}"
+      ROOT_DOMAIN: "${ROOT_DOMAIN:-localhost}"
+      PAYMENT_ENCRYPTION_KEY: "${PAYMENT_ENCRYPTION_KEY:-}"
       # Alamat wa-gateway dari sudut pandang web (nama service Docker).
-      WA_GATEWAY_URL: "http://wa-gateway:3001"
+      WA_GATEWAY_URL: "${WA_GATEWAY_URL:-http://wa-gateway:3001}"
+      WA_GATEWAY_TOKEN: "${WA_GATEWAY_TOKEN:-}"
       # Berkas unggahan runtime disimpan di volume agar bertahan saat redeploy.
-      STORAGE_DRIVER: "local"
-      UPLOAD_DIR: "/data/uploads"
+      STORAGE_DRIVER: "${STORAGE_DRIVER:-local}"
+      UPLOAD_DIR: "${UPLOAD_DIR:-/data/uploads}"
     volumes:
       - school_uploads:/data/uploads
-    ports:
-      # Hanya localhost; Nginx (di app-network) yang meneruskan ke 3000.
-      # Hapus baris ini bila Nginx mengakses web langsung lewat app-network.
-      - "127.0.0.1:3000:3000"
+    expose:
+      # Tidak dipublish ke host. Dijangkau Nginx/panel lewat app-network.
+      - "3000"
     networks:
       - db-network   # akses PostgreSQL
-      - app-network  # dijangkau Nginx reverse proxy
+      - app-network  # dijangkau reverse proxy / panel
     healthcheck:
       test:
         [
@@ -74,22 +111,25 @@ services:
     build:
       context: .
       dockerfile: apps/wa-gateway/Dockerfile
-    image: school-wa-gateway:latest
-    container_name: school-wa-gateway
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
+      NODE_ENV: "${NODE_ENV:-production}"
       PORT: "3001"
-      LOG_LEVEL: "info"
-      WA_SESSION_DIR: "/data/sessions"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://school:school@postgres:5432/schoolapp?schema=public}"
+      # Token HARUS sama dengan yang dipakai web; keduanya membaca var yang sama.
+      WA_GATEWAY_TOKEN: "${WA_GATEWAY_TOKEN:-}"
+      # Direktori sesi Baileys di dalam container (volume school_wa_sessions).
+      WA_SESSION_DIR: "${WA_SESSION_DIR:-/data/sessions}"
     volumes:
       # Kredensial sesi WhatsApp — sangat sensitif, jangan hilang saat redeploy.
       - school_wa_sessions:/data/sessions
-    ports:
-      # Hanya localhost VPS. Web mengaksesnya lewat nama service di app-network,
-      # jadi baris ini opsional (berguna untuk debug dari host).
-      - "127.0.0.1:3001:3001"
+    expose:
+      # Tidak dipublish. Web memanggilnya lewat nama service di app-network.
+      - "3001"
     networks:
       - db-network   # worker membaca notification_queue
       - app-network  # web memanggil HTTP API (/sessions/*, /health)
@@ -107,11 +147,16 @@ services:
       start_period: 20s
 
 networks:
-  # Jaringan ke PostgreSQL (container DB sudah ada di sini).
+  # Jaringan ke PostgreSQL (container DB sudah ada di sini, atau DB remote).
+  # Alias `db-network` = NAMA KEY yang dipakai di service; `name:` = nama
+  # nyata di daemon Docker. Jangan hardcode nama nyata: di server user
+  # jaringan DB bisa bernama lain (mis. `sekolah_default`).
   db-network:
+    name: ${DB_NETWORK:-school-db}
     external: true
-  # Jaringan ke Nginx reverse proxy.
+  # Jaringan ke Nginx reverse proxy / panel.
   app-network:
+    name: ${APP_NETWORK:-school-app-network}
     external: true
 
 volumes:

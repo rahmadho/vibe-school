@@ -41,6 +41,14 @@ model School {
   themeColor   String? // hex, mis. "#1E40AF"
   customDomain String? @unique // domain sekolah sendiri
 
+  // Verifikasi kepemilikan domain utama (DNS TXT di _sekolah-verify.<domain>).
+  domainVerifyToken     String?            // 32 hex
+  domainVerifyStatus    DomainVerifyStatus @default(UNVERIFIED)
+  domainVerifiedAt      DateTime?
+  domainVerifyAttempts  Int                @default(0)
+  domainVerifyLastError String?
+  domainVerifyCheckedAt DateTime?
+
   // Konfigurasi integrasi WA per-sekolah
   waGatewayId  String? // id device/session di wa-gateway
   waSenderName String?
@@ -73,9 +81,13 @@ model School {
   classHistories   StudentClassHistory[]
   subscription     Subscription?
   paymentGateways  SchoolPaymentGateway[]
+  // Pesanan paket (pembelian/perpanjangan). Didaftarkan sebagai model tenant:
+  // punya schoolId, jadi WAJIB ada di TENANT_MODELS + rls.sql.
+  planOrders       PlanOrder[]
   messageTemplates MessageTemplate[]
   campaigns        AnnouncementCampaign[]
   waSessions       WaSession[]
+  hostAliases      SchoolHostAlias[]
 
   // Web sekolah publik
   siteTheme       SiteTheme?
@@ -94,6 +106,36 @@ model School {
   competencyTests CompetencyTest[]
 
   @@map("schools")
+}
+
+/// Status verifikasi kepemilikan domain (DNS TXT). Berlaku untuk domain utama
+/// (`School.customDomain`) maupun domain tambahan (`SchoolHostAlias`).
+enum DomainVerifyStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+/// Domain TAMBAHAN milik satu sekolah. Domain utama tetap di `School.customDomain`
+/// (kompatibel dengan kode lama); tabel ini untuk sekolah yang punya >1 domain.
+model SchoolHostAlias {
+  id          String             @id @default(cuid())
+  schoolId    String
+  school      School             @relation(fields: [schoolId], references: [id])
+  host        String             @unique // lowercase, tanpa port
+  isPrimary   Boolean            @default(false)
+  verifyStatus DomainVerifyStatus @default(UNVERIFIED)
+  verifyToken  String
+  verifiedAt   DateTime?
+  attempts     Int                @default(0)
+  lastError    String?
+  checkedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([schoolId])
+  @@map("school_host_aliases")
 }
 
 enum SchoolLevel {
@@ -149,6 +191,8 @@ model User {
   paymentsRecorded       Payment[]              @relation("PaymentRecordedBy")
   gradesCreated          Grade[]                @relation("GradeCreatedBy")
   receiptsIssued         Receipt[]              @relation("ReceiptIssuedBy")
+  planOrdersRequested    PlanOrder[]            @relation("PlanOrderRequestedBy")
+  planOrdersApproved     PlanOrder[]            @relation("PlanOrderApprovedBy")
   attendancesMarked      Attendance[]           @relation("AttendanceMarkedBy")
   campaignsCreated       AnnouncementCampaign[] @relation("CampaignCreatedBy")
   mediaUploaded          Media[]                @relation("MediaUploadedBy")
@@ -1973,6 +2017,7 @@ model Plan {
   updatedAt DateTime @updatedAt
 
   subscriptions Subscription[]
+  planOrders    PlanOrder[]
 
   @@map("plans")
 }
@@ -1999,6 +2044,69 @@ enum SubscriptionStatus {
   TRIAL
   ACTIVE
   SUSPENDED
+  EXPIRED
+  CANCELLED
+}
+
+/// Pesanan paket langganan (pembelian / perpanjangan / upgrade).
+///
+/// KENAPA TABEL TERSENDIRI: `PaymentGatewayTransaction` terikat pada `Invoice`
+/// milik SISWA. Pesanan paket membayar KE PENYEDIA LAYANAN, bukan ke sekolah —
+/// memakai tabel yang sama akan membuat laporan keuangan sekolah memuat
+/// pemasukan yang bukan miliknya.
+///
+/// DUA JALUR PEMBAYARAN, satu tabel:
+///  - `provider` terisi  → dibayar lewat gateway sekolah, `externalId` &
+///    `paymentLink` dari provider, `expiresAt` = kedaluwarsa tautan.
+///  - `provider` NULL    → MODE MANUAL. Pesanan tetap PENDING dan menunggu
+///    super-admin menekan "Setujui". Jalur ini wajib ada karena kredensial
+///    gateway bisa belum tersedia; alur tidak boleh gagal karenanya.
+model PlanOrder {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  planId   String
+  plan     Plan   @relation(fields: [planId], references: [id])
+
+  requestedByUserId String?
+  requestedBy       User?   @relation("PlanOrderRequestedBy", fields: [requestedByUserId], references: [id])
+
+  months Int @default(12)
+  /// Harga saat pesanan dibuat (pricePerMonth × months), disimpan agar riwayat
+  /// tidak berubah bila harga katalog dinaikkan kemudian.
+  amount Int
+
+  status PlanOrderStatus @default(PENDING)
+
+  /// NULL = mode manual (tanpa gateway).
+  provider    GatewayProvider?
+  /// order_id / reference dari provider. Unik agar webhook ganda tidak
+  /// membuat pesanan kembar.
+  externalId  String?         @unique
+  paymentLink String?
+  vaNumber    String?
+  paidAt      DateTime?
+
+  approvedByUserId String?
+  approvedBy       User?     @relation("PlanOrderApprovedBy", fields: [approvedByUserId], references: [id])
+  approvedAt       DateTime?
+
+  /// Kedaluwarsa tautan pembayaran (bukan kedaluwarsa langganan).
+  expiresAt DateTime?
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, status])
+  @@map("plan_orders")
+}
+
+enum PlanOrderStatus {
+  PENDING
+  PAID
+  APPROVED
+  FAILED
   EXPIRED
   CANCELLED
 }

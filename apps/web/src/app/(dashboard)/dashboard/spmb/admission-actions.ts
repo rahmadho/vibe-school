@@ -14,6 +14,7 @@ import {
   registrationReviewSchema,
 } from "@/lib/validations/site";
 import { queueNotification } from "@/lib/notification-queue";
+import { wajibFitur } from "@/lib/entitlement";
 import { buatAkunSiswa } from "@/lib/akun-siswa";
 import { ambilSlugSekolah } from "@/lib/sekolah-helper";
 import { getBlock } from "@/lib/site-blocks";
@@ -61,6 +62,13 @@ export async function createAdmissionBatch(formData: FormData): Promise<ActionRe
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB adalah fitur berbayar (paket Pro ke atas). RBAC sudah lolos, tetapi
+  // paket sekolah bisa saja tidak mencakupnya — dua lapis, keduanya wajib.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = admissionBatchCreateSchema.safeParse({
     academicYearId: formData.get("academicYearId"),
@@ -157,6 +165,12 @@ export async function updateAdmissionBatch(formData: FormData): Promise<ActionRe
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = admissionBatchUpdateSchema.safeParse({
     id: formData.get("id"),
@@ -245,6 +259,12 @@ export async function createAdmissionPath(formData: FormData): Promise<ActionRes
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = admissionPathCreateSchema.safeParse({
     batchId: formData.get("batchId"),
@@ -337,6 +357,12 @@ export async function updateAdmissionPath(formData: FormData): Promise<ActionRes
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = admissionPathUpdateSchema.safeParse({
     id: formData.get("id"),
@@ -425,6 +451,12 @@ export async function deleteAdmissionPath(formData: FormData): Promise<ActionRes
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const { schoolId } = ctx;
   const id = String(formData.get("id") ?? "");
@@ -498,6 +530,12 @@ export async function reviewRegistration(formData: FormData): Promise<ActionResu
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = registrationReviewSchema.safeParse({
     id: formData.get("id"),
@@ -681,6 +719,12 @@ export async function uploadRegistrationDocument(
   }
 
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
   try {
     const previous = await prisma.registration.findUnique({
       where: { id: registration.id },
@@ -750,6 +794,12 @@ export async function deleteRegistrationDocument(
   if (!url) return { ok: false, error: "Dokumen ini memang belum ada." };
 
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
   await prisma.registration.update({
     where: { id: registration.id },
     data: { [kind]: null },
@@ -800,6 +850,12 @@ export async function saveAdmissionResult(
   if ("fail" in g) return g.fail;
   const { schoolId, userId } = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = admissionResultSchema.safeParse({
     batchId: formData.get("batchId"),
@@ -932,6 +988,12 @@ export async function saveSpmbBlockProps(formData: FormData): Promise<ActionResu
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const definition = getBlock("spmb");
   if (!definition) return { ok: false, error: "Blok SPMB tidak dikenal." };
@@ -1020,6 +1082,12 @@ export async function createManualRegistration(
   if ("fail" in g) return g.fail;
   const { schoolId, userId } = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = manualRegistrationSchema.safeParse({
     batchId: formData.get("batchId"),
@@ -1255,6 +1323,12 @@ export async function convertRegistrationToStudent(
   if ("fail" in g) return g.fail;
   const ctx = g.ctx;
   const meta = await requestMeta();
+  // SPMB = fitur berbayar. RBAC lolos belum tentu paket membayarnya.
+  try {
+    await wajibFitur(ctx.schoolId, "spmb");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
   const { schoolId } = ctx;
 
   const registrationId = String(formData.get("registrationId") ?? "");

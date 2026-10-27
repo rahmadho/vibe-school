@@ -13,6 +13,7 @@ import {
 import { encryptSecret, last4 } from "@/lib/crypto-secret";
 import { loadActiveGateway, createGatewayCharge } from "@/lib/gateway-client";
 import { remainingAmount } from "@/lib/finance-calc";
+import { wajibFitur } from "@/lib/entitlement";
 
 /**
  * Aksi gateway: pengaturan kredensial + pembuatan sesi pembayaran online.
@@ -29,6 +30,15 @@ import { remainingAmount } from "@/lib/finance-calc";
 export async function saveGatewayConfig(formData: FormData): Promise<ActionResult> {
   const g = await guard("finance", "manage");
   if ("fail" in g) return g.fail;
+
+  // Gateway = fitur berbayar (paket Pro ke atas). Ditegakkan di sini, bukan
+  // hanya dengan menyembunyikan menu: tanpa ini sekolah paket Basic bisa
+  // menyimpan kredensial & mengaktifkan gateway lewat POST langsung.
+  try {
+    await wajibFitur(g.ctx.schoolId, "paymentGateway");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const parsed = gatewayConfigSchema.safeParse({
     provider: formData.get("provider"),
@@ -193,6 +203,14 @@ export async function testGatewayConnection(): Promise<ActionResult> {
 export async function createPaymentLink(invoiceId: string): Promise<ActionResult> {
   const g = await guard("finance", "manage");
   if ("fail" in g) return g.fail;
+
+  // Tagihan tetap bisa dicatat manual — yang dikunci hanya pembuatan tautan
+  // gateway, karena itulah fitur yang dibayar.
+  try {
+    await wajibFitur(g.ctx.schoolId, "paymentGateway");
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
 
   const inv = await prisma.invoice.findFirst({
     where: { id: invoiceId, schoolId: g.ctx.schoolId, deletedAt: null },
