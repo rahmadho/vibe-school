@@ -75,6 +75,18 @@ COPY --from=builder --chown=node:node /app/node_modules/@prisma/engines-version 
 COPY --from=builder --chown=node:node /app/node_modules/@prisma/fetch-engine ./node_modules/@prisma/fetch-engine
 COPY --from=builder --chown=node:node /app/node_modules/@prisma/get-platform ./node_modules/@prisma/get-platform
 COPY --from=builder --chown=node:node /app/node_modules/@prisma/debug ./node_modules/@prisma/debug
+# `pg` dipakai bootstrap.sh untuk menjalankan skrip SQL tata-letak schema.
+# Tidak ikut Next standalone (bukan bagian bundel aplikasi), jadi dipasang
+# sendiri. Versinya MENGIKUTI package-lock.json (`npm ci`, bukan `npm install`)
+# supaya deterministik dan tidak berubah diam-diam antar-build.
+COPY package.json package-lock.json ./
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/wa-gateway/package.json ./apps/wa-gateway/package.json
+RUN mkdir -p /app/tools && cd /app/tools \
+    && cp /app/package.json /app/package-lock.json . \
+    && npm ci --omit=dev --no-audit --no-fund --workspaces=false >/dev/null 2>&1 \
+       && test -d /app/tools/node_modules/pg
+ENV NODE_PATH=/app/tools/node_modules
 
 # Folder unggahan runtime (di-mount volume di compose pada /data/uploads).
 RUN mkdir -p /data/uploads && chown -R node:node /data
@@ -83,8 +95,14 @@ RUN mkdir -p /data/uploads && chown -R node:node /data
 USER node
 EXPOSE 3000
 
-# Saat container start: terapkan migrasi (deploy) lalu jalankan server standalone.
-# `prisma migrate deploy` idempoten (aman diulang) dan tanpa prompt. Bila DB
-# belum siap, kita lanjut start saja agar container tidak crash-loop — migrasi
-# bisa dijalankan ulang manual (lihat docs/panduan-deploy-docker.md).
-CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy --schema apps/web/prisma/schema.prisma || echo 'migrate deploy dilewati/gagal — lanjut start'; node apps/web/server.js"]
+# Saat container start: lengkapi skema database lalu jalankan server.
+#
+# `bootstrap.sh` mengerjakan SELURUH persiapan skema (migrasi, tata letak tiga
+# schema, view penyaring tenant, fungsi login, hak akses). Tanpa itu aplikasi
+# hidup tetapi menampilkan angka 0 dan login gagal. Skripnya idempoten
+# sehingga aman dijalankan di setiap restart.
+#
+# Ditulis tanpa `|| echo` supaya kegagalan TERLIHAT di log Coolify. Skrip itu
+# sendiri sudah menangani DB yang belum siap dengan retry, jadi kegagalan di
+# sini berarti ada yang benar-benar salah dan harus dibaca, bukan ditelan.
+CMD ["sh", "-c", "sh apps/web/prisma/bootstrap.sh; node apps/web/server.js"]

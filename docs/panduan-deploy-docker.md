@@ -127,28 +127,15 @@ docker compose exec web node node_modules/prisma/build/index.js \
   migrate deploy --schema apps/web/prisma/schema.prisma
 ```
 
-**Sekali per database baru** — grants + RLS. Tanpa langkah ini aplikasi
-berjalan tapi semua query gagal `permission denied` / tabel terlihat kosong
-karena RLS menolak role aplikasi. Jalankan dengan `OWNER_URL`, bukan
-`DATABASE_URL`:
+**Tidak ada langkah manual.** Container `web` menjalankan
+`apps/web/prisma/bootstrap.sh` setiap start: migrasi, tata letak tiga schema,
+view penyaring tenant, fungsi login, lalu hak akses role aplikasi. Tidak perlu
+`psql`, tidak perlu image `postgres:16-alpine` sementara.
+
+Cara memastikan berhasil — log-nya menyebut tiap langkah:
 
 ```bash
-cd apps/web
-
-# role di -v harus sama dengan user di DATABASE_URL
-psql "$OWNER_URL" -v app_role=school -f prisma/grants.sql
-psql "$OWNER_URL" -f prisma/rls.sql
-```
-
-Bila `psql` tidak ada di host, jalankan dari container (compose utama tidak
-memuat klien postgres — pakai image sementara di jaringan DB):
-
-```bash
-docker run --rm -it --network "<network-project>" \
-  -v "$PWD/apps/web/prisma:/sql:ro" \
-  -e OWNER_URL="$OWNER_URL" postgres:16-alpine \
-  sh -c 'psql "$OWNER_URL" -v app_role=school -f /sql/grants.sql && \
-         psql "$OWNER_URL" -f /sql/rls.sql'
+docker compose logs web | grep '\[bootstrap\]'
 ```
 
 Seed data demo (sekali saja):

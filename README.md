@@ -57,8 +57,9 @@ cp apps/web/.env.example apps/web/.env
 npm run prisma:migrate        # buat & jalankan migrasi
 npm run db:seed               # 2 sekolah contoh + akun demo
 
-#    (opsional) aktifkan Row Level Security
-psql "$DATABASE_URL" -f apps/web/prisma/rls.sql
+#    (opsional) lengkapi tata letak 3 schema + RLS + hak akses
+#    DATABASE_URL harus memakai role owner saat menjalankan ini
+sh apps/web/prisma/bootstrap.sh
 
 # 5. Jalankan
 npm run dev                   # http://localhost:3000
@@ -153,15 +154,17 @@ SEED_DEMO_ACTIVITY=0 npm run db:seed   # hanya data dasar, tanpa riwayat
 > menghasilkan data yang sama. Fungsi ini berhenti sendiri bila absensi sudah
 > ada, sehingga tidak menggandakan tagihan.
 
-### Izin database (wajib sekali per database baru)
+### Izin database
 
 RLS mewajibkan aplikasi terhubung sebagai role **non-owner**. Role seperti itu
 TIDAK otomatis punya hak ke tabel, sehingga query gagal dengan
-`42501 permission denied`. Pasang hak aksesnya sebagai owner:
+`42501 permission denied`. Semua ini sudah diurus otomatis:
+
+- **Di Docker/Coolify** — `bootstrap.sh` jalan sendiri tiap container start.
+- **Di dev lokal** — jalankan sekali sebagai owner:
 
 ```bash
-psql "postgresql://OWNER:PASSWORD@HOST:5432/DBNAME" \
-  -v app_role=<role_di_DATABASE_URL> -f apps/web/prisma/grants.sql
+DATABASE_URL="postgresql://OWNER:***@HOST:5432/DBNAME" sh apps/web/prisma/bootstrap.sh
 ```
 
 ---

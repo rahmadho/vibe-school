@@ -2,12 +2,11 @@
 
 Panduan langkah demi langkah, dari repo GitHub sampai login berhasil.
 
-**Yang harus dipahami lebih dulu:** aplikasi ini butuh **PostgreSQL yang sudah
-punya peran owner dan peran aplikasi terpisah**. Deploy bukan sekadar tekan
-tombol — ada empat skrip SQL yang wajib dijalankan sekali setelah database
-terbentuk. Tanpa empatnya, aplikasi akan tampil normal tetapi **semua daftar
-dan angka berisi nol**, dan login gagal. Itu bukan bug, itu RLS yang belum
-disambungkan.
+**Yang harus dipahami lebih dulu:** aplikasi ini butuh **PostgreSQL dengan
+peran owner dan peran aplikasi terpisah**. Selain itu tidak ada langkah SQL
+manual — `bootstrap.sh` menyiapkan seluruh skema otomatis saat container
+start. Yang perlu Anda lakukan hanya membuat database kosong dan mengisi
+`DATABASE_URL`.
 
 ---
 
@@ -15,7 +14,7 @@ disambungkan.
 
 ```
 ① DB PostgreSQL (Coolify resource terpisah)
-      ↓  jalankan 4 skrip SQL sebagai owner
+      ↓  cukup buat DB kosong (skema diurus otomatis)
 ② Resource Docker Compose dari repo GitHub
       ↓  isi env di panel
 ③ Domain + port 3000
@@ -58,43 +57,46 @@ CREATE DATABASE "vibe-schools" OWNER sekol;
 > memakai peran owner, penyaringan tenant tidak akan pernah aktif, dan satu
 > sekolah bisa membaca data sekolah lain. Pemisahan ini bukan formalitas.
 
-### 1b. Jalankan empat skrip SQL — URUTAN WAJIB
+### 1b. Tidak ada skrip SQL yang perlu dijalankan manual
 
-Jalankan sebagai peran **owner**, di database `vibe-schools`. Urutan tidak
-boleh ditukar:
+Cukup **buat database kosong** dengan dua peran di atas. Segala persiapan
+skema dikerjakan otomatis oleh `apps/web/prisma/bootstrap.sh` setiap kali
+container aplikasi start:
 
-| # | Berkas | Fungsi |
+| Urutan | Berkas | Fungsi |
 |---|---|---|
-| 1 | `apps/web/prisma/rls.sql` | Tabel penyaring + policy dasar |
-| 2 | `apps/web/prisma/enum-move.sql` | Pindahkan tipe enum ke schema `app` |
-| 3 | `apps/web/prisma/rls-views.sql` | View penyaring per tabel tenant |
-| 4 | `apps/web/prisma/rls-global-views.sql` | Cermin tabel tanpa `schoolId` |
-| 5 | `apps/web/prisma/login-functions.sql` | Fungsi login lintas-tenant |
+| 0 | `prisma migrate deploy` | Buat semua tabel dari migrasi |
+| 1 | `schema-layout.sql` | Tata tabel ke `data`/`public`, enum & buang sisa `app` |
+| 2 | `enum-move.sql` | Pastikan enum berada di `public` |
+| 3 | `rls-views.sql` | View penyaring tenant di `app` |
+| 4 | `rls-global-views.sql` | Cermin tabel tanpa `schoolId` |
+| 5 | `login-functions.sql` | Fungsi login lintas-tenant |
+| 6 | `grants-app-role.sql` | Hak akses role aplikasi |
 
-Karena terminal Coolify tidak punya akses ke folder repo, salin isi berkas
-lewat `psql` dari mesin Anda (ganti host/port dengan yang tampil di panel):
+Semuanya idempoten — aman diulang di setiap restart. Di log container Anda
+akan melihat:
 
-```bash
-export OWNER_URL="postgresql://sekol:PASSWORD@HOST:5432/vibe-schools?sslmode=require"
-
-for f in rls.sql enum-move.sql rls-views.sql rls-global-views.sql login-functions.sql; do
-  echo "== $f"
-  psql "$OWNER_URL" -v ON_ERROR_STOP=1 -f "apps/web/prisma/$f" || break
-done
+```
+[bootstrap] database siap.
+[bootstrap] menjalankan migrasi…
+[bootstrap] ok  schema-layout.sql
+[bootstrap] ok  enum-move.sql
+[bootstrap] ok  rls-views.sql
+[bootstrap] ok  rls-global-views.sql
+[bootstrap] ok  login-functions.sql
+[bootstrap] ok  grants-app-role.sql
+[bootstrap] selesai.
 ```
 
-Terakhir, beri peran aplikasi hak akses:
+> **JANGAN menjalankan berkas SQL itu manual sebelum aplikasi pernah start.**
+> Tabelnya belum ada — `migrate deploy` baru berjalan saat container start —
+> sehingga `login-functions.sql` gagal dengan
+> `relation "data.users" does not exist`. Bootstrap menangani urutan ini
+> dengan benar; tangan manusia biasanya tidak.
 
-```sql
-GRANT USAGE ON SCHEMA app, data, public TO vibe;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA app TO vibe;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app TO vibe;
-GRANT EXECUTE ON FUNCTION public.app_login_user_by_email(text) TO vibe;
-GRANT EXECUTE ON FUNCTION public.app_login_user_by_username(text, text) TO vibe;
-```
-
-> Bila migrasi Prisma menambah tabel baru di kemudian hari, ulangi langkah 1b
-> nomor 3–4 lalu GRANT di atas. View lama tidak otomatis mengenal tabel baru.
+> Bila migrasi Prisma menambah tabel baru di kemudian hari, **tidak ada yang
+> perlu dijalankan manual**: bootstrap mengulang seluruh urutan di atas pada
+> setiap restart, sehingga view dan hak akses untuk tabel baru ikut dibuat.
 
 ---
 
@@ -204,9 +206,10 @@ Tekan **Deploy**. Yang perlu diawasi di log:
 Bila container `web` **crash-loop**, lihat log: hampir selalu `DATABASE_URL`
 salah atau `NEXTAUTH_SECRET` kosong.
 
-`prisma migrate deploy` dijalankan otomatis saat container start dan bersifat
-idempoten. Bila gagal, container tetap start (disengaja agar tidak crash-loop);
-migrasi bisa dijalankan ulang manual.
+`prisma migrate deploy` dan seluruh persiapan skema dijalankan otomatis oleh
+`bootstrap.sh` saat container start, dan semuanya idempoten. Container tetap
+start walau migrasi gagal (disengaja agar tidak crash-loop) — periksa baris
+`[bootstrap]` di log untuk tahu langkah mana yang bermasalah.
 
 ---
 
@@ -306,7 +309,7 @@ Ubah di panel → **Restart**. Rebuild hanya perlu bila kode berubah.
 
 ---
 
-## 10. Kalau tidak ingin repot SQL manual
+## 10. Kalau ingin database ikut di dalam compose
 
 Bagian ini **opsional**. Deploy normal (langkah 1–9) tidak memakai
 `docker-compose.db.yml` sama sekali.
@@ -315,9 +318,12 @@ Alternatifnya: pakai **Resource → Docker Compose**, lalu tambahkan service DB
 dengan override `docker-compose.db.yml`. Dengan begitu Postgres ikut berjalan
 di stack yang sama dan Anda tidak perlu membuat resource Database terpisah.
 
-Empat skrip SQL di langkah 1b **tetap wajib** — hanya saja dijalankan pada
-container `postgres` milik compose itu sendiri, bukan pada resource Database
-Coolify.
+Tidak ada skrip SQL manual yang perlu dijalankan di sini juga — `bootstrap.sh`
+tetap menyiapkan skema otomatis, hanya saja database-nya kini container
+`postgres` milik compose itu sendiri, bukan resource Database Coolify.
+
+Perhatikan konsekuensinya: data tersimpan di volume milik stack ini. Menghapus
+stack menghapus data sekolah. Pasang backup sebelum dipakai sungguhan.
 
 Untuk produksi sungguhan, DB terpisah tetap lebih baik: backup, upgrade, dan
 skalabilitasnya bukan urusan stack aplikasi.

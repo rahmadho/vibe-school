@@ -107,17 +107,25 @@ RLS mewajibkan aplikasi terhubung sebagai role **non-owner**. Role seperti itu
 TIDAK otomatis punya hak ke tabel, sehingga query gagal dengan
 `42501 permission denied`. Urutan pemasangan yang benar:
 
-```bash
-cd apps/web                                                  # path relatif di bawah dari sini
+Cukup satu perintah — ia mengerjakan semuanya dengan urutan yang benar:
 
-npx prisma migrate deploy                                   # 1. owner buat tabel
-psql "$OWNER_URL" -v app_role=<role_di_DATABASE_URL> \
-  -f prisma/grants.sql                                      # 2. hak akses
-psql "$OWNER_URL" -f prisma/rls.sql                         # 3. RLS
+```bash
+cd apps/web
+sh prisma/bootstrap.sh
 ```
 
-**Ulangi langkah 2 & 3 setiap kali ada TABEL BARU** (model baru ber-`schoolId`).
-Migrasi yang hanya menambah kolom pada tabel lama tidak perlu RLS ulang.
+Isi `DATABASE_URL` sebagai role **owner** saat menjalankannya (bootstrap perlu
+DDL). Urutan yang dijalankan: `migrate deploy` → `schema-layout.sql` →
+`enum-move.sql` → `rls-views.sql` → `rls-global-views.sql` →
+`login-functions.sql` → `grants-app-role.sql`.
+
+Di container, urutan itu berjalan otomatis setiap start. **Tidak ada** langkah
+`psql` manual, dan jangan menjalankan berkas `.sql` itu satu per satu menurut
+urutan sendiri — tabel belum ada sebelum `migrate deploy`, sehingga
+`login-functions.sql` gagal `relation "data.users" does not exist`.
+
+**Tabel baru** (model baru ber-`schoolId`) ikut tertangani saat bootstrap
+berikutnya; view dan GRANT dibuat ulang otomatis.
 
 **Jangan** menjadikan role aplikasi sebagai owner atau superuser demi
 menyelesaikan error ini — keduanya membypass RLS sepenuhnya.
