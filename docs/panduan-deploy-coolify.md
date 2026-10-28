@@ -114,6 +114,11 @@ Coolify: **+ New → Docker Compose** (bukan *Application* biasa, bukan
 Base Directory **wajib `/`**, bukan `apps/web`. Build context compose adalah
 root monorepo karena npm workspaces dan lockfile ada di root.
 
+> **Hanya `docker-compose.yml`.** `docker-compose.db.yml` adalah override
+> opsional (profil `db`) untuk yang ingin Postgres ikut di stack yang sama.
+> Jangan diisi di kolom *Docker Compose Location* — cukup satu berkas itu.
+> DB untuk jalur normal dibuat di langkah 1 sebagai resource Database terpisah.
+
 ---
 
 ## 3. Isi environment di panel
@@ -303,9 +308,16 @@ Ubah di panel → **Restart**. Rebuild hanya perlu bila kode berubah.
 
 ## 10. Kalau tidak ingin repot SQL manual
 
-Pakai **Resource → Docker Compose** lalu tambahkan service DB lewat
-`docker-compose.db.yml` di panel. Empat skrip SQL di langkah 1b **tetap wajib** —
-hanya saja dijalankan pada container `postgres` milik compose itu sendiri.
+Bagian ini **opsional**. Deploy normal (langkah 1–9) tidak memakai
+`docker-compose.db.yml` sama sekali.
+
+Alternatifnya: pakai **Resource → Docker Compose**, lalu tambahkan service DB
+dengan override `docker-compose.db.yml`. Dengan begitu Postgres ikut berjalan
+di stack yang sama dan Anda tidak perlu membuat resource Database terpisah.
+
+Empat skrip SQL di langkah 1b **tetap wajib** — hanya saja dijalankan pada
+container `postgres` milik compose itu sendiri, bukan pada resource Database
+Coolify.
 
 Untuk produksi sungguhan, DB terpisah tetap lebih baik: backup, upgrade, dan
 skalabilitasnya bukan urusan stack aplikasi.
