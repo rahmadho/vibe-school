@@ -86,6 +86,7 @@ model School {
   planOrders       PlanOrder[]
   messageTemplates MessageTemplate[]
   campaigns        AnnouncementCampaign[]
+  gradePublications GradePublication[]
   waSessions       WaSession[]
   hostAliases      SchoolHostAlias[]
 
@@ -982,6 +983,39 @@ model ReportCard {
   @@unique([studentId, semesterId, subjectId])
   @@index([schoolId])
   @@map("report_cards")
+}
+
+/// Publikasi nilai per kelas per semester. Satu baris = satu keputusan
+/// "nilai semester Ganjil kelas 7A sudah dibagikan ke orang tua".
+/// Sengaja terpisah dari ReportCard: ReportCard per siswa per mapel, sedangkan
+/// publikasi adalah satu kejadian yang punya siapa & kapan.
+model GradePublication {
+  id        String @id @default(cuid())
+  schoolId  String
+  school    School @relation(fields: [schoolId], references: [id])
+  semesterId String
+  classId   String
+
+  status GradePublicationStatus @default(DRAFT)
+
+  publishedAt   DateTime?
+  publishedById String?
+
+  /// Jumlah siswa yang punya rapor, dan jumlah pesan yang berhasil diantrekan.
+  studentCount   Int @default(0)
+  recipientCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([classId, semesterId])
+  @@index([schoolId])
+  @@map("grade_publications")
+}
+
+enum GradePublicationStatus {
+  DRAFT
+  PUBLISHED
 }
 
 // ============================================================

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { semesterTerpublikasi } from "@/lib/data/grade-publication";
 
 /**
  * ============================================================
@@ -101,6 +102,11 @@ export async function ringkasanPortal(studentId: string, schoolId: string) {
 
 /** Nilai siswa, dikelompokkan per mata pelajaran. */
 export async function nilaiPortal(studentId: string, schoolId: string) {
+  // Fase 5: portal hanya menampilkan nilai semester yang SUDAH dipublikasikan
+  // sekolah. Nilai yang masih digodok guru tidak boleh bocor ke orang tua.
+  // `nilai` (Grade) tidak selalu punya semesterId — selalu ditampilkan sebagai
+  // "nilai berjalan"; `rapor` (ReportCard, nilai akhir) digerbangi publikasi.
+  const terbit = await semesterTerpublikasi(studentId, schoolId);
   const [nilai, rapor] = await Promise.all([
     prisma.grade.findMany({
       where: { studentId, schoolId },
@@ -119,7 +125,7 @@ export async function nilaiPortal(studentId: string, schoolId: string) {
     // ReportCard hanya punya subjectId (bukan relasi `subject`), jadi nama
     // mapel diambil terpisah di bawah.
     prisma.reportCard.findMany({
-      where: { studentId, schoolId },
+      where: { studentId, schoolId, semesterId: { in: [...terbit] } },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

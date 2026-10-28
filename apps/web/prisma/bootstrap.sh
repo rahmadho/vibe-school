@@ -43,6 +43,9 @@ run_sql() {
     const sql = fs.readFileSync(process.argv[1], "utf8");
     const role = process.argv[2] || "";
     c.connect()
+      // Tabel tenant ada di `data`; tanpa search_path ini rujukan tanpa schema
+      // di berkas SQL gagal dengan `relation "users" does not exist`.
+      .then(() => c.query("SET search_path TO data, app, public"))
       .then(() => (role ? c.query("SET app.role = " + c.escapeLiteral(role)) : null))
       .then(() => c.query(sql))
       .then(() => c.end())
@@ -59,21 +62,48 @@ i=0
 until node -e '
   const { Client } = require("pg");
   const c = new Client({ connectionString: process.env.DATABASE_URL });
-  c.connect().then(() => c.end()).catch(() => process.exit(1));
-' 2>/dev/null; do
+  c.connect().then(() => c.end()).catch((e) => {
+    console.error("[bootstrap] koneksi: " + e.message);
+    process.exit(1);
+  });
+'; do
   i=$((i + 1))
   if [ "$i" -ge 30 ]; then
-    log "database tidak merespons setelah 30 percobaan — lanjut start server."
-    exit 0
+    # JANGAN exit 0. Dulu di sini `exit 0` sehingga container start dengan
+    # database kosong dan tanpa satu pun tabel — aplikasi tampak hidup tapi
+    # setiap halaman error, dan log Coolify tidak menunjukkan kegagalan.
+    log "GAGAL: database tidak merespons setelah 30 percobaan — start dibatalkan."
+    exit 1
   fi
   sleep 2
 done
 log "database siap."
 
 # 2. Migrasi. Idempoten, tanpa prompt.
+#    Kegagalan di sini WAJIB menghentikan start: kalau migrasi tidak jalan,
+#    semua langkah setelahnya bekerja pada tabel yang tidak ada.
+#
+#    ⚠️ MIGRATE MEMAKAI URL TANPA `?schema=app` — JANGAN diseragamkan.
+#
+#    `?schema=app` membuat Prisma MENGKUALIFIKASI nama tabel, sehingga ia
+#    mencari `app._prisma_migrations`. Tabel itu ada di `public`; di `app`
+#    hanya ada view penyaring. Hasilnya Prisma menyimpulkan "schema tidak
+#    kosong tanpa riwayat migrasi" -> P3005 -> container gagal start
+#    SELAMANYA, dan restart tidak pernah memperbaikinya.
+#
+#    Tanpa `?schema=app`, Prisma memakai nama polos + search_path, dan tabel
+#    migrasi di `public` ditemukan ("Database schema is up to date!").
+#    Aplikasi runtime di sisi lain MEMBUTUHKAN `schema=app` supaya membaca
+#    view penyaring tenant — dua kebutuhan berbeda, dua URL berbeda.
 log "menjalankan migrasi…"
-node node_modules/prisma/build/index.js migrate deploy --schema "$SCHEMA" \
-  || log "migrate deploy dilewati (DB sudah ada / belum kosong) — lanjut."
+PRISMA_URL=$(node -e '
+  const u = new URL(process.env.DATABASE_URL);
+  u.searchParams.delete("schema");
+  process.stdout.write(u.toString());
+') || { log "GAGAL: DATABASE_URL tidak bisa dibaca — start dibatalkan."; exit 1; }
+DATABASE_URL="$PRISMA_URL" PGOPTIONS="-c search_path=app,public,data" \
+  node node_modules/prisma/build/index.js migrate deploy --schema "$SCHEMA" \
+  || { log "GAGAL: migrate deploy — start dibatalkan."; exit 1; }
 
 # Nama role aplikasi diambil dari DATABASE_URL. Bootstrap biasanya berjalan
 # sebagai OWNER, jadi role sasaran tidak bisa ditebak dari current_user —
@@ -85,7 +115,13 @@ APP_ROLE="${APP_DB_ROLE:-$(node -e '
 log "role aplikasi: ${APP_ROLE:-(tidak diketahui)}"
 
 # 3. Tata letak schema -> enum -> view -> login -> hak akses. Urutan ini WAJIB.
-for f in schema-layout.sql enum-move.sql rls-views.sql rls-global-views.sql login-functions.sql; do
+# 5. Kebijakan RLS. WAJIB sebelum view, karena view hanya MENYARING, sedangkan
+#    RLS adalah lapisan yang menahan query yang lupa memfilter schoolId.
+#
+#    `rls.sql` dulu TIDAK PERNAH dipanggil di sini — akibatnya 51 tabel tenant
+#    berjalan tanpa RLS dan isolasi sekolah bergantung pada view saja. Bug ini
+#    tidak terlihat: aplikasi tetap benar selama setiap query lewat scopedDb.
+for f in schema-layout.sql enum-move.sql rls.sql rls-views.sql rls-global-views.sql login-functions.sql; do
   if run_sql "$PRISMA_DIR/$f"; then
     log "ok  $f"
   else

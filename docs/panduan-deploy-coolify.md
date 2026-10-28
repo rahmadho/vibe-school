@@ -116,10 +116,18 @@ Coolify: **+ New → Docker Compose** (bukan *Application* biasa, bukan
 Base Directory **wajib `/`**, bukan `apps/web`. Build context compose adalah
 root monorepo karena npm workspaces dan lockfile ada di root.
 
-> **Hanya `docker-compose.yml`.** `docker-compose.db.yml` adalah override
-> opsional (profil `db`) untuk yang ingin Postgres ikut di stack yang sama.
-> Jangan diisi di kolom *Docker Compose Location* — cukup satu berkas itu.
-> DB untuk jalur normal dibuat di langkah 1 sebagai resource Database terpisah.
+> **Mode dipilih lewat `COMPOSE_FILE`, bukan dengan menambah berkas kedua di
+> kolom ini.**
+>
+> - **Mode A — tanpa DB:** `docker-compose.yml` (yang dijalankan).
+> - **Mode B — DB ikut stack:** berkas compose tetap sama, tapi kalau
+>   `COMPOSE_FILE=docker-compose.yml:docker-compose.db.yml` ikut terbaca,
+>   `docker-compose.db.yml` **juga** dipakai sebagai override.
+>
+> Di Coolify env dari panel tidak otomatis terbaca sebagai `.env` untuk Compose,
+> jadi paling aman: Mode A dengan satu berkas seperti di atas (DB dibuat di
+> langkah 1 sebagai resource Database terpisah), **atau** Mode B (langkah 10) —
+> **pilih satu**. Hanya satu mode yang dijalankan; jangan gabungkan.
 
 ---
 
@@ -132,7 +140,7 @@ tidak ikut ter-commit.
 
 | Variabel | Nilai |
 |---|---|
-| `DATABASE_URL` | `postgresql://vibe:PASSWORD_APP@HOST_DB:5432/vibe-schools?schema=app&sslmode=require` |
+| `DATABASE_URL` | `postgresql://vibe:PASSWORD_APP@HOST_DB:5432/vibe-schools?schema=app&sslmode=no-verify` |
 | `NEXTAUTH_SECRET` | hasil `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | `https://domain-anda` — tanpa slash di akhir |
 | `AUTH_TRUST_HOST` | `true` |
@@ -140,6 +148,13 @@ tidak ikut ter-commit.
 | `DOMAIN_TRUSTED_ZONES` | zona yang boleh dipakai domain kustom |
 | `PAYMENT_ENCRYPTION_KEY` | hasil `openssl rand -hex 32` |
 | `WA_GATEWAY_TOKEN` | hasil `openssl rand -hex 32` |
+
+> Hanya untuk **Mode B** (DB ikut stack, langkah 10): `POSTGRES_PASSWORD` dan
+> `APP_DB_PASSWORD` **wajib**; pada Mode B `DATABASE_URL` justru tidak perlu
+> karena ditimpa override. Pada Mode A sebaliknya: `DATABASE_URL` wajib,
+> `POSTGRES_*`/`APP_DB_*` tidak dipakai. Anda tidak perlu mengisi `COMPOSE_FILE`
+> di panel untuk Mode A — itu urusan `.env` VPS (lihat
+> [panduan-deploy-docker.md](panduan-deploy-docker.md) bagian 2).
 
 ### Penting
 
@@ -309,18 +324,40 @@ Ubah di panel → **Restart**. Rebuild hanya perlu bila kode berubah.
 
 ---
 
-## 10. Kalau ingin database ikut di dalam compose
+## 10. Kalau ingin database ikut di dalam compose (Mode B)
 
-Bagian ini **opsional**. Deploy normal (langkah 1–9) tidak memakai
+Bagian ini **opsional**. Deploy normal (langkah 1–9 = Mode A) tidak memakai
 `docker-compose.db.yml` sama sekali.
 
-Alternatifnya: pakai **Resource → Docker Compose**, lalu tambahkan service DB
-dengan override `docker-compose.db.yml`. Dengan begitu Postgres ikut berjalan
-di stack yang sama dan Anda tidak perlu membuat resource Database terpisah.
+Ringkas perbandingan:
 
-Tidak ada skrip SQL manual yang perlu dijalankan di sini juga — `bootstrap.sh`
-tetap menyiapkan skema otomatis, hanya saja database-nya kini container
-`postgres` milik compose itu sendiri, bukan resource Database Coolify.
+| | **Mode A — tanpa DB** (langkah 1–9) | **Mode B — dengan DB** (bagian ini) |
+|---|---|---|
+| Berkas compose | `docker-compose.yml` | `docker-compose.yml` + `docker-compose.db.yml` |
+| Cara memilih | `COMPOSE_FILE=docker-compose.yml` | `COMPOSE_FILE=docker-compose.yml:docker-compose.db.yml` (`;` di Windows) |
+| PostgreSQL | resource Database Coolify terpisah | service `postgres` di stack ini |
+| `DATABASE_URL` | **WAJIB diisi** | **TIDAK perlu** — disusun `docker-compose.db.yml` |
+| `POSTGRES_PASSWORD` | — | **WAJIB** |
+| `APP_DB_PASSWORD` | — | **WAJIB** |
+| `POSTGRES_USER` / `POSTGRES_DB` / `APP_DB_ROLE` | — | opsional, default `school` / `vibe-schools` / `vibe` |
+| Schema `app` + role non-owner | dibuat di langkah 1a | otomatis `deploy/postgres-init/01-app-role.sh` |
+| Data di volume stack | tidak | ya |
+
+Hanya **satu** mode yang dijalankan. Jangan mencampur: kolom *Docker Compose
+Location* tetap satu nilai; pemilihan mode dilakukan dengan `COMPOSE_FILE`.
+
+Pada Mode B yang jalan:
+
+- `postgres` + `web` + `wa-gateway`. DB tidak perlu dibuat di langkah 1.
+- `01-app-role.sh` (mount `./deploy/postgres-init`) jalan **sekali** saat volume
+  kosong: buat schema `app` + role aplikasi non-owner + GRANT USAGE.
+- `web`/`wa-gateway` menunggu `postgres` sehat, lalu `bootstrap.sh` menjalankan
+  migrasi dan seluruh persiapan skema. Tidak ada `psql` manual.
+- `DATABASE_URL` ditimpa override menjadi
+  `postgresql://$APP_DB_ROLE:$APP_DB_PASSWORD@postgres:5432/$POSTGRES_DB?schema=app&sslmode=disable`.
+  Isi `DATABASE_URL` di panel boleh dibiarkan — nilainya tidak dipakai.
+- `POSTGRES_USER` superuser/pemilik tabel; aplikasi memakai `APP_DB_ROLE`.
+  Menyamakan keduanya = RLS mati tanpa error.
 
 Perhatikan konsekuensinya: data tersimpan di volume milik stack ini. Menghapus
 stack menghapus data sekolah. Pasang backup sebelum dipakai sungguhan.

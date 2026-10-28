@@ -47,6 +47,7 @@ $$ LANGUAGE sql STABLE;
 DO $$
 DECLARE
   t text;
+  tgt regclass;
   tenant_tables text[] := ARRAY[
     'users','students','teachers','staffs','classes','subjects',
     'schedules','academic_years','time_slots','admission_batches',
@@ -91,13 +92,24 @@ DECLARE
     -- Domain tambahan per sekolah, termasuk TOKEN verifikasi DNS. Bocor berarti
     -- sekolah lain bisa membaca token milik sekolah ini (dan menyiapkan record
     -- TXT atas namanya sendiri lebih dulu).
-    'school_host_aliases'
+    'school_host_aliases',
+    -- Fase 5: publikasi nilai. Bocor berarti sekolah lain tahu hasil akademik
+    -- kelas ini dan bisa membatalkan/mengubah status publikasinya.
+    'grade_publications'
   ];
 BEGIN
   FOREACH t IN ARRAY tenant_tables LOOP
+    -- Tabel tenant hidup di schema `data` (lihat schema-layout.sql); sebagian
+    -- kecil di `public`. Cari yang benar-benar ada, jangan menganggap `public`.
+    tgt := COALESCE(
+      to_regclass('data.' || quote_ident(t)),
+      to_regclass('public.' || quote_ident(t)),
+      to_regclass('app.'  || quote_ident(t))
+    );
+
     -- Lewati tabel yang tidak ada di skema ini (daftar memuat nama historis).
     -- Tanpa ini, satu nama lama menggagalkan seluruh blok.
-    IF to_regclass('public.' || quote_ident(t)) IS NULL THEN
+    IF tgt IS NULL THEN
       RAISE NOTICE 'RLS: tabel % dilewati (tidak ada)', t;
       CONTINUE;
     END IF;
@@ -105,15 +117,16 @@ BEGIN
     -- Lewati tabel yang memang tidak punya kolom schoolId (ditangani terpisah
     -- di bawah sebagai tabel anak).
     IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = t AND column_name = 'schoolId'
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid = tgt AND attname = 'schoolId'
+        AND attnum > 0 AND NOT attisdropped
     ) THEN
       RAISE NOTICE 'RLS: tabel % dilewati (tanpa kolom schoolId)', t;
       CONTINUE;
     END IF;
 
     -- Aktifkan RLS
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', t);
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY;', tgt);
 
     -- Kebijakan: hanya baris dengan schoolId = sesi saat ini.
     -- USING untuk SELECT/UPDATE/DELETE; WITH CHECK untuk INSERT/UPDATE.
@@ -139,30 +152,30 @@ END $$;
 --
 -- Biaya: satu sub-select per baris. Keduanya kecil dan selalu diakses lewat
 -- studentId / academicYearId yang berindeks, jadi praktis tidak terasa.
-ALTER TABLE "parents" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON "parents";
-CREATE POLICY tenant_isolation ON "parents"
+ALTER TABLE "data"."parents" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "data"."parents";
+CREATE POLICY tenant_isolation ON "data"."parents"
   USING (EXISTS (
-    SELECT 1 FROM "students" s
+    SELECT 1 FROM "data"."students" s
     WHERE s."id" = "parents"."studentId"
       AND s."schoolId" = app_current_school_id()
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM "students" s
+    SELECT 1 FROM "data"."students" s
     WHERE s."id" = "parents"."studentId"
       AND s."schoolId" = app_current_school_id()
   ));
 
-ALTER TABLE "semesters" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON "semesters";
-CREATE POLICY tenant_isolation ON "semesters"
+ALTER TABLE "data"."semesters" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON "data"."semesters";
+CREATE POLICY tenant_isolation ON "data"."semesters"
   USING (EXISTS (
-    SELECT 1 FROM "academic_years" y
+    SELECT 1 FROM "data"."academic_years" y
     WHERE y."id" = "semesters"."academicYearId"
       AND y."schoolId" = app_current_school_id()
   ))
   WITH CHECK (EXISTS (
-    SELECT 1 FROM "academic_years" y
+    SELECT 1 FROM "data"."academic_years" y
     WHERE y."id" = "semesters"."academicYearId"
       AND y."schoolId" = app_current_school_id()
   ));

@@ -27,6 +27,20 @@ DO $$
 DECLARE
   r record;
 BEGIN
+  -- Bersihkan sisa bug lama: `_prisma_migrations` pernah dicerminkan sebagai
+  -- VIEW di `app`. Prisma memakai `?schema=app` lalu mencari TABEL migrasi,
+  -- tidak menemukannya, dan menyimpulkan "schema tidak kosong tanpa riwayat
+  -- migrasi" -> P3005 -> container gagal start SELAMANYA. View itu harus
+  -- dibuang supaya `SET search_path` di bootstrap menemukan tabel aslinya.
+  FOR r IN
+    SELECT c.relname
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'app' AND c.relkind = 'v' AND c.relname = '_prisma_migrations'
+  LOOP
+    EXECUTE format('DROP VIEW IF EXISTS app.%I', r.relname);
+    RAISE NOTICE 'view sisa dibuang: app.%', r.relname;
+  END LOOP;
+
   FOR r IN
     SELECT n.nspname AS sch, c.relname AS tbl
     FROM pg_class c
@@ -39,6 +53,7 @@ BEGIN
           AND col.table_name = c.relname
           AND col.column_name = 'schoolId'
       )
+      AND c.relname <> '_prisma_migrations'
       -- Tabel yang sudah ada di `public` dan `data` sekaligus: pilih `public`
       -- saja agar tidak ada dua sumber untuk nama yang sama.
       AND NOT (
@@ -52,7 +67,7 @@ BEGIN
   LOOP
     EXECUTE format('DROP VIEW IF EXISTS app.%I', r.tbl);
     EXECUTE format(
-      'CREATE VIEW app.%I AS SELECT * FROM %I.%I',
+      'CREATE VIEW app.%I WITH (security_invoker = true) AS SELECT * FROM %I.%I',
       r.tbl, r.sch, r.tbl
     );
     RAISE NOTICE 'view global app.% dibuat dari %.%', r.tbl, r.sch, r.tbl;

@@ -112,6 +112,23 @@ Mohon dukungan Bapak/Ibu di rumah dan hubungi wali kelas bila ingin berdiskusi.
 — {{nama_sekolah}}`,
   },
   {
+    key: "grade.published",
+    name: "Nilai semester dibagikan",
+    category: "GRADE",
+    description:
+      "Dikirim sekali per siswa saat sekolah mempublikasikan nilai satu kelas. {{daftar_nilai}} diisi hasil formatDaftarNilai().",
+    body: `Assalamualaikum, Bapak/Ibu {{nama_wali}}.
+
+*Nilai semester dibagikan*
+{{nama_siswa}} · {{kelas}} · {{semester}}
+
+{{daftar_nilai}}
+
+Nilai lengkap dan rapor dapat dilihat di portal orang tua.
+
+— {{nama_sekolah}}`,
+  },
+  {
     key: "grade.report_ready",
     name: "Rapor siap diambil",
     category: "GRADE",

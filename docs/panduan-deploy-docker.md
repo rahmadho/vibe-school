@@ -58,10 +58,48 @@ docker network connect <network-itu> <nama-container-db>
 Bila DB berada di host lain (remote), jaringan Docker tidak relevan sama
 sekali — cukup `DATABASE_URL` menunjuk IP privat/publik DB.
 
-## 2. Menyiapkan `.env` (VPS manual)
+## 2. Pilih mode deploy & isi `.env` (VPS manual)
+
+Ada **dua mode**, dan **hanya satu yang dijalankan**. Mode dipilih lewat
+`COMPOSE_FILE` di `.env`; service yang ikut stack ditentukan oleh berkas yang
+disebut di situ.
+
+| | **Mode A — tanpa DB** | **Mode B — dengan DB** |
+|---|---|---|
+| `COMPOSE_FILE` | `docker-compose.yml` | `docker-compose.yml:docker-compose.db.yml` |
+| PostgreSQL | eksternal / terkelola / container lain | service `postgres` di stack yang sama |
+| Service yang jalan | `web`, `wa-gateway` | `web`, `wa-gateway`, `postgres` |
+| `DATABASE_URL` | **WAJIB diisi** (host DB Anda, `?schema=app`) | **TIDAK perlu** — disusun `docker-compose.db.yml` |
+| `POSTGRES_PASSWORD` | tidak dipakai | **WAJIB** (compose menolak start) |
+| `APP_DB_PASSWORD` | tidak dipakai | **WAJIB** (compose menolak start) |
+| `POSTGRES_USER` / `POSTGRES_DB` / `APP_DB_ROLE` | tidak dipakai | opsional, ada default |
+| Schema `app` + role non-owner | dibuat manual di DB eksternal | dibuat otomatis `deploy/postgres-init/01-app-role.sh` |
+| Volume `school-app_postgres_data` | tidak ada | ada — wajib ikut backup |
+
+Pemisah antar-berkas:
+
+- Linux / macOS → **titik dua** `:`
+- Windows (PowerShell / cmd) → **titik koma** `;`
+  `COMPOSE_FILE=docker-compose.yml;docker-compose.db.yml`
+
+Karena `COMPOSE_FILE` sudah menunjuk berkasnya, perintah jalan selalu polos:
+`docker compose up -d --build`. Tidak ada flag `-f` dan tidak ada `--profile`.
+Jangan jalankan kedua mode sekaligus — satu `.env`, satu mode.
+
+### Langkah menyiapkan `.env`
 
 ```bash
 cp .env.docker.example .env
+```
+
+Berkas contoh itu sudah memuat **satu** baris `COMPOSE_FILE` aktif (Mode A) dan
+**satu** baris Mode B yang dikomentari. Pilih dengan meng-uncomment tepat satu.
+
+Bila Anda tidak ingin menyunting contoh itu, salin templat per mode:
+
+```bash
+cat deploy/compose/without-db.env >> .env   # Mode A
+cat deploy/compose/with-db.env   >> .env    # Mode B
 ```
 
 Di panel (Coolify dkk) langkah ini **tidak dipakai** — env diisi lewat panel,
@@ -69,27 +107,34 @@ lihat bagian 5.
 
 Tabel env lengkap:
 
-| Variabel | Status | Default di compose | Keterangan |
+**Wajib di kedua mode:** `NEXTAUTH_SECRET` (min. 32 karakter,
+`openssl rand -base64 32`), `NEXTAUTH_URL`, `ROOT_DOMAIN`, `PAYMENT_ENCRYPTION_KEY`
+(`openssl rand -hex 32`), `WA_GATEWAY_TOKEN` (`openssl rand -hex 32`).
+
+| Variabel | Mode A | Mode B | Keterangan |
 |---|---|---|---|
-| `DATABASE_URL` | WAJIB | `postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require` | **`schema=app`, bukan `public`** — `app` lapisan view penyaring tenant. Peran harus peran aplikasi, bukan owner. Host = host DB (bukan `localhost`). Default hanya agar `compose config` valid tanpa `.env` — jangan dipakai produksi. |
-| `OWNER_URL` | WAJIB sekali | — | Koneksi owner/superuser untuk `grants.sql` + `rls.sql`. Tidak dibaca aplikasi. |
-| `NEXTAUTH_SECRET` | WAJIB | kosong | Min. 32 karakter. `openssl rand -base64 32`. |
-| `NEXTAUTH_URL` | WAJIB | `http://localhost:3000` | URL publik, tanpa trailing slash. |
-| `ROOT_DOMAIN` | WAJIB | `localhost` | Domain akar subdomain sekolah. |
-| `PAYMENT_ENCRYPTION_KEY` | PENTING | kosong | 64 hex char (AES-256-GCM). `openssl rand -hex 32`. |
-| `WA_GATEWAY_TOKEN` | WAJIB | kosong | Shared secret web ↔ wa-gateway. Harus sama di kedua service (keduanya membaca var yang sama). `openssl rand -hex 32`. |
-| `WA_GATEWAY_URL` | OPSIONAL | `http://wa-gateway:3001` | Alamat gateway dari sudut pandang web. |
-| `WA_SESSION_DIR` | OPSIONAL | `/data/sessions` | Direktori sesi Baileys (volume `school_wa_sessions`). |
-| `STORAGE_DRIVER` | OPSIONAL | `local` | `local` menulis ke volume `school_uploads`. `minio` belum diimplementasikan. |
-| `UPLOAD_DIR` | OPSIONAL | `/data/uploads` | Harus cocok dengan mount volume. |
-| `NODE_ENV` | OPSIONAL | `production` | |
-| `LOG_LEVEL` | OPSIONAL | `info` | wa-gateway saja. |
-| `POSTGRES_USER` | OPSIONAL | `school` | Hanya untuk `docker-compose.db.yml` (profil `db`). |
-| `POSTGRES_PASSWORD` | WAJIB bila profil `db` | — (compose menolak start) | Hanya untuk profil `db`. |
-| `POSTGRES_DB` | OPSIONAL | `school` | Hanya untuk profil `db`. |
-| `SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD` | OPSIONAL | — | Hanya saat `db:seed`. |
-| `SEED_DEMO_ACTIVITY` | OPSIONAL | `1` | `0` = lewati aktivitas demo. |
-| `CLOUD` | OPSIONAL | — | Penanda manual, tidak dibaca compose. |
+| `COMPOSE_FILE` | `docker-compose.yml` | `docker-compose.yml:docker-compose.db.yml` | Pemilih mode. Satu baris saja. |
+| `DATABASE_URL` | **WAJIB** | diabaikan (ditimpa) | Format: `postgresql://ROLE_APP:pass@HOST:5432/DB?schema=app&sslmode=no-verify`. **`schema=app`, bukan `public`** — `app` lapisan view penyaring tenant. Peran harus peran aplikasi, bukan owner. Jangan pasang default dari compose; itu hanya agar `compose config` valid tanpa `.env`. |
+| `POSTGRES_PASSWORD` | — | **WAJIB** | Password **superuser** + pemilik tabel. Hanya dipakai bootstrap. Compose menolak start bila kosong. |
+| `APP_DB_PASSWORD` | — | **WAJIB** | Password role aplikasi **non-owner** (dipakai isi `DATABASE_URL`). Compose menolak start bila kosong. |
+| `POSTGRES_USER` | — | opsional, default `school` | Superuser/owner. **Jangan dipakai aplikasi** — owner membypass RLS. |
+| `POSTGRES_DB` | — | opsional, default `vibe-schools` | Nama DB. Hanya berlaku saat volume dibuat pertama kali. |
+| `APP_DB_ROLE` | — | opsional, default `vibe` | Role aplikasi non-owner. |
+| `OWNER_URL` | tidak dibaca compose | tidak dibaca compose | Sisa alur lama. Bootstrap memakai `DATABASE_URL` + `POSTGRES_*`. |
+| `NEXTAUTH_SECRET` | WAJIB | WAJIB | — |
+| `NEXTAUTH_URL` | WAJIB | WAJIB | URL publik, tanpa trailing slash. |
+| `ROOT_DOMAIN` | WAJIB | WAJIB | Domain akar subdomain sekolah. |
+| `PAYMENT_ENCRYPTION_KEY` | PENTING | PENTING | 64 hex char (AES-256-GCM). |
+| `WA_GATEWAY_TOKEN` | WAJIB | WAJIB | Shared secret web ↔ wa-gateway. Satu var untuk keduanya. |
+| `WA_GATEWAY_URL` | OPSIONAL | OPSIONAL | Default `http://wa-gateway:3001`. |
+| `WA_SESSION_DIR` | OPSIONAL | OPSIONAL | Default `/data/sessions`. |
+| `STORAGE_DRIVER` | OPSIONAL | OPSIONAL | `local` → volume `school_uploads`. `minio` belum ada. |
+| `UPLOAD_DIR` | OPSIONAL | OPSIONAL | Default `/data/uploads`. |
+| `NODE_ENV` | OPSIONAL | OPSIONAL | Default `production`. |
+| `LOG_LEVEL` | OPSIONAL | OPSIONAL | wa-gateway saja. |
+| `SEED_SUPERADMIN_EMAIL` / `SEED_SUPERADMIN_PASSWORD` | OPSIONAL | OPSIONAL | Hanya saat `seed`. |
+| `SEED_DEMO_ACTIVITY` | OPSIONAL | OPSIONAL | `0` = lewati aktivitas demo. |
+| `CLOUD` | OPSIONAL | OPSIONAL | Penanda manual, tidak dibaca compose. |
 
 Penjelasan panjang per variabel: [panduan-env-produksi.md](panduan-env-produksi.md).
 
@@ -127,15 +172,22 @@ docker compose exec web node node_modules/prisma/build/index.js \
   migrate deploy --schema apps/web/prisma/schema.prisma
 ```
 
-**Tidak ada langkah manual.** Container `web` menjalankan
-`apps/web/prisma/bootstrap.sh` setiap start: migrasi, tata letak tiga schema,
-view penyaring tenant, fungsi login, lalu hak akses role aplikasi. Tidak perlu
-`psql`, tidak perlu image `postgres:16-alpine` sementara.
+Bagian "Migrasi, grants, & seed" — tidak ada langkah manual. Container `web`
+menjalankan `apps/web/prisma/bootstrap.sh` di setiap start: migrasi, tata letak
+tiga schema, view penyaring tenant, fungsi login, lalu hak akses role aplikasi.
+Tidak ada `psql` manual, tidak perlu image `postgres:16-alpine` sementara.
+
+Pada **Mode B**, `deploy/postgres-init/01-app-role.sh` jalan lebih dulu — hanya
+**sekali**, saat volume `postgres_data` masih kosong — untuk membuat schema
+`app` dan role aplikasi non-owner. Sesudah itu `bootstrap.sh` melanjutkan
+(migrasi, tabel, view, GRANT). Urutan ini yang membuat `?schema=app` valid di
+koneksi pertama.
 
 Cara memastikan berhasil — log-nya menyebut tiap langkah:
 
 ```bash
 docker compose logs web | grep '\[bootstrap\]'
+docker compose logs postgres | grep '\[initdb\]'   # Mode B saja
 ```
 
 Seed data demo (sekali saja):
@@ -161,7 +213,8 @@ tambahan yang perlu dibuat.
    **jangan** mengandalkan `.env` di repo. `.env` biasanya tidak ter-commit,
    dan container panel tidak membacanya dari working dir repo. Salin variabel
    dari tabel bagian 2 (`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`,
-   `ROOT_DOMAIN`, `PAYMENT_ENCRYPTION_KEY`, `WA_GATEWAY_TOKEN`, dst).
+   `ROOT_DOMAIN`, `PAYMENT_ENCRYPTION_KEY`, `WA_GATEWAY_TOKEN`, dst) — hanya
+   yang berlaku untuk mode Anda.
 
    `DATABASE_URL` **wajib** berakhir `?schema=app`, bukan `public`. Skema `app`
    adalah lapisan view penyaring tenant; dengan `public` angka dan daftar akan
@@ -183,52 +236,70 @@ tambahan yang perlu dibuat.
    domain (tidak ada port yang dipublish).
 5. **Deploy**. Perhatikan log build: build context root monorepo (butuh
    Dockerfile `apps/web/Dockerfile`), bukan subfolder.
-6. Selesai deploy pertama, jalankan **skrip SQL sekali** (bagian 1b di
-   [panduan-deploy-coolify.md](panduan-deploy-coolify.md)) — urutannya wajib:
-   `rls.sql` → `enum-move.sql` → `rls-views.sql` → `rls-global-views.sql` →
-   `login-functions.sql`. Tanpa ini aplikasi tampil normal tetapi seluruh
-   daftar kosong dan login gagal.
+6. Selesai deploy pertama, biarkan `bootstrap.sh` bekerja — ia menjalankan
+   migrasi sampai GRANT role aplikasi secara otomatis (`docker compose logs web
+   | grep '\[bootstrap\]'`). Tanpa itu aplikasi tampil normal tetapi seluruh
+   daftar kosong dan login gagal. Jangan menjalankan berkas SQL manual sebelum
+   container pernah start: tabelnya belum ada.
 
 Yang **tidak** perlu dilakukan di Coolify (dan sebaiknya tidak ditambahkan
 oleh siapa pun ke compose): `container_name`, `ports:`, label khusus Coolify,
 atau `image:`. Coolify mendeteksi compose biasa; tambahan itu justru yang
 membuat deploy gagal.
 
-## 6. Deploy DB bersama aplikasi (opsional)
+## 6. Mode B: DB ikut stack (opsional)
 
 Untuk dev atau self-host skala kecil. Produksi sungguhan tetap disarankan
 memakai DB terkelola/terpisah (backup, upgrade, dan skalabilitas bukan urusan
 compose ini).
 
+Aktifkan lewat `.env` — **bukan** flag:
+
 ```bash
-# .env: isi POSTGRES_PASSWORD dan arahkan DATABASE_URL ke host `postgres`
-docker compose -f docker-compose.yml -f docker-compose.db.yml \
-  --profile db up -d --build
+# Linux / macOS
+COMPOSE_FILE=docker-compose.yml:docker-compose.db.yml
+# Windows
+COMPOSE_FILE=docker-compose.yml;docker-compose.db.yml
+
+# DATABASE_URL tidak perlu diisi. Yang wajib hanya:
+POSTGRES_PASSWORD=...
+APP_DB_PASSWORD=...
 ```
 
-Detail:
+Lalu perintah biasa saja:
 
-- Service bernama `postgres` → `DATABASE_URL` harus
-  `postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB?schema=public`.
-  **Bukan** `localhost` dan **bukan** `school-db`.
-- Tanpa `--profile db`, service `postgres` diabaikan; pemakaian normal tidak
-  berubah.
+```bash
+docker compose up -d --build
+```
+
+Yang terjadi:
+
+- Hanya stack ini yang jalan — `web`, `wa-gateway`, `postgres`. Mode A tidak
+  ikut; memang tidak boleh dua mode bersamaan.
+- `deploy/postgres-init/01-app-role.sh` membuat schema `app` + role aplikasi
+  non-owner saat volume masih kosong.
+- `docker-compose.db.yml` menyusun sendiri
+  `DATABASE_URL=postgresql://$APP_DB_ROLE:$APP_DB_PASSWORD@postgres:5432/$POSTGRES_DB?schema=app&sslmode=disable`
+  untuk `web` dan `wa-gateway`. Isi `DATABASE_URL` di `.env` ditimpa — biarkan
+  apa adanya.
+- `web` dan `wa-gateway` menunggu `postgres` sehat (`depends_on:
+  condition: service_healthy`) sebelum start, lalu `bootstrap.sh` jalan.
+- `POSTGRES_USER` adalah superuser + pemilik tabel. Aplikasi **tidak** memakainya;
+  aplikasi memakai `APP_DB_ROLE`. Kalau keduanya disamakan, RLS mati diam-diam.
 - Port **tidak** dipublish ke host (hanya `expose: 5432`). Bila DB ini perlu
-  dipakai stack lain di luar compose, buka publish dan bind ke IP privat VPS
+  dipakai stack lain, buka publish dan bind ke IP privat VPS
   (`"10.0.0.5:5432:5432"`), **jangan** `"5432:5432"`/`0.0.0.0`.
 - Data di volume `postgres_data`. `docker compose down -v` menghapusnya.
+- `POSTGRES_DB` hanya berlaku saat volume dibuat pertama kali. Untuk mengganti
+  nama DB: hapus volume (data hilang) atau ganti dengan DB baru.
 
-Setelah DB hidup, jalankan grants + RLS sekali:
+Tidak ada `psql` manual di mode ini — tidak ada `grants.sql`/`rls.sql` yang
+dijalankan tangan. Semuanya lewat `01-app-role.sh` + `bootstrap.sh`.
 
-```bash
-docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -v app_role=school -f - < apps/web/prisma/grants.sql
-docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-  -f - < apps/web/prisma/rls.sql
-```
-
-(`-f -` membaca dari stdin; `psql` di dalam container tidak punya akses ke
-folder repo.)
+Kembali ke Mode A: ubah satu baris `COMPOSE_FILE=docker-compose.yml`, isi
+`DATABASE_URL`, lalu `docker compose up -d --build`. Container `postgres`
+berhenti ikut stack; volume `postgres_data` tetap ada di disk (tidak dihapus)
+sampai Anda sendiri yang menghapusnya.
 
 ## 7. Volume & backup
 
@@ -236,7 +307,7 @@ folder repo.)
 |---|---|---|
 | `school-app_school_uploads` | Berkas unggahan (logo sekolah, sampul, dokumen SPMB) | **Ya** — tidak tercakup `pg_dump` |
 | `school-app_school_wa_sessions` | Kredensial sesi WhatsApp (Baileys) | Ya — sangat sensitif |
-| `school-app_postgres_data` | Data Postgres (hanya bila memakai profil `db`) | Ya — via `pg_dump` |
+| `school-app_postgres_data` | Data Postgres (hanya Mode B) | Ya — via `pg_dump` |
 
 Prefix `school-app_` berasal dari `name: school-app` di compose. Cek nama nyata:
 
@@ -293,8 +364,11 @@ Konfigurasi Nginx siap pakai ada di [../deploy/nginx/](../deploy/nginx/).
 |---|---|
 | `web` unhealthy | Cek `docker compose logs web`. Healthcheck sengaja tidak cek DB; unhealthy berarti proses web benar-benar mati (cek log untuk error env skema, mis. variabel wajib kosong dari `apps/web/src/lib/env.ts`). |
 | Prisma "Query engine not found" | Engine salah platform. Schema mendeklarasikan `binaryTargets` (`native` + `debian-openssl-3.0.x`). Rebuild image di Linux. |
-| `permission denied for table ...` / daftar data kosong | `grants.sql` / `rls.sql` belum dijalankan untuk role di `DATABASE_URL`. Lihat bagian 4. |
+| `permission denied for table ...` / daftar data kosong | Mode A: schema `app`/view/GRANT untuk role di `DATABASE_URL` belum ada di DB eksternal. Mode B: `bootstrap.sh` belum selesai — cek log. Lihat bagian 4. |
 | WA tidak mengirim | Cek `docker compose logs -f wa-gateway`; pastikan `WA_GATEWAY_TOKEN` terisi (sama untuk kedua service — dibaca dari satu var). |
 | Sesi WA hilang tiap restart | Volume `school_wa_sessions` tidak ter-mount. |
 | Berkas unggahan 404 | `UPLOAD_DIR`/volume `school_uploads` tidak ter-mount di `/data/uploads`. |
-| `database "school" does not exist` (profil `db`) | `POSTGRES_DB` tidak sama dengan nama DB di `DATABASE_URL`. Ubah salah satunya; `POSTGRES_DB` hanya berlaku saat volume dibuat pertama kali. |
+| `database "...." does not exist` (Mode B) | `POSTGRES_DB` tidak sama dengan nama DB yang tertanam di volume lama. `POSTGRES_DB` hanya berlaku saat volume dibuat pertama kali — pakai nama lama, atau DB baru/volume baru. |
+| `POSTGRES_PASSWORD wajib diisi` / `APP_DB_PASSWORD wajib diisi` saat `docker compose up` | Mode B aktif tapi env-nya kosong | Isi keduanya di `.env` (atau panel). Compose sengaja menolak start. |
+| `service "postgres" is not running` / `docker compose exec postgres` gagal | `.env` masih Mode A (`COMPOSE_FILE=docker-compose.yml`) | Mode B butuh `COMPOSE_FILE=docker-compose.yml:docker-compose.db.yml` (`;` di Windows). |
+| Schema `app` tidak ada / `schema "app" does not exist` (Mode B) | `01-app-role.sh` tidak jalan karena volume `postgres_data` sudah terisi dari percobaan lama | Isi volume lama tidak diinit ulang. Mulai dari volume kosong (data lama hilang) atau buat schema+role manual dengan hak akses setara. |

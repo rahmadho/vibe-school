@@ -85,6 +85,9 @@ export const TENANT_MODELS = [
   "rolePermission",
   // Domain tambahan + token verifikasi DNS milik sekolah.
   "schoolHostAlias",
+  // Fase 5: publikasi nilai per kelas per semester. Punya schoolId → wajib di
+  // sini DAN di tenant_tables (prisma/rls.sql).
+  "gradePublication",
 ] as const;
 
 export type TenantModel = (typeof TENANT_MODELS)[number];

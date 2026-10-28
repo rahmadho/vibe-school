@@ -29,7 +29,7 @@ export default async function PortalNilaiPage() {
     }
   }
   const semesterUnik = [...petaSemester.values()].sort((a, b) =>
-    a.semesterName.localeCompare(b.semesterName),
+    a.semesterName < b.semesterName ? -1 : a.semesterName > b.semesterName ? 1 : 0,
   );
 
   // Kelompokkan per mapel — orang tua membaca "nilai Matematika", bukan

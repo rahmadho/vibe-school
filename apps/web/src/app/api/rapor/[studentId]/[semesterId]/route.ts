@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/rbac";
 import { ambilDataRapor } from "@/lib/data/rapor";
 import { buatRaporPdf, pdfKeBuffer } from "@/lib/rapor-pdf";
+import { semesterTerpublikasi } from "@/lib/data/grade-publication";
 import { namaBerkasRapor } from "@/lib/rapor-bentuk";
 import { bolehFitur } from "@/lib/entitlement";
 
@@ -70,6 +71,13 @@ export async function GET(
     }
 
     schoolId = user.schoolId;
+
+    // Fase 5: rapor hanya untuk semester yang sudah dipublikasikan sekolah.
+    // 404 (bukan 403) agar tidak membocorkan bahwa rapor itu sudah dihitung.
+    const terbit = await semesterTerpublikasi(studentId, schoolId);
+    if (!terbit.has(semesterId)) {
+      return NextResponse.json({ error: "Rapor belum dipublikasikan." }, { status: 404 });
+    }
   } else {
     if (!session.user.schoolId) {
       return NextResponse.json({ error: "Sekolah tidak diketahui." }, { status: 403 });

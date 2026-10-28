@@ -15,31 +15,47 @@
 #     dibangun lokal.
 #   * Tidak ada label khusus panel; Coolify mendeteksi compose biasa.
 #
-# TIGA MODE PAKAI
-# ---------------
-# 1) VPS manual (DB eksternal / remote):
-#       cp .env.docker.example .env      # isi nilainya
-#       docker compose up -d --build
-#    Network dibuat otomatis. Bila DB ada di container lain, sambungkan
-#    container itu sekali: docker network connect school-app_app-network <db>
-#    (nama network ikut `name:` project, jadi cek dengan `docker network ls`).
+# DUA MODE PAKAI — DIPILIH LEWAT `COMPOSE_FILE` DI `.env`
+# ------------------------------------------------------
+# Hanya SATU mode yang dijalankan. Tidak perlu flag `-f`, tidak ada `--profile`.
+# `COMPOSE_FILE` menunjuk berkas yang ikut; service di luar itu tidak dibuat.
 #
-# 2) Coolify (atau panel lain): buat resource "Docker Compose" dari repo ini,
-#    lalu isi environment lewat panel — JANGAN lewat .env (berkas .env tidak
-#    ikut ter-commit dan bisa tidak ada di server panel). `env_file` di bawah
-#    bersifat OPSIONAL sehingga compose tetap valid walau .env tidak ada.
-#    Set domain aplikasi ke port 3000 di panel.
+#   A) TANPA DB (DB eksternal / terkelola):
+#        COMPOSE_FILE=docker-compose.yml
+#        Wajib: DATABASE_URL (host DB Anda, ?schema=app).
+#        Templat: deploy/compose/without-db.env
 #
-# 3) DB ikut compose (dev / self-host skala kecil): pakai berkas override
-#       docker compose -f docker-compose.yml -f docker-compose.db.yml \
-#                      --profile db up -d --build
-#    Saat mode ini dipakai, host di DATABASE_URL = `postgres`
-#    (postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require).
-#    Untuk produksi sungguhan tetap disarankan DB terkelola/terpisah.
+#   B) DENGAN DB (Postgres ikut stack): `docker-compose.db.yml` sebagai override.
+#        COMPOSE_FILE=docker-compose.yml:docker-compose.db.yml   # Linux/macOS
+#        COMPOSE_FILE=docker-compose.yml;docker-compose.db.yml   # Windows
+#        Wajib: POSTGRES_PASSWORD, APP_DB_PASSWORD.
+#        DATABASE_URL TIDAK perlu diisi — override menyusunnya sendiri dari
+#        POSTGRES_DB/APP_DB_ROLE/APP_DB_PASSWORD (host `postgres`).
+#        Templat: deploy/compose/with-db.env
+#
+# Pemisah antar-berkas: titik dua `:` di Linux/macOS, TITIK KOMA `;` di Windows.
+# Setelah `.env` diisi, perintahnya selalu polos:
+#        cp .env.docker.example .env      # pilih satu baris COMPOSE_FILE
+#        docker compose up -d --build
+#
+# Network dibuat otomatis. Bila DB ada di container lain, sambungkan container
+# itu sekali: docker network connect school-app_default <db>
+# (nama network ikut `name:` project, jadi cek dengan `docker network ls`).
+#
+# Coolify / panel lain: buat resource "Docker Compose" dari repo ini, lalu isi
+# environment lewat panel — JANGAN lewat .env (berkas .env tidak ikut
+# ter-commit dan bisa tidak ada di server panel). `env_file` di bawah bersifat
+# OPSIONAL sehingga compose tetap valid walau .env tidak ada. Set domain
+# aplikasi ke port 3000 di panel.
+#
+# Pada Mode B `DATABASE_URL` untuk web/wa-gateway berakhir `?schema=app` dan
+# user-nya = APP_DB_ROLE (NON-OWNER). POSTGRES_USER hanya superuser/owner untuk
+# bootstrap — aplikasi tidak boleh memakainya, karena owner membypass RLS.
+# Untuk produksi sungguhan tetap disarankan DB terkelola/terpisah.
 #
 # PostgreSQL dan Nginx TIDAK didefinisikan di sini:
 #   * PostgreSQL berjalan di stack lain (atau di host remote) dan dijangkau
-#     lewat jaringan internal stack ini.
+#     lewat jaringan internal stack ini — kecuali Mode B (lihat override).
 #   * Reverse proxy (Nginx manual / Coolify) menyambungkan dirinya sendiri ke
 #     container `web`; kita tidak perlu menyediakan apa pun untuk itu.
 #
@@ -89,7 +105,7 @@ services:
       # Nilai diambil dari env (panel/.env) bila ada, kalau tidak pakai default.
       # Sengaja diberi default agar `docker compose config` tetap valid tanpa
       # .env sama sekali — bukan berarti aman dijalankan tanpa rahasia asli.
-      DATABASE_URL: "${DATABASE_URL:-postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=no-verify}"
       NEXTAUTH_URL: "${NEXTAUTH_URL:-http://localhost:3000}"
       NEXTAUTH_SECRET: "${NEXTAUTH_SECRET:-}"
       ROOT_DOMAIN: "${ROOT_DOMAIN:-localhost}"
@@ -133,7 +149,7 @@ services:
       NODE_ENV: "${NODE_ENV:-production}"
       PORT: "3001"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
-      DATABASE_URL: "${DATABASE_URL:-postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require}"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=no-verify}"
       # Token HARUS sama dengan yang dipakai web; keduanya membaca var yang sama.
       WA_GATEWAY_TOKEN: "${WA_GATEWAY_TOKEN:-}"
       # Direktori sesi Baileys di dalam container (volume school_wa_sessions).

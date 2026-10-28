@@ -94,15 +94,24 @@ BEGIN
     ORDER BY c.relname
   LOOP
     EXECUTE format('DROP VIEW IF EXISTS app.%I', t);
+    -- ⚠️ `security_invoker = true` WAJIB.
+    --
+    -- Tanpa opsi ini, view berjalan dengan HAK PEMILIK (`sipedal`) sehingga
+    -- RLS di `data.<tabel>` DILEWATI SEPENUHNYA. Role aplikasi membaca view,
+    -- view membaca tabel sebagai owner, dan policy tenant tidak pernah
+    -- dievaluasi — isolasi sekolah hilang tanpa satu pun error.
+    --
+    -- Terbukti: dengan `security_invoker`, `SELECT * FROM app.students` tanpa
+    -- konteks mengembalikan 0 baris; tanpanya, 79 baris milik semua sekolah.
     EXECUTE format(
-      'CREATE VIEW app.%I AS '
+      'CREATE VIEW app.%I WITH (security_invoker = true) AS '
       'SELECT * FROM data.%I '
       'WHERE "schoolId" IS NULL '
       '   OR public.app_current_school_id() IS NULL '
       '   OR "schoolId" = public.app_current_school_id()',
       t, t
     );
-    RAISE NOTICE 'view app.% dibuat', t;
+    RAISE NOTICE 'view app.% dibuat (security_invoker)', t;
   END LOOP;
 END $$;
 

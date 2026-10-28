@@ -25,13 +25,19 @@ apps/wa-gateway/sessions/
 *.session
 wa-gateway/data/
 
-# Uploads
-uploads/
-apps/web/uploads/
+# Uploads — HANYA direktori DATA, jangan pakai pola `uploads/` telanjang.
+#
+# Pola lama `uploads/` cocok pada path mana pun yang berakhiran `uploads/`,
+# termasuk folder KODE `apps/web/src/app/uploads/` (route penyaji berkas
+# unggahan). Akibatnya route itu tidak pernah ter-commit: build dari repo
+# bersih tidak punya penyaji gambar, dan SEMUA logo/berkas unggahan jadi 404
+# walaupun berkasnya ada di disk. Pola sekarang dipatok ke akar repo.
+/uploads/
+/apps/web/uploads/
 # Berkas unggahan runtime (logo, gambar). Disajikan lewat route handler
 # `app/uploads/[...key]/route.ts`, bukan dari `public/`.
-var/
-apps/web/var/
+/var/
+/apps/web/var/
 
 # Logs
 *.log
@@ -55,3 +61,5 @@ coverage/
 # Hermes plans (lokal)
 .hermes/
 school-app-fase*.zip
+.hermes-brief.md
+docs/.hermes-report-*.md

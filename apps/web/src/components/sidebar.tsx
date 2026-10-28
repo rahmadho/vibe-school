@@ -214,6 +214,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/grades", label: "Penilaian", icon: "grades", module: "grades" },
       { href: "/dashboard/grades/report", label: "Rekap & Rapor", icon: "report", module: "grades" },
       { href: "/dashboard/grades/items", label: "Komponen Nilai", icon: "gradeitems", module: "grades" },
+      { href: "/dashboard/grades/publikasi", label: "Publikasi Nilai", icon: "report", module: "grades" },
       // Hanya SMK/MAK.
       { href: "/dashboard/academic/internships", label: "PKL / Prakerin", icon: "internship", module: "academic", vocational: true },
       { href: "/dashboard/academic/competency-tests", label: "Uji Kompetensi", icon: "competency", module: "academic", vocational: true },

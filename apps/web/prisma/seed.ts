@@ -142,27 +142,37 @@ async function seedSchool(input: {
   // Penilaian, komponen nilai, dan rapor semuanya terikat semester; tanpa
   // baris ini halaman Penilaian dan Rapor tampil kosong walaupun sekolah,
   // kelas, dan mapelnya sudah lengkap.
-  await prisma.semester.createMany({
-    data: [
-      {
-        academicYearId: year.id,
-        name: "Ganjil",
-        type: "GANJIL" as const,
-        startDate: new Date("2025-07-01"),
-        endDate: new Date("2025-12-31"),
-        isActive: true,
-      },
-      {
-        academicYearId: year.id,
-        name: "Genap",
-        type: "GENAP" as const,
-        startDate: new Date("2026-01-01"),
-        endDate: new Date("2026-06-30"),
-        isActive: false,
-      },
-    ],
-    skipDuplicates: true,
-  });
+  // `createMany + skipDuplicates` TIDAK cukup: Semester hanya punya unique
+  // (academicYearId, name), jadi "Ganjil" (isActive mode uji) dan "Ganjil"
+  // (dari seed-activity, isActive=false) dianggap beda baris → dobel.
+  // Cek dulu per nama, buat hanya bila belum ada.
+  // ponytail: cek-lalu-buat, bukan constraint unik; ganti ke upsert kalau
+  // Semester kelak punya unique (academicYearId, name).
+  const semesterDefs = [
+    {
+      name: "Ganjil",
+      type: "GANJIL" as const,
+      startDate: new Date("2025-07-01"),
+      endDate: new Date("2025-12-31"),
+      isActive: true,
+    },
+    {
+      name: "Genap",
+      type: "GENAP" as const,
+      startDate: new Date("2026-01-01"),
+      endDate: new Date("2026-06-30"),
+      isActive: false,
+    },
+  ];
+  for (const sd of semesterDefs) {
+    const existing = await prisma.semester.findFirst({
+      where: { academicYearId: year.id, name: sd.name },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.semester.create({ data: { academicYearId: year.id, ...sd } });
+    }
+  }
 
   // Admin sekolah
   await prisma.user.upsert({
