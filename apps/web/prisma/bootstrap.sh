@@ -34,19 +34,23 @@ if [ -z "${DATABASE_URL:-}" ]; then
 fi
 
 # Jalankan satu berkas SQL. Satu koneksi, satu round-trip, tanpa psql.
+# $2 = nama role aplikasi (dipakai grants-app-role.sql lewat `SET app.role`).
 run_sql() {
   node -e '
     const fs = require("fs");
     const { Client } = require("pg");
     const c = new Client({ connectionString: process.env.DATABASE_URL });
+    const sql = fs.readFileSync(process.argv[1], "utf8");
+    const role = process.argv[2] || "";
     c.connect()
-      .then(() => c.query(fs.readFileSync(process.argv[1], "utf8")))
+      .then(() => (role ? c.query("SET app.role = " + c.escapeLiteral(role)) : null))
+      .then(() => c.query(sql))
       .then(() => c.end())
       .catch((e) => {
         console.error("[bootstrap] " + process.argv[1] + ": " + e.message);
         process.exit(1);
       });
-  ' "$1"
+  ' "$1" "${2:-}"
 }
 
 # 1. Tunggu database menerima koneksi. Bukan `sleep` tetap: Postgres pertama
@@ -71,8 +75,17 @@ log "menjalankan migrasi…"
 node node_modules/prisma/build/index.js migrate deploy --schema "$SCHEMA" \
   || log "migrate deploy dilewati (DB sudah ada / belum kosong) — lanjut."
 
+# Nama role aplikasi diambil dari DATABASE_URL. Bootstrap biasanya berjalan
+# sebagai OWNER, jadi role sasaran tidak bisa ditebak dari current_user —
+# dan salah tebak berarti tidak ada hak yang diberikan sama sekali.
+APP_ROLE="${APP_DB_ROLE:-$(node -e '
+  try { process.stdout.write(decodeURIComponent(new URL(process.env.DATABASE_URL).username)) }
+  catch { process.exit(0) }
+')}"
+log "role aplikasi: ${APP_ROLE:-(tidak diketahui)}"
+
 # 3. Tata letak schema -> enum -> view -> login -> hak akses. Urutan ini WAJIB.
-for f in schema-layout.sql enum-move.sql rls-views.sql rls-global-views.sql login-functions.sql grants-app-role.sql; do
+for f in schema-layout.sql enum-move.sql rls-views.sql rls-global-views.sql login-functions.sql; do
   if run_sql "$PRISMA_DIR/$f"; then
     log "ok  $f"
   else
@@ -80,6 +93,18 @@ for f in schema-layout.sql enum-move.sql rls-views.sql rls-global-views.sql logi
     exit 1
   fi
 done
+
+# GRANT butuh nama role aplikasi.
+if [ -z "$APP_ROLE" ]; then
+  log "GAGAL: nama role aplikasi tidak terbaca dari DATABASE_URL — set APP_DB_ROLE."
+  exit 1
+fi
+if run_sql "$PRISMA_DIR/grants-app-role.sql" "$APP_ROLE"; then
+  log "ok  grants-app-role.sql (role: $APP_ROLE)"
+else
+  log "GAGAL grants-app-role.sql — start dibatalkan."
+  exit 1
+fi
 
 # 4. Penanda selesai, supaya "bootstrap jalan" bisa dibuktikan, bukan diasumsikan.
 node -e '

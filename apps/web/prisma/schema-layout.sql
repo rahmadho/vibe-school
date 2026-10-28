@@ -101,11 +101,28 @@ BEGIN
   END LOOP;
 END $$;
 
--- 3. Tabel TANPA `schoolId` -> `public` (sekolah, plans, sesi, tabel
---    penghubung). Aplikasi membaca nama tabel tanpa kualifikasi, jadi harus
---    berada di tempat yang terjangkau `search_path` role aplikasi.
+-- 3. Tabel TANPA `schoolId` -> `data`, KECUALI daftar `public` di bawah.
+--
+--    Awalnya aturannya "tanpa schoolId -> public", dan itu SALAH: produksi
+--    menaruh sebagian tabel tanpa schoolId (parents, semesters,
+--    teacher_subjects) di `data`. Mengikuti aturan lama membuat DB baru
+--    berbeda tata letak dari produksi — persis jenis selisih yang baru
+--    ketahuan saat deploy.
+--
+--    Daftar `public` mengikuti produksi apa adanya. Tabel baru tanpa
+--    schoolId otomatis masuk `data`; pindahkan ke daftar ini HANYA bila
+--    memang global lintas-sekolah.
 DO $$
-DECLARE r record;
+DECLARE
+  r record;
+  public_tables text[] := ARRAY[
+    '_prisma_migrations',
+    'announcement_reads',
+    'invoice_items',
+    'plans',
+    'schools',
+    'sessions'
+  ];
 BEGIN
   FOR r IN
     SELECT c.relname
@@ -118,7 +135,11 @@ BEGIN
           AND a.attnum > 0 AND NOT a.attisdropped
       )
   LOOP
-    EXECUTE format('ALTER TABLE app.%I SET SCHEMA public', r.relname);
+    IF r.relname = ANY (public_tables) THEN
+      EXECUTE format('ALTER TABLE app.%I SET SCHEMA public', r.relname);
+    ELSE
+      EXECUTE format('ALTER TABLE app.%I SET SCHEMA data', r.relname);
+    END IF;
   END LOOP;
 END $$;
 
