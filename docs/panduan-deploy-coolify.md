@@ -38,7 +38,7 @@ Coolify: **+ New → Database → PostgreSQL 16**. Catat empat nilai dari tab
 
 Container DB harus berada di jaringan yang sama dengan aplikasi nanti. Cara
 termudah: biarkan Coolify membuat network per project, lalu di resource
-aplikasi nanti pasang `DB_NETWORK` sesuai network itu (langkah 3).
+aplikasi tidak perlu diatur — Compose membuat network sendiri (lihat langkah 3).
 
 ### 1a. Buat peran owner dan peran aplikasi
 
@@ -138,10 +138,22 @@ tidak ikut ter-commit.
 
 | Variabel | Nilai |
 |---|---|
-| `DB_NETWORK` | nama network tempat container DB berada |
-| `APP_NETWORK` | biarkan default, atau samakan dengan network project Coolify |
 | `STORAGE_DRIVER` | `local` |
 | `UPLOAD_DIR` | `/data/uploads` |
+
+> **Tidak ada `DB_NETWORK` / `APP_NETWORK` lagi.** Compose kini memakai satu
+> network internal yang dibuat dan dinamai otomatis oleh Compose
+> (`school-app_app-network`). Deklarasi `external: true` dihapus justru karena
+> itu penyebab deploy Coolify mati: panel membuat network sendiri per
+> project/UUID, jadi network bernama tetap `school-db` tidak pernah ada.
+>
+> Bila PostgreSQL berada di container/resource lain, sambungkan container DB
+> ke network project sekali saja:
+>
+> ```bash
+> docker network ls | grep school-app          # temukan nama nyatanya
+> docker network connect <network-itu> <container-db>
+> ```
 
 > **Tiga kesalahan yang paling sering terjadi di sini:**
 >
@@ -279,7 +291,7 @@ Ubah di panel → **Restart**. Rebuild hanya perlu bila kode berubah.
 | Gejala | Sebab | Perbaikan |
 |---|---|---|
 | `pull access denied` | `image:` ditulis eksplisit di compose | Compose ini sengaja tanpa `image:` — jangan ditambahkan |
-| `network ... not found` | `db-network`/`app-network` `external: true` tapi belum ada | Set `DB_NETWORK`/`APP_NETWORK` sesuai network nyata, atau buat dengan `docker network create` |
+| `network ... not found` / `declared as external, but could not be found` | Compose menyatakan network `external: true` padahal tidak ada | Sudah diperbaiki: deklarasi external dihapus, network dibuat otomatis. Jangan tambahkan `external: true` kembali |
 | `port is already allocated` | Ada `ports:` publish yang ditambahkan | Compose ini hanya memakai `expose:` — jangan tambahkan `ports:` |
 | `.env not found` | `env_file` wajib tapi berkas tidak ada | Sudah diperbaiki: `required: false`. Env diisi dari panel |
 | Aplikasi 200 tapi semua angka 0 | `?schema=public`, atau peran owner, atau skrip langkah 1b belum jalan | Ulangi langkah 3 dan 1b |

@@ -24,7 +24,7 @@ opsional — semuanya karena itu sumber kegagalan deploy yang paling sering.
   └───────┬───────┘
           │
           ▼
-                  db-network (eksternal)
+                  network project (internal)
           ┌───────────────┐
           │ PostgreSQL    │  ← stack lain, atau DB remote
           └───────────────┘
@@ -32,32 +32,29 @@ opsional — semuanya karena itu sumber kegagalan deploy yang paling sering.
 
 Aturan penting:
 
-- Nama nyata jaringan **tidak di-hardcode** di compose. Compose memakai
-  `${DB_NETWORK:-school-db}` dan `${APP_NETWORK:-school-app-network}`, jadi
-  server yang jaringannya sudah bernama lain (mis. `sekolah_default`) cukup
-  mengisi dua env var itu.
-- Di dalam compose, service tetap merujuk alias `db-network` / `app-network`,
-  sehingga isi `docker-compose.yml` tidak berubah saat nama jaringan diganti.
-- Service hanya memakai `expose:`. Tidak ada port yang dipublish ke host;
-  proxy masuk lewat `app-network`.
+- **Satu network internal**, dibuat dan dinamai otomatis oleh Compose
+  (`school-app_app-network`). Kedua service berbagi network itu, jadi `web`
+  bisa menjangkau `wa-gateway` lewat nama service.
+- **Tidak ada `external: true`.** Deklarasi itu sengaja dihapus: di panel
+  seperti Coolify nama network dibuat per project/UUID, bukan nama tetap, dan
+  `external: true` membuat deploy mati dengan
+  `network school-db declared as external, but could not be found`.
+- Service hanya memakai `expose:`. Tidak ada port yang dipublish ke host.
 - Port yang **tidak** dipublish berarti `docker ps` tidak menampilkan
   `0.0.0.0:3000->3000`. Itu normal.
 
-VPS manual, buat jaringan sekali saja:
+VPS manual tidak perlu menyiapkan network apa pun — cukup `docker compose up`.
+
+Bila PostgreSQL berada di container lain di server yang sama, sambungkan
+container DB ke network project **sekali**:
 
 ```bash
-docker network create school-db
-docker network create school-app-network
+docker network ls | grep school-app       # temukan nama network nyatanya
+docker network connect <network-itu> <nama-container-db>
 ```
 
-Bila jaringan DB sudah ada dengan nama lain:
-
-```bash
-docker network ls                       # cari nama jaringan yang benar
-# lalu isi di .env (atau panel):
-#   DB_NETWORK=nama-jaringan-yang-ada
-#   APP_NETWORK=nama-jaringan-proxy
-```
+Bila DB berada di host lain (remote), jaringan Docker tidak relevan sama
+sekali — cukup `DATABASE_URL` menunjuk IP privat/publik DB.
 
 ## 2. Menyiapkan `.env` (VPS manual)
 
@@ -72,7 +69,7 @@ Tabel env lengkap:
 
 | Variabel | Status | Default di compose | Keterangan |
 |---|---|---|---|
-| `DATABASE_URL` | WAJIB | `postgresql://school:school@postgres:5432/schoolapp?schema=public` | Host = nama service/container DB di `db-network` (bukan `localhost`). Default hanya agar `compose config` valid tanpa `.env` — jangan dipakai produksi. |
+| `DATABASE_URL` | WAJIB | `postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require` | **`schema=app`, bukan `public`** — `app` lapisan view penyaring tenant. Peran harus peran aplikasi, bukan owner. Host = host DB (bukan `localhost`). Default hanya agar `compose config` valid tanpa `.env` — jangan dipakai produksi. |
 | `OWNER_URL` | WAJIB sekali | — | Koneksi owner/superuser untuk `grants.sql` + `rls.sql`. Tidak dibaca aplikasi. |
 | `NEXTAUTH_SECRET` | WAJIB | kosong | Min. 32 karakter. `openssl rand -base64 32`. |
 | `NEXTAUTH_URL` | WAJIB | `http://localhost:3000` | URL publik, tanpa trailing slash. |
@@ -85,8 +82,6 @@ Tabel env lengkap:
 | `UPLOAD_DIR` | OPSIONAL | `/data/uploads` | Harus cocok dengan mount volume. |
 | `NODE_ENV` | OPSIONAL | `production` | |
 | `LOG_LEVEL` | OPSIONAL | `info` | wa-gateway saja. |
-| `DB_NETWORK` | WAJIB (VPS manual) | `school-db` | Nama nyata jaringan DB di daemon. |
-| `APP_NETWORK` | WAJIB (VPS manual) | `school-app-network` | Nama nyata jaringan proxy/panel. |
 | `POSTGRES_USER` | OPSIONAL | `school` | Hanya untuk `docker-compose.db.yml` (profil `db`). |
 | `POSTGRES_PASSWORD` | WAJIB bila profil `db` | — (compose menolak start) | Hanya untuk profil `db`. |
 | `POSTGRES_DB` | OPSIONAL | `school` | Hanya untuk profil `db`. |
@@ -147,7 +142,7 @@ Bila `psql` tidak ada di host, jalankan dari container (compose utama tidak
 memuat klien postgres — pakai image sementara di jaringan DB):
 
 ```bash
-docker run --rm -it --network "${DB_NETWORK:-school-db}" \
+docker run --rm -it --network "<network-project>" \
   -v "$PWD/apps/web/prisma:/sql:ro" \
   -e OWNER_URL="$OWNER_URL" postgres:16-alpine \
   sh -c 'psql "$OWNER_URL" -v app_role=school -f /sql/grants.sql && \
@@ -183,15 +178,16 @@ tambahan yang perlu dibuat.
    adalah lapisan view penyaring tenant; dengan `public` angka dan daftar akan
    kosong. Peran DB-nya juga harus peran aplikasi (bukan owner).
 3. **Jaringan**:
-   - Di Coolify, jaringan internal dibuat otomatis per resource. `app-network`
-     cukup dibiarkan default (`school-app-network`) — Coolify akan membuatnya
-     bila belum ada, atau lampirkan container `web` ke jaringan yang diinginkan
-     lewat UI bila Anda ingin memakai jaringan yang sudah ada.
-   - `db-network` HARUS menunjuk jaringan tempat container DB berada. Lihat
-     nama nyatanya di `docker network ls`, lalu set `DB_NETWORK=<nama-itu>`.
-     Bila DB berada di host lain (remote), jaringan Docker tidak relevan —
-     ganti `DATABASE_URL` ke host publik/IP privat DB dan jaringan DB boleh
-     dibiarkan apa adanya.
+   - Tidak ada yang perlu diatur. Compose membuat network internal sendiri dan
+     kedua service berbagi network itu.
+   - Deklarasi `external: true` **sudah dihapus** dari compose. Itu penyebab
+     langsung deploy gagal: Coolify membuat network per project/UUID, bukan
+     nama tetap `school-db`, sehingga muncul
+     `network school-db declared as external, but could not be found`.
+   - Bila DB berada di container lain, sambungkan container itu ke network
+     project sekali: `docker network connect <network-project> <container-db>`.
+     Bila DB di host lain (remote), jaringan Docker tidak relevan sama sekali —
+     cukup `DATABASE_URL` menunjuk host publik/IP privat DB.
 4. **Domain**: set domain aplikasi dan arahkan ke **port 3000** (container
    `web`). Coolify/Traefik yang menjadi reverse proxy; wa-gateway tidak perlu
    domain (tidak ada port yang dipublish).
@@ -294,7 +290,7 @@ Konfigurasi Nginx siap pakai ada di [../deploy/nginx/](../deploy/nginx/).
 
 | Gejala persis | Sebab | Solusi |
 |---|---|---|
-| `network school-db declared as external, but could not be found` / `network school-app-network declared as external, but could not be found` / `failed to create network ...: network with name ... already exists` | Compose merujuk nama jaringan yang tidak ada (atau berbeda dengan yang dibuat panel). | Lihat `docker network ls`. Set `DB_NETWORK=<nama jaringan DB yang ada>` dan `APP_NETWORK=<nama jaringan proxy>` di env panel. Bila belum ada: `docker network create <nama>`. |
+| `network ... declared as external, but could not be found` | Compose menyatakan network `external: true` padahal tidak ada | Sudah diperbaiki: deklarasi external dihapus. Jangan ditambahkan kembali. Bila DB di container lain: `docker network connect <network-project> <container-db>` |
 | `Error response from daemon: Conflict. The container name "/school-web" is already in use by container "..."` | Versi lama compose memakai `container_name: school-web`; nama itu global per daemon sehingga bentrok dengan stack lain. | `docker-compose.yml` sekarang **tidak** memakai `container_name` (nama menjadi `<project>-web-1`). Bila masih muncul, itu container sisa versi lama: `docker rm -f school-web school-wa-gateway`. |
 | `Bind for 127.0.0.1:3000 failed: port is already allocated` / `port is already allocated` | Ada publish `ports:` yang berebut port host dengan stack/proxy lain. | `docker-compose.yml` sekarang hanya `expose:` — hapus blok override yang menambahkan `ports:`, atau matikan stack lain yang memegang 3000 (`docker ps --format '{{.Names}}\t{{.Ports}}'`). |
 | `pull access denied for school-app-web, repository does not exist or may require 'docker login'` | `image:` tag lokal dipakai tanpa registry, Compose mencoba pull. | Sudah dihapus (cukup `build:`). Pastikan build dijalankan dari repo (`docker compose up -d --build`), bukan `docker compose pull`. |

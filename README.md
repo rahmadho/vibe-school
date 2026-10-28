@@ -196,22 +196,30 @@ psql "postgresql://OWNER:PASSWORD@HOST:5432/DBNAME" \
 
 `docker-compose.yml` menjalankan **dua** layanan: `web` (Next.js standalone)
 dan `wa-gateway`. PostgreSQL dan Nginx **tidak** dikelola di sini — keduanya
-dianggap sudah berjalan di stack terpisah pada network eksternal
-`db-network` (DB) dan `app-network` (reverse proxy).
+dianggap sudah berjalan di stack terpisah.
+
+Kedua service berbagi **satu network internal yang dibuat otomatis** oleh
+Compose (`school-app_app-network`). Tidak ada `external: true`, jadi tidak ada
+langkah persiapan network.
 
 ```bash
 # 1. Siapkan .env di root repo
 cp .env.docker.example .env
-#    isi DATABASE_URL (host = nama container DB), NEXTAUTH_SECRET, ROOT_DOMAIN,
-#    WA_GATEWAY_TOKEN, PAYMENT_ENCRYPTION_KEY, dst.
+#    isi DATABASE_URL, NEXTAUTH_SECRET, ROOT_DOMAIN, WA_GATEWAY_TOKEN,
+#    PAYMENT_ENCRYPTION_KEY, dst.
 
-# 2. Pastikan kedua network eksternal sudah ada (dibuat oleh stack DB/Nginx)
-docker network create db-network   # bila belum ada
-docker network create app-network  # bila belum ada
-
-# 3. Build & jalankan
+# 2. Build & jalankan
 docker compose up -d --build
 ```
+
+> Bila PostgreSQL berada di container lain di server yang sama, sambungkan
+> container itu ke network project sekali:
+> `docker network connect school-app_app-network <container-db>`.
+> Bila DB di host lain (remote), jaringan Docker tidak relevan — cukup
+> `DATABASE_URL` menunjuk host DB tersebut.
+>
+> `DATABASE_URL` wajib memakai `?schema=app` (bukan `public`) dan peran
+> aplikasi (bukan owner). Tanpa itu seluruh daftar dan angka kosong.
 
 Panduan lengkap (backup, migrasi, TLS, troubleshooting):
 [docs/panduan-deploy-docker.md](docs/panduan-deploy-docker.md).

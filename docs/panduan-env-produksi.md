@@ -34,7 +34,7 @@ cp apps/wa-gateway/.env.example apps/wa-gateway/.env   # untuk dev lokal — gat
 
 | Variabel | Contoh | Catatan |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require` | Host = **host internal container DB** di `db-network`, bukan `localhost`. **`schema=app`**, bukan `public` — `app` adalah lapisan view penyaring tenant. Peran harus peran aplikasi (bukan owner tabel), kalau tidak RLS mati. |
+| `DATABASE_URL` | `postgresql://vibe:***@HOST_DB:5432/vibe-schools?schema=app&sslmode=require` | Host = host DB yang dapat dijangkau dari container `web`, bukan `localhost`. **`schema=app`**, bukan `public` — `app` adalah lapisan view penyaring tenant. Peran harus peran aplikasi (bukan owner tabel), kalau tidak RLS mati. |
 | `NEXTAUTH_URL` | `https://sekolah.id` | URL publik, tanpa trailing slash. Dipakai untuk URL webhook payment. |
 | `NEXTAUTH_SECRET` | hasil `openssl rand -base64 32` | Minimal 32 karakter. Ganti = semua sesi login hangus. |
 | `ROOT_DOMAIN` | `sekolah.id` | Domain akar subdomain. Di produksi, subdomain satu-satunya jalan masuk web sekolah. |
