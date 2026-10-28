@@ -1,48 +1,71 @@
-# Override OPSIONAL: ikut menjalankan PostgreSQL di compose yang sama.
+# Override: jalankan PostgreSQL DI DALAM stack yang sama.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.db.yml --profile db up -d --build
+# Versi sebelumnya hanya menambah service `postgres` tanpa menyiapkan apa pun
+# yang dibutuhkan aplikasi ini. Itu gagal karena:
+#   * `POSTGRES_USER` di image resmi menjadi SUPERUSER dan PEMILIK tabel.
+#     Aplikasi justru WAJIB konek sebagai role NON-OWNER, kalau tidak RLS
+#     dilewati diam-diam (owner bypass policy).
+#   * Nama databasenya `school`, sedangkan `DATABASE_URL` menunjuk
+#     `vibe-schools`. Container web akan gagal konek di percobaan pertama.
+#   * Schema `app` belum ada, padahal `DATABASE_URL` memakai `?schema=app`.
 #
-# Tanpa flag `--profile db`, service `postgres` diabaikan — jadi pemakaian
-# normal (DB eksternal) tidak berubah sama sekali.
+# Berkas ini sekarang membuat DB dan DUA role sekaligus lewat initdb, sehingga
+# tidak ada langkah SQL manual. Urutannya: buat schema -> buat role aplikasi
+# -> serahkan ke bootstrap.sh (migrasi, tata letak, view, GRANT).
 #
-# TEGAS: untuk produksi sungguhan tetap disarankan DB terkelola/terpisah
-# (RDS, Cloud SQL, atau container Postgres di stack lain) — backup, upgrade,
-# dan skalabilitasnya bukan urusan compose ini. Berkas ini untuk dev dan
-# self-host skala kecil.
+# Pemakaian (lihat docs/panduan-deploy-docker.md):
+#   docker compose up -d --build
 #
-# DATABASE_URL saat mode ini dipakai: host = `postgres` (nama service di bawah),
-# contoh:
-#   postgresql://vibe:***@postgres:5432/vibe-schools?schema=app
-# Tambahkan `?connection_limit=...` / `pool_timeout` bila perlu; jangan pakai
-# `localhost` — dari container web, localhost berarti container web itu sendiri.
-#
-# Port TIDAK dipublish ke host. Buka publish HANYA bila DB ini mau dipakai
-# stack lain di luar compose ini, dan saat itu bind ke IP privat VPS
-# (mis. "10.0.0.5:5432:5432"), JANGAN "5432:5432"/"0.0.0.0" — Postgres tidak
-# punya rate limit login dan akan langsung dipindai bot.
+# Override ini diaktifkan dari `.env` lewat COMPOSE_FILE, bukan flag `-f`,
+# supaya perintah `docker compose up` polos sudah menjalankan stack lengkap.
+
 services:
   postgres:
     image: postgres:16-alpine
-    profiles: ["db"]
     restart: unless-stopped
     environment:
-      # POSTGRES_PASSWORD wajib: tanpa `:?`, compose memakai string kosong dan
-      # Postgres menolak start dengan pesan yang membingungkan.
+      # Role ini SUPERUSER + pemilik tabel. Hanya dipakai bootstrap.
       POSTGRES_USER: "${POSTGRES_USER:-school}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD wajib diisi}"
-      POSTGRES_DB: "${POSTGRES_DB:-school}"
+      POSTGRES_DB: "${POSTGRES_DB:-vibe-schools}"
+      # Role aplikasi (non-owner). Dipakai isi DATABASE_URL.
+      APP_DB_ROLE: "${APP_DB_ROLE:-vibe}"
+      APP_DB_PASSWORD: "${APP_DB_PASSWORD:?APP_DB_PASSWORD wajib diisi}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Skrip initdb: dijalankan Postgres SEKALI, saat volume masih kosong.
+      - ./deploy/postgres-init:/docker-entrypoint-initdb.d:ro
     expose:
       - "5432"
     healthcheck:
-      # `-d` eksplisit: tanpa itu pg_isready memakai nama user sebagai DB,
-      # dan healthcheck tetap gagal walau server sudah siap.
+      # `-d` eksplisit: tanpa itu pg_isready memakai nama user sebagai DB dan
+      # healthcheck gagal walau server sudah siap.
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  web:
+    # Bootstrap baru boleh jalan setelah Postgres benar-benar menerima koneksi.
+    # Tanpa ini web start lebih dulu dan `wait for database` menghabiskan
+    # waktu tunggunya.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Menimpa nilai dari compose utama. Host = nama service `postgres`,
+      # user = role NON-OWNER. `sslmode=disable` benar di sini: trafiknya
+      # tidak pernah keluar dari network internal Docker.
+      DATABASE_URL: "postgresql://${APP_DB_ROLE:-vibe}:${APP_DB_PASSWORD:?APP_DB_PASSWORD wajib diisi}@postgres:5432/${POSTGRES_DB:-vibe-schools}?schema=app&sslmode=disable"
+      APP_DB_ROLE: "${APP_DB_ROLE:-vibe}"
+
+  wa-gateway:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://${APP_DB_ROLE:-vibe}:${APP_DB_PASSWORD:?APP_DB_PASSWORD wajib diisi}@postgres:5432/${POSTGRES_DB:-vibe-schools}?schema=app&sslmode=disable"
 
 volumes:
   postgres_data:
