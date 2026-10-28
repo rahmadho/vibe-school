@@ -1,8 +1,9 @@
 # Nginx — School App (reverse proxy)
 
-Konfigurasi Nginx siap pindah ke container reverse proxy Anda. Nginx berjalan
-di network yang **sama** dengan service `web` (`app-network`), sehingga
-`proxy_pass http://web:3000` mengenali nama service secara otomatis.
+Konfigurasi Nginx siap pindah ke container reverse proxy Anda. Nginx harus
+berada di network yang **sama** dengan service `web` — yaitu network default
+project (`school-app_default`), sehingga `proxy_pass http://web:3000` mengenali
+nama service secara otomatis.
 
 ## Berkas
 
@@ -18,10 +19,11 @@ di network yang **sama** dengan service `web` (`app-network`), sehingga
 2. **Terbitkan sertifikat wildcard** (butuh DNS-01):
    lihat [../../docs/panduan-deploy-subdomain.md](../../docs/panduan-deploy-subdomain.md).
    Hasilnya di `/etc/letsencrypt/live/<domain>/`.
-3. **Pindahkan berkas** ke container Nginx, atau mount:
+3. **Pindahkan berkas** ke container Nginx, atau mount. Nama network default
+   mengikuti nama folder project, jadi cek dulu: `docker network ls | grep school`.
    ```bash
    docker run -d --name nginx \
-     --network app-network \
+     --network school-app_default \
      -p 80:80 -p 443:443 \
      -v "$PWD/deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
      -v "$PWD/deploy/nginx/conf.d:/etc/nginx/conf.d:ro" \
@@ -41,8 +43,9 @@ di network yang **sama** dengan service `web` (`app-network`), sehingga
 - **Wildcard `server_name .sekolah.id`** (titik di depan) menangani domain akar
   **dan** semua subdomain satu tingkat. Subdomain bertingkat (`a.b.sekolah.id`)
   sengaja ditolak aplikasi.
-- Jika container Nginx Anda tidak punya `app-network`, tambahkan:
-  `docker network connect app-network <nama-container-nginx>`.
+- Jika container Nginx Anda belum berada di network project, sambungkan:
+  `docker network connect <network-project> <nama-container-nginx>`
+  (temukan nama nyatanya dengan `docker network ls`).
 - Bila berkas `/etc/letsencrypt/options-ssl-nginx.conf` dan `ssl-dhparams.pem`
   tidak ada (belum dijalankan certbot), komentari tiga baris `include`/`ssl_*`
   terkait di server block HTTPS.

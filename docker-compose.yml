@@ -45,17 +45,21 @@
 #
 # TENTANG NETWORK
 # ---------------
-# Kedua service cukup berbagi SATU network internal milik project ini. Itu
-# sudah cukup untuk: web menjangkau wa-gateway lewat nama service, dan keduanya
-# menjangkau PostgreSQL.
+# Berkas ini TIDAK punya blok `networks:` sama sekali, dan itu disengaja.
+# Compose sudah membuat satu network default per project (`school-app_default`)
+# dan memasukkan SEMUA service ke sana otomatis. Jadi web bisa menjangkau
+# wa-gateway lewat nama service tanpa konfigurasi apa pun.
 #
-# Kalau PostgreSQL ada di stack/container LAIN, cukup sambungkan container itu
-# ke network ini SEKALI di sisi server:
-#     docker network connect school-app_default <nama-container-db>
-# Network-nya TIDAK boleh dideklarasikan `external: true` di sini: di panel
-# seperti Coolify nama network dibuat otomatis (per project/UUID), sehingga
-# `external: true` membuat deploy mati dengan
-# "network school-db declared as external, but could not be found".
+# Mendeklarasikan network sendiri hanya mengganti nama default itu, tanpa
+# menambah kemampuan. Yang benar-benar merusak adalah `external: true` dengan
+# nama tetap: di Coolify network dibuat per project/UUID, sehingga muncul
+# "network school-db declared as external, but could not be found" dan deploy
+# mati sebelum build.
+#
+# Bila PostgreSQL ada di container LAIN, sambungkan container itu ke network
+# project sekali di sisi server:
+#     docker network ls | grep school-app
+#     docker network connect <network-project> <nama-container-db>
 #
 # Nama project Compose dipatok `school-app` agar prefix resource
 # (`school-app_*`) konsisten dan tidak mengikuti nama folder. Override bila
@@ -101,8 +105,6 @@ services:
     expose:
       # Tidak dipublish ke host. Dijangkau reverse proxy / panel di network ini.
       - "3000"
-    networks:
-      - app-network
     healthcheck:
       test:
         [
@@ -142,8 +144,6 @@ services:
     expose:
       # Tidak dipublish. Web memanggilnya lewat nama service di network ini.
       - "3001"
-    networks:
-      - app-network
     healthcheck:
       test:
         [
@@ -156,26 +156,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
-
-networks:
-  # Satu network internal, dibuat & dinamai otomatis oleh Compose
-  # (`school-app_app-network`). Kedua service ada di sini, jadi `web` bisa
-  # menjangkau `wa-gateway` lewat nama service.
-  #
-  # TIDAK memakai `external: true` dengan sengaja:
-  #   * Di manual: network dibuat otomatis, tidak perlu langkah persiapan.
-  #   * Di Coolify: network eksternal bernama tetap TIDAK ADA — panel membuat
-  #     network per project/UUID. `external: true` di sini adalah penyebab
-  #     langsung error "network ... declared as external, but could not be found".
-  #   * Kalau DB berada di container lain, sambungkan container DB ke network
-  #     ini sekali di sisi server (lihat catatan di bagian atas berkas).
-  #
-  # `name:` DIHAPUS dengan sengaja. Menulis `name: ${APP_NETWORK:-...}` tidak
-  # salah secara sintaks, tetapi membuat network tidak lagi ter-scope project:
-  # dua stack di server yang sama akan berebut satu name dan saling menimpa
-  # saat salah satunya di-`down`.
-  app-network:
-    driver: bridge
 
 volumes:
   # Berkas unggahan runtime (logo sekolah, sampul). WAJIB ikut rutin backup —

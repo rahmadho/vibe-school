@@ -36,9 +36,9 @@ Coolify: **+ New → Database → PostgreSQL 16**. Catat empat nilai dari tab
 - Port: `5432`
 - Database, user, password
 
-Container DB harus berada di jaringan yang sama dengan aplikasi nanti. Cara
-termudah: biarkan Coolify membuat network per project, lalu di resource
-aplikasi tidak perlu diatur — Compose membuat network sendiri (lihat langkah 3).
+Container DB harus berada di jaringan yang sama dengan aplikasi. Cara termudah:
+buat DB di **project yang sama** dengan aplikasi, sehingga Coolify menaruh
+keduanya di network project yang sama tanpa pengaturan tambahan.
 
 ### 1a. Buat peran owner dan peran aplikasi
 
@@ -141,11 +141,11 @@ tidak ikut ter-commit.
 | `STORAGE_DRIVER` | `local` |
 | `UPLOAD_DIR` | `/data/uploads` |
 
-> **Tidak ada `DB_NETWORK` / `APP_NETWORK` lagi.** Compose kini memakai satu
-> network internal yang dibuat dan dinamai otomatis oleh Compose
-> (`school-app_app-network`). Deklarasi `external: true` dihapus justru karena
-> itu penyebab deploy Coolify mati: panel membuat network sendiri per
-> project/UUID, jadi network bernama tetap `school-db` tidak pernah ada.
+> **Tidak ada `DB_NETWORK` / `APP_NETWORK`, dan tidak ada blok `networks:`.**
+> Compose otomatis membuat satu network default per project dan memasukkan
+> semua service ke sana — sudah cukup. Deklarasi `external: true` dulu adalah
+> penyebab deploy Coolify mati: panel membuat network per project/UUID, jadi
+> network bernama tetap `school-db` tidak pernah ada.
 >
 > Bila PostgreSQL berada di container/resource lain, sambungkan container DB
 > ke network project sekali saja:

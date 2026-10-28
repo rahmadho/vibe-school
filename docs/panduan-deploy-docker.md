@@ -13,7 +13,7 @@ opsional — semuanya karena itu sumber kegagalan deploy yang paling sering.
 ## 1. Arsitektur jaringan
 
 ```
-                  app-network (eksternal)
+                  network default project
   ┌───────────────┐        │         ┌──────────────┐
   │ Nginx / panel │────────┘         │ wa-gateway   │
   └───────┬───────┘                  │  :3001 (expose)
@@ -32,13 +32,15 @@ opsional — semuanya karena itu sumber kegagalan deploy yang paling sering.
 
 Aturan penting:
 
-- **Satu network internal**, dibuat dan dinamai otomatis oleh Compose
-  (`school-app_app-network`). Kedua service berbagi network itu, jadi `web`
-  bisa menjangkau `wa-gateway` lewat nama service.
-- **Tidak ada `external: true`.** Deklarasi itu sengaja dihapus: di panel
-  seperti Coolify nama network dibuat per project/UUID, bukan nama tetap, dan
-  `external: true` membuat deploy mati dengan
-  `network school-db declared as external, but could not be found`.
+- **Tidak ada blok `networks:` sama sekali**, dan itu disengaja. Compose
+  otomatis membuat satu network default per project (`school-app_default`) dan
+  memasukkan semua service ke sana. Sudah cukup: `web` menjangkau
+  `wa-gateway` lewat nama service, dan keduanya menjangkau DB.
+- Mendeklarasikan network sendiri hanya mengganti nama default, tanpa menambah
+  kemampuan. Yang benar-benar merusak adalah `external: true` dengan nama
+  tetap: di Coolify network dibuat per project/UUID, jadi muncul
+  `network school-db declared as external, but could not be found` dan deploy
+  mati sebelum build.
 - Service hanya memakai `expose:`. Tidak ada port yang dipublish ke host.
 - Port yang **tidak** dipublish berarti `docker ps` tidak menampilkan
   `0.0.0.0:3000->3000`. Itu normal.
@@ -180,10 +182,11 @@ tambahan yang perlu dibuat.
 3. **Jaringan**:
    - Tidak ada yang perlu diatur. Compose membuat network internal sendiri dan
      kedua service berbagi network itu.
-   - Deklarasi `external: true` **sudah dihapus** dari compose. Itu penyebab
-     langsung deploy gagal: Coolify membuat network per project/UUID, bukan
-     nama tetap `school-db`, sehingga muncul
-     `network school-db declared as external, but could not be found`.
+   - Berkas compose **tidak punya blok `networks:`** sama sekali. Compose
+     membuat network default per project dan memasukkan semua service ke sana.
+     Deklarasi `external: true` lama adalah penyebab deploy gagal: Coolify
+     membuat network per project/UUID, bukan nama tetap `school-db`, sehingga
+     muncul `network school-db declared as external, but could not be found`.
    - Bila DB berada di container lain, sambungkan container itu ke network
      project sekali: `docker network connect <network-project> <container-db>`.
      Bila DB di host lain (remote), jaringan Docker tidak relevan sama sekali —
@@ -277,7 +280,7 @@ tidak aman untuk lebih dari satu replika, jadi biarkan satu service `web`.
 Produksi **wajib** memakai subdomain (`sekolah1.sekolah.id`). Pastikan:
 
 - DNS wildcard `*.sekolah.id` → IP VPS.
-- Nginx (milik Anda, di `app-network`) memakai
+- Nginx (milik Anda, di network project yang sama dengan `web`) memakai
   `server_name .sekolah.id;` dan `proxy_set_header Host $host;`.
 - Sertifikat wildcard Let's Encrypt.
 

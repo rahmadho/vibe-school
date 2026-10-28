@@ -198,9 +198,9 @@ psql "postgresql://OWNER:PASSWORD@HOST:5432/DBNAME" \
 dan `wa-gateway`. PostgreSQL dan Nginx **tidak** dikelola di sini — keduanya
 dianggap sudah berjalan di stack terpisah.
 
-Kedua service berbagi **satu network internal yang dibuat otomatis** oleh
-Compose (`school-app_app-network`). Tidak ada `external: true`, jadi tidak ada
-langkah persiapan network.
+Berkas ini **tidak punya blok `networks:`** dan tidak perlu. Compose otomatis
+membuat satu network default per project (`school-app_default`) dan memasukkan
+semua service ke sana — cukup untuk `web` menjangkau `wa-gateway` maupun DB.
 
 ```bash
 # 1. Siapkan .env di root repo
@@ -214,7 +214,7 @@ docker compose up -d --build
 
 > Bila PostgreSQL berada di container lain di server yang sama, sambungkan
 > container itu ke network project sekali:
-> `docker network connect school-app_app-network <container-db>`.
+> `docker network connect school-app_default <container-db>`.
 > Bila DB di host lain (remote), jaringan Docker tidak relevan — cukup
 > `DATABASE_URL` menunjuk host DB tersebut.
 >

@@ -10,8 +10,8 @@
 # dan skalabilitasnya bukan urusan compose ini. Berkas ini untuk dev dan
 # self-host skala kecil.
 #
-# DATABASE_URL saat mode ini dipakai: host = `postgres` (nama service di bawah,
-# yang juga jadi DNS di network project), contoh:
+# DATABASE_URL saat mode ini dipakai: host = `postgres` (nama service di bawah),
+# contoh:
 #   postgresql://vibe:***@postgres:5432/vibe-schools?schema=app
 # Tambahkan `?connection_limit=...` / `pool_timeout` bila perlu; jangan pakai
 # `localhost` — dari container web, localhost berarti container web itu sendiri.
@@ -35,11 +35,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     expose:
       - "5432"
-    networks:
-      # Network yang SAMA dengan web/wa-gateway (dibuat otomatis oleh
-      # docker-compose.yml). Wajib disebut lagi di sini: berkas override
-      # menggantikan daftar network service, bukan menambahkannya.
-      - app-network
     healthcheck:
       # `-d` eksplisit: tanpa itu pg_isready memakai nama user sebagai DB,
       # dan healthcheck tetap gagal walau server sudah siap.
